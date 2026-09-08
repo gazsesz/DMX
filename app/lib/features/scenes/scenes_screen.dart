@@ -100,63 +100,84 @@ class ScenesScreen extends ConsumerWidget {
               itemBuilder: (context, index) {
                 final scene = scenes[index];
                 final color = _swatchFor(scene, ref);
-                return Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.panel,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: AppColors.border, width: 1.5),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(8.5),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Expanded(
-                          child: InkWell(
-                            onTap: () => _preview(ref, scene),
-                            onLongPress: () => _showActions(context, ref, scene),
-                            child: Padding(
-                              padding: const EdgeInsets.all(8),
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Container(
-                                    width: 20,
-                                    height: 20,
-                                    decoration: BoxDecoration(
-                                      color: color,
-                                      borderRadius: BorderRadius.circular(6),
-                                      border: Border.all(color: AppColors.border),
-                                    ),
+                return Stack(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.panel,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border, width: 1.5),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8.5),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Expanded(
+                              child: InkWell(
+                                onTap: () => _preview(ref, scene),
+                                onLongPress: () => _showActions(context, ref, scene),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 20,
+                                        height: 20,
+                                        decoration: BoxDecoration(
+                                          color: color,
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(color: AppColors.border),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 6),
+                                      Text(
+                                        scene.name,
+                                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        '${scene.fixtureValues.length} fx',
+                                        style: const TextStyle(fontSize: 8.5, color: AppColors.textFaint),
+                                      ),
+                                    ],
                                   ),
-                                  const SizedBox(height: 6),
-                                  Text(
-                                    scene.name,
-                                    style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
-                                    textAlign: TextAlign.center,
-                                    maxLines: 2,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                  Text(
-                                    '${scene.fixtureValues.length} fx',
-                                    style: const TextStyle(fontSize: 8.5, color: AppColors.textFaint),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
-                          ),
+                            const Divider(height: 1, thickness: 1, color: AppColors.border),
+                            InkWell(
+                              onTap: () => _openEditor(context, scene: scene),
+                              child: const SizedBox(
+                                width: double.infinity,
+                                height: 36,
+                                child: Icon(Icons.edit_outlined, size: 18, color: AppColors.textDim),
+                              ),
+                            ),
+                          ],
                         ),
-                        const Divider(height: 1, thickness: 1, color: AppColors.border),
-                        InkWell(
-                          onTap: () => _openEditor(context, scene: scene),
-                          child: const Padding(
-                            padding: EdgeInsets.symmetric(vertical: 5),
-                            child: Icon(Icons.edit_outlined, size: 13, color: AppColors.textFaint),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    Positioned(
+                      top: 3,
+                      right: 3,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: () => _showActions(context, ref, scene),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: AppColors.background.withValues(alpha: 0.7),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.more_vert, size: 14, color: AppColors.textDim),
+                        ),
+                      ),
+                    ),
+                  ],
                 );
               },
             ),

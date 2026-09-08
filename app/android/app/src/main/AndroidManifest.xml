@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Required for the Art-Net UDP socket (ArtNetService) to send/receive at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
     <!-- Used for the Beat Sync (microphone) feature on the Dashboard/Chase screens. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <application

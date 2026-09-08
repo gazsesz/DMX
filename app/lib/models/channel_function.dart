@@ -16,6 +16,7 @@ enum ChannelFunction {
   colorWheel,
   zoom,
   focus,
+  autofade,
   generic;
 
   String get label {
@@ -54,6 +55,8 @@ enum ChannelFunction {
         return 'Zoom';
       case ChannelFunction.focus:
         return 'Focus';
+      case ChannelFunction.autofade:
+        return 'Autofade';
       case ChannelFunction.generic:
         return 'Generic';
     }

@@ -90,8 +90,10 @@ class BeatDetectorService {
     _recentDb.add(db);
     if (_recentDb.length > 40) _recentDb.removeAt(0);
     // Higher sensitivity -> a smaller dB rise is enough to count as a beat.
+    // Wide range (2..26dB) so low sensitivity stays quiet even against loud,
+    // steady music instead of triggering on every small fluctuation.
     // Computed even during warm-up so the UI reflects the slider right away.
-    final requiredRise = 10 - sensitivity * 8;
+    final requiredRise = 26 - sensitivity * 24;
 
     if (_recentDb.length < 8) {
       // Rolling average still warming up — show the raw level, no beats yet.

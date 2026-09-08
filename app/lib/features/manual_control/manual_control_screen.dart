@@ -225,14 +225,20 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                 ),
               ),
             if (expanded)
-              for (var i = 0; i < channels.length; i++)
-                if (i != dimmerIdx)
-                  ChannelSliderTile(
-                    label: channels[i].label,
-                    value: values[i],
-                    color: _colorForFunction(channels[i].function),
-                    onChanged: (v) => _setChannel(fixture, i, v),
-                  ),
+              Wrap(
+                spacing: 6,
+                runSpacing: 10,
+                children: [
+                  for (var i = 0; i < channels.length; i++)
+                    if (i != dimmerIdx)
+                      ChannelSliderTile(
+                        label: channels[i].label,
+                        value: values[i],
+                        color: _colorForFunction(channels[i].function),
+                        onChanged: (v) => _setChannel(fixture, i, v),
+                      ),
+                ],
+              ),
           ],
         ),
       ),

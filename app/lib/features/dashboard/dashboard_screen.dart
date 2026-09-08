@@ -16,7 +16,9 @@ import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
+import '../fixtures/fixture_layout_screen.dart';
 import '../manual_control/manual_control_screen.dart';
+import 'live_stage_view.dart';
 
 class _DashboardTrigger {
   final String id;
@@ -33,10 +35,10 @@ enum _TriggerBoxSize { s, m, l, xl }
 
 extension on _TriggerBoxSize {
   double get extent => switch (this) {
-    _TriggerBoxSize.s => 96,
+    _TriggerBoxSize.s => 84,
     _TriggerBoxSize.m => 130,
-    _TriggerBoxSize.l => 168,
-    _TriggerBoxSize.xl => 210,
+    _TriggerBoxSize.l => 190,
+    _TriggerBoxSize.xl => 260,
   };
 
   String get label => switch (this) {
@@ -55,9 +57,9 @@ extension on _TriggerBoxSize {
 
   double get nameFontSize => switch (this) {
     _TriggerBoxSize.s => 11,
-    _TriggerBoxSize.m => 13,
-    _TriggerBoxSize.l => 15,
-    _TriggerBoxSize.xl => 17,
+    _TriggerBoxSize.m => 14,
+    _TriggerBoxSize.l => 18,
+    _TriggerBoxSize.xl => 22,
   };
 
   double get subFontSize => switch (this) {
@@ -685,6 +687,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 22),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'LIVE STAGE',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                      color: AppColors.textFaint,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit stage layout',
+                    icon: const Icon(Icons.open_in_full, size: 16, color: AppColors.textFaint),
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const FixtureLayoutScreen()),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              const SizedBox(height: 220, child: LiveStageView()),
             ],
           ),
           Positioned(

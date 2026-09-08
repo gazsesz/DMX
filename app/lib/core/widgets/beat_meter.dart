@@ -23,7 +23,7 @@ class BeatMeter extends StatefulWidget {
 
 class _BeatMeterState extends State<BeatMeter> {
   static const _lowOffset = -5.0; // dB below ambient shown at the left edge
-  static const _highOffset = 20.0; // dB above ambient shown at the right edge
+  static const _highOffset = 28.0; // dB above ambient shown at the right edge (covers the full sensitivity range)
 
   StreamSubscription<BeatMeterSample>? _sub;
   double _db = -160;

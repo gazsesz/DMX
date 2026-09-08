@@ -1,2 +1,6 @@
 # Claude Code local/session state — not meant for version control
 .claude/
+
+# Downloaded CI build artifacts
+/APK/
+dmx-controller-apk.zip

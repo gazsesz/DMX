@@ -62,14 +62,22 @@ class _AppShellState extends State<AppShell> {
                   ],
                 ),
                 const VerticalDivider(width: 1),
-                Expanded(child: _sections[_index].screen),
+                Expanded(
+                  child: IndexedStack(
+                    index: _index,
+                    children: [for (final section in _sections) section.screen],
+                  ),
+                ),
               ],
             ),
           );
         }
 
         return Scaffold(
-          body: _sections[_index].screen,
+          body: IndexedStack(
+            index: _index,
+            children: [for (final section in _sections) section.screen],
+          ),
           bottomNavigationBar: NavigationBar(
             selectedIndex: _index,
             onDestinationSelected: (value) => setState(() => _index = value),
