@@ -25,6 +25,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
   late final List<MapEntry<String, List<int>>> _palette = colorPresets.entries.toList();
   final Set<int> _selectedColors = {0, 6, 10};
   GeneratorEffect _effect = GeneratorEffect.colorChase;
+  FixturePattern _pattern = FixturePattern.all;
   String _applyTo = 'all';
   String? _destinationBankId;
   int _sceneCount = 6;
@@ -68,6 +69,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
       count: _sceneCount,
       idGenerator: () => _uuid.v4(),
       namePrefix: _effect.label,
+      pattern: _pattern,
     );
     if (scenes.isEmpty) return;
 
@@ -171,6 +173,28 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                   label: Text(effect.label),
                   selected: _effect == effect,
                   onSelected: (_) => setState(() => _effect = effect),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'FIXTURE PATTERN',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          ),
+          const Text(
+            'Which fixtures light up each scene — not always all of them at once',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final pattern in FixturePattern.values)
+                ChoiceChip(
+                  label: Text(pattern.label),
+                  selected: _pattern == pattern,
+                  onSelected: (_) => setState(() => _pattern = pattern),
                 ),
             ],
           ),

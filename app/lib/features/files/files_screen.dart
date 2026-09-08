@@ -6,9 +6,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/storage/project_snapshot.dart';
 import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/save_project_action.dart';
 import '../../models/artnet_settings.dart';
 import '../../models/project_data.dart';
 import '../../state/artnet_providers.dart';
@@ -47,20 +49,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     }
   }
 
-  ProjectData _snapshot() {
-    final library = ref.read(fixtureLibraryProvider);
-    return ProjectData(
-      name: ref.read(currentProjectNameProvider),
-      settings: ref.read(artNetSettingsProvider),
-      universes: ref.read(universesProvider),
-      customFixtureProfiles: library.where((f) => !f.isBuiltIn).toList(),
-      patchedFixtures: ref.read(patchedFixturesProvider),
-      scenes: ref.read(scenesProvider),
-      banks: ref.read(banksProvider),
-      chases: ref.read(chasesProvider),
-      dashboardTriggers: ref.read(dashboardTriggersProvider),
-    );
-  }
+  ProjectData _snapshot() => buildProjectSnapshot(ref);
 
   void _applyProject(ProjectData data) {
     ref.read(currentProjectNameProvider.notifier).state = data.name;
@@ -166,6 +155,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         title: const Text('Files'),
         actions: [
           IconButton(icon: const Icon(Icons.add), tooltip: 'New Project', onPressed: _newProject),
+          const SaveProjectAction(),
         ],
       ),
       body: ListView(

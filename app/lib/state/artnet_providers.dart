@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/artnet/artnet_service.dart';
 import '../models/artnet_settings.dart';
@@ -13,14 +14,38 @@ final artNetServiceProvider = Provider<ArtNetService>((ref) {
 
 final artNetSettingsProvider =
     StateNotifierProvider<ArtNetSettingsNotifier, ArtNetSettings>((ref) {
-      return ArtNetSettingsNotifier();
+      return ArtNetSettingsNotifier(const ArtNetSettings());
     });
 
+const _prefDeviceName = 'artnet.deviceName';
+const _prefHost = 'artnet.host';
+const _prefPort = 'artnet.port';
+const _prefBroadcast = 'artnet.broadcast';
+
+/// Connection settings the user configures once for their venue's node —
+/// unlike scenes/banks/chases (deliberately saved/loaded as named show
+/// files), these persist automatically across app restarts, the same way a
+/// real console remembers its network config without a separate "save".
+///
+/// The *loading* half of that happens in `main()`, before the first frame —
+/// see there for why: every tab (Settings included) is built up front by
+/// AppShell's IndexedStack, so loading asynchronously here would race a
+/// Settings screen that already snapshotted the constructor default into
+/// its text fields on that very first frame.
 class ArtNetSettingsNotifier extends StateNotifier<ArtNetSettings> {
-  ArtNetSettingsNotifier() : super(const ArtNetSettings());
+  ArtNetSettingsNotifier(super.initial);
 
   void update(ArtNetSettings Function(ArtNetSettings current) updater) {
     state = updater(state);
+    _persist(state);
+  }
+
+  Future<void> _persist(ArtNetSettings settings) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefDeviceName, settings.deviceName);
+    await prefs.setString(_prefHost, settings.host);
+    await prefs.setInt(_prefPort, settings.port);
+    await prefs.setBool(_prefBroadcast, settings.broadcast);
   }
 }
 

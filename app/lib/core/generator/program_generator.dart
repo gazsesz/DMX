@@ -5,7 +5,7 @@ import '../../models/chase.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 
-enum GeneratorEffect { staticColors, fadeTransition, colorChase, strobe, rainbow, circle }
+enum GeneratorEffect { staticColors, fadeTransition, colorChase, runningLight, strobe, rainbow, circle }
 
 extension GeneratorEffectLabel on GeneratorEffect {
   String get label {
@@ -16,6 +16,8 @@ extension GeneratorEffectLabel on GeneratorEffect {
         return 'Fade Transition';
       case GeneratorEffect.colorChase:
         return 'Color Chase';
+      case GeneratorEffect.runningLight:
+        return 'Running Light';
       case GeneratorEffect.strobe:
         return 'Strobe / Pulse';
       case GeneratorEffect.rainbow:
@@ -35,12 +37,76 @@ extension GeneratorEffectLabel on GeneratorEffect {
         return (1.0, 1.0);
       case GeneratorEffect.colorChase:
         return (0.3, 0.1);
+      case GeneratorEffect.runningLight:
+        return (0.12, 0.08);
       case GeneratorEffect.strobe:
         return (0.08, 0.0);
       case GeneratorEffect.rainbow:
         return (0.5, 0.5);
       case GeneratorEffect.circle:
         return (0.15, 0.15);
+    }
+  }
+}
+
+/// Which fixtures actually light up in each generated scene — an effect's
+/// color/motion can still apply to just some of them instead of always
+/// every patched fixture at once.
+enum FixturePattern { all, alternating, oneAtATime, randomSubset }
+
+extension FixturePatternLabel on FixturePattern {
+  String get label {
+    switch (this) {
+      case FixturePattern.all:
+        return 'All Together';
+      case FixturePattern.alternating:
+        return 'Alternating';
+      case FixturePattern.oneAtATime:
+        return 'One at a Time';
+      case FixturePattern.randomSubset:
+        return 'Random Subset';
+    }
+  }
+}
+
+List<bool> _activeMaskFor(FixturePattern pattern, int fixtureCount, int sceneIndex, Random random) {
+  switch (pattern) {
+    case FixturePattern.all:
+      return List<bool>.filled(fixtureCount, true);
+    case FixturePattern.alternating:
+      final groupA = sceneIndex.isEven;
+      return [for (var i = 0; i < fixtureCount; i++) i.isEven == groupA];
+    case FixturePattern.oneAtATime:
+      return [for (var i = 0; i < fixtureCount; i++) i == sceneIndex % fixtureCount];
+    case FixturePattern.randomSubset:
+      final mask = [for (var i = 0; i < fixtureCount; i++) random.nextBool()];
+      // Never generate an all-dark scene by accident.
+      if (!mask.contains(true)) mask[random.nextInt(fixtureCount)] = true;
+      return mask;
+  }
+}
+
+/// Zeroes out fixtures the current pattern says shouldn't light up this
+/// scene — via their dimmer channel where they have one, else by zeroing
+/// their color channels directly.
+void _applyPatternMask(
+  Map<String, List<int>> fixtureValues,
+  List<PatchedFixture> fixtures,
+  List<bool> mask,
+) {
+  for (var i = 0; i < fixtures.length; i++) {
+    if (mask[i]) continue;
+    final fixture = fixtures[i];
+    final values = fixtureValues[fixture.id];
+    if (values == null) continue;
+    final channels = fixture.profile.channels;
+    final dimmerIdx = channels.indexWhere((c) => c.function == ChannelFunction.dimmer);
+    if (dimmerIdx != -1) {
+      values[dimmerIdx] = 0;
+    } else {
+      for (var c = 0; c < channels.length; c++) {
+        if (channels[c].function.isColorMix) values[c] = 0;
+      }
     }
   }
 }
@@ -115,8 +181,9 @@ Map<String, List<int>> _colorValuesFor(
 }
 
 /// Builds [count] scenes for [fixtures] according to [effect], cycling
-/// through [colors] where relevant. Pass [idGenerator] to mint each scene's
-/// id (e.g. a uuid generator).
+/// through [colors] where relevant. [pattern] decides which fixtures
+/// actually light up in each scene (default: all of them at once). Pass
+/// [idGenerator] to mint each scene's id (e.g. a uuid generator).
 List<Scene> generateScenes({
   required GeneratorEffect effect,
   required List<List<int>> colors,
@@ -124,25 +191,28 @@ List<Scene> generateScenes({
   required int count,
   required String Function() idGenerator,
   required String namePrefix,
+  FixturePattern pattern = FixturePattern.all,
 }) {
   if (fixtures.isEmpty || count <= 0) return [];
   final palette = colors.isEmpty ? const [
     [255, 255, 255],
   ] : colors;
   final scenes = <Scene>[];
+  final random = Random();
+
+  void addScene(int index, Map<String, List<int>> fixtureValues) {
+    if (pattern != FixturePattern.all) {
+      _applyPatternMask(fixtureValues, fixtures, _activeMaskFor(pattern, fixtures.length, index, random));
+    }
+    scenes.add(Scene(id: idGenerator(), name: '$namePrefix ${index + 1}', fixtureValues: fixtureValues));
+  }
 
   switch (effect) {
     case GeneratorEffect.staticColors:
     case GeneratorEffect.fadeTransition:
       for (var i = 0; i < count; i++) {
         final color = palette[i % palette.length];
-        scenes.add(
-          Scene(
-            id: idGenerator(),
-            name: '$namePrefix ${i + 1}',
-            fixtureValues: _colorValuesFor(fixtures, (_) => color),
-          ),
-        );
+        addScene(i, _colorValuesFor(fixtures, (_) => color));
       }
       break;
 
@@ -150,15 +220,52 @@ List<Scene> generateScenes({
       for (var i = 0; i < count; i++) {
         final activeIndex = i % fixtures.length;
         final color = palette[i % palette.length];
-        scenes.add(
-          Scene(
-            id: idGenerator(),
-            name: '$namePrefix ${i + 1}',
-            fixtureValues: _colorValuesFor(fixtures, (f) {
-              return fixtures.indexOf(f) == activeIndex ? color : const [0, 0, 0];
-            }),
-          ),
+        addScene(
+          i,
+          _colorValuesFor(fixtures, (f) {
+            return fixtures.indexOf(f) == activeIndex ? color : const [0, 0, 0];
+          }),
         );
+      }
+      break;
+
+    case GeneratorEffect.runningLight:
+      // A moving "head" fixture with a fading comet tail behind it, like a
+      // classic marquee/running-light chase — as opposed to Color Chase's
+      // single fixture snapping on and off.
+      final tailLength = max(2, (fixtures.length / 4).round());
+      for (var i = 0; i < count; i++) {
+        final headIndex = i % fixtures.length;
+        final color = palette[i % palette.length];
+        final map = <String, List<int>>{};
+        for (var f = 0; f < fixtures.length; f++) {
+          final fixture = fixtures[f];
+          final distance = (headIndex - f) % fixtures.length;
+          final behind = distance < 0 ? distance + fixtures.length : distance;
+          final brightness = behind >= tailLength ? 0.0 : 1.0 - (behind / tailLength);
+          final channels = fixture.profile.channels;
+          final values = List<int>.filled(channels.length, 0);
+          for (var c = 0; c < channels.length; c++) {
+            switch (channels[c].function) {
+              case ChannelFunction.red:
+                values[c] = (color[0] * brightness).round();
+                break;
+              case ChannelFunction.green:
+                values[c] = (color[1] * brightness).round();
+                break;
+              case ChannelFunction.blue:
+                values[c] = (color[2] * brightness).round();
+                break;
+              case ChannelFunction.dimmer:
+                values[c] = (255 * brightness).round();
+                break;
+              default:
+                break;
+            }
+          }
+          map[fixture.id] = values;
+        }
+        addScene(i, map);
       }
       break;
 
@@ -166,13 +273,7 @@ List<Scene> generateScenes({
       final color = palette.first;
       for (var i = 0; i < count; i++) {
         final on = i.isEven;
-        scenes.add(
-          Scene(
-            id: idGenerator(),
-            name: '$namePrefix ${i + 1}',
-            fixtureValues: _colorValuesFor(fixtures, (_) => on ? color : const [0, 0, 0]),
-          ),
-        );
+        addScene(i, _colorValuesFor(fixtures, (_) => on ? color : const [0, 0, 0]));
       }
       break;
 
@@ -180,13 +281,7 @@ List<Scene> generateScenes({
       for (var i = 0; i < count; i++) {
         final hue = 360 * i / count;
         final rgb = _hsvToRgb(hue, 1, 1);
-        scenes.add(
-          Scene(
-            id: idGenerator(),
-            name: '$namePrefix ${i + 1}',
-            fixtureValues: _colorValuesFor(fixtures, (_) => rgb),
-          ),
-        );
+        addScene(i, _colorValuesFor(fixtures, (_) => rgb));
       }
       break;
 
@@ -216,7 +311,7 @@ List<Scene> generateScenes({
           }
           map[fixture.id] = values;
         }
-        scenes.add(Scene(id: idGenerator(), name: '$namePrefix ${i + 1}', fixtureValues: map));
+        addScene(i, map);
       }
       break;
   }

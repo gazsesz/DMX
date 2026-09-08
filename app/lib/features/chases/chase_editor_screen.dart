@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/audio/beat_detector.dart';
 import '../../core/playback/chase_player.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/beat_meter.dart';
 import '../../models/chase.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 
 class ChaseEditorScreen extends ConsumerStatefulWidget {
@@ -28,23 +31,30 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   double _defaultFadeSeconds = 0.3;
   late bool _beatSync;
   late ChaseDirection _direction;
-  final _player = ChasePlayer();
+  late final ChasePlayer _player;
+  double _sensitivity = 0.6;
+  BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
   int? _playingIndex;
   final Set<int> _expandedBankSteps = {};
 
   @override
   void initState() {
     super.initState();
+    _player = ref.read(playbackControllerProvider);
     _nameController = TextEditingController(text: widget.existing.name);
     _steps = [...widget.existing.steps];
     _stepSeconds = widget.existing.stepSeconds;
     _beatSync = widget.existing.beatSync;
     _direction = widget.existing.direction;
+    _sensitivity = ref.read(beatDetectorProvider).sensitivity;
+    _frequencyBand = ref.read(beatDetectorProvider).frequencyBand;
   }
 
   @override
   void dispose() {
-    _player.dispose();
+    // This editor is a full-screen pushed route, so nothing else could have
+    // started on the shared player while it was open — safe to always stop.
+    _player.stop();
     _nameController.dispose();
     super.dispose();
   }
@@ -369,16 +379,21 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                     style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 8),
-                  const Text('Hold Time', style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
+                  Text(
+                    _beatSync ? 'Hold Time (synced to beat)' : 'Hold Time',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
+                  ),
                   Slider(
                     value: _stepSeconds,
                     min: 0.0,
                     max: 5,
-                    onChanged: (v) => setState(() {
-                      _stepSeconds = v;
-                      _applyHoldToAllSteps();
-                    }),
-                    onChangeEnd: (_) => _restartIfPlaying(),
+                    onChanged: _beatSync
+                        ? null
+                        : (v) => setState(() {
+                            _stepSeconds = v;
+                            _applyHoldToAllSteps();
+                          }),
+                    onChangeEnd: _beatSync ? null : (_) => _restartIfPlaying(),
                   ),
                   Align(
                     alignment: Alignment.centerRight,
@@ -418,6 +433,40 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                       ),
                     ],
                   ),
+                  if (_beatSync) ...[
+                    const SizedBox(height: 10),
+                    BeatMeter(service: ref.read(beatDetectorProvider)),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Sensitivity',
+                      style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                    ),
+                    Slider(
+                      value: _sensitivity,
+                      activeColor: AppColors.accent2,
+                      onChanged: (v) {
+                        setState(() => _sensitivity = v);
+                        ref.read(beatDetectorProvider).sensitivity = v;
+                      },
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'React to',
+                      style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                    ),
+                    const SizedBox(height: 6),
+                    SegmentedButton<BeatFrequencyBand>(
+                      segments: [
+                        for (final band in BeatFrequencyBand.values)
+                          ButtonSegment(value: band, label: Text(band.label)),
+                      ],
+                      selected: {_frequencyBand},
+                      onSelectionChanged: (selection) {
+                        setState(() => _frequencyBand = selection.first);
+                        ref.read(beatDetectorProvider).frequencyBand = selection.first;
+                      },
+                    ),
+                  ],
                   const SizedBox(height: 12),
                   SegmentedButton<ChaseDirection>(
                     segments: const [

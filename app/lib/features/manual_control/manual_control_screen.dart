@@ -190,41 +190,93 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                 color: AppColors.accent,
                 onChanged: (v) => _setChannel(fixture, dimmerIdx, v),
               ),
-            if (hasRgb && !expanded)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    for (final entry in colorPresets.entries)
-                      InkWell(
-                        borderRadius: BorderRadius.circular(6),
-                        onTap: () => _applyColor(fixture, entry.value),
-                        child: Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
-                            borderRadius: BorderRadius.circular(6),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                        ),
+            if (hasRgb || hasPanTilt || hasGobo) ...[
+              const SizedBox(height: 10),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (hasRgb)
+                    SizedBox(
+                      width: 200,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final entry in colorPresets.entries)
+                            InkWell(
+                              borderRadius: BorderRadius.circular(10),
+                              onTap: () => _applyColor(fixture, entry.value),
+                              child: Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.border, width: 1.5),
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
+                    ),
+                  if (hasRgb && (hasPanTilt || hasGobo)) const SizedBox(width: 16),
+                  if (hasPanTilt || hasGobo)
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (hasPanTilt)
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (fixture.profile.channels.any((c) => c.function == ChannelFunction.pan))
+                                  ChannelSliderTile(
+                                    label: 'Pan',
+                                    value: _valueForFunction(fixture, ChannelFunction.pan) ?? 0,
+                                    color: AppColors.accent2,
+                                    onChanged: (v) {
+                                      final idx = channels.indexWhere((c) => c.function == ChannelFunction.pan);
+                                      if (idx != -1) _setChannel(fixture, idx, v);
+                                    },
+                                  ),
+                                if (fixture.profile.channels.any((c) => c.function == ChannelFunction.tilt))
+                                  ChannelSliderTile(
+                                    label: 'Tilt',
+                                    value: _valueForFunction(fixture, ChannelFunction.tilt) ?? 0,
+                                    color: AppColors.accent2,
+                                    onChanged: (v) {
+                                      final idx = channels.indexWhere((c) => c.function == ChannelFunction.tilt);
+                                      if (idx != -1) _setChannel(fixture, idx, v);
+                                    },
+                                  ),
+                              ],
+                            ),
+                          if (hasGobo) ...[
+                            if (hasPanTilt) const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 6,
+                              runSpacing: 6,
+                              children: [
+                                for (var i = 0; i < goboPresets.length; i++)
+                                  ChoiceChip(
+                                    label: Text(goboPresets[i], style: const TextStyle(fontSize: 11)),
+                                    selected: (_valueForFunction(fixture, ChannelFunction.gobo) ?? 0) ~/ 32 == i,
+                                    onSelected: (_) {
+                                      final idx = channels.indexWhere((c) => c.function == ChannelFunction.gobo);
+                                      if (idx != -1) _setChannel(fixture, idx, i * 32);
+                                    },
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                ],
               ),
-            if (hasPanTilt && !expanded)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Pan ${_valueForFunction(fixture, ChannelFunction.pan) ?? 0}'
-                  ' · Tilt ${_valueForFunction(fixture, ChannelFunction.tilt) ?? 0}'
-                  '${hasGobo ? ' · Gobo ${_valueForFunction(fixture, ChannelFunction.gobo) ?? 0}' : ''}',
-                  style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
-                ),
-              ),
-            if (expanded)
+            ],
+            if (expanded) ...[
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 6,
                 runSpacing: 10,
@@ -239,6 +291,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                       ),
                 ],
               ),
+            ],
           ],
         ),
       ),

@@ -71,25 +71,31 @@ class _VerticalFaderState extends State<_VerticalFader> {
   double? _dragStartValue;
   double _dragAccum = 0;
 
-  void _onPanStart(DragStartDetails details) {
+  void _onPointerDown(PointerDownEvent event) {
     _dragStartValue = widget.value.toDouble();
     _dragAccum = 0;
   }
 
-  void _onPanUpdate(DragUpdateDetails details) {
+  void _onPointerMove(PointerMoveEvent event) {
     if (_dragStartValue == null) return;
     // Dragging the full track height covers the full 0-255 range; up = more.
-    _dragAccum -= details.delta.dy * (255 / (widget.height - 24));
+    _dragAccum -= event.delta.dy * (255 / (widget.height - 24));
     final next = (_dragStartValue! + _dragAccum).clamp(0.0, 255.0);
     widget.onChanged(next.round());
   }
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onPanStart: _onPanStart,
-      onPanUpdate: _onPanUpdate,
-      onDoubleTap: () => widget.onChanged(0),
+    // Raw pointer events instead of GestureDetector.onPan*: this widget
+    // lives inside a vertically-scrolling page, and a same-axis drag
+    // recognizer there noticeably fights the ancestor ListView for the
+    // gesture on touch screens (the fader would barely respond). Listener
+    // always receives the full pointer stream regardless of what else is
+    // in the same gesture arena.
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      behavior: HitTestBehavior.opaque,
       child: SizedBox(
         width: widget.width,
         height: widget.height,

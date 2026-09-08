@@ -3,16 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/save_project_action.dart';
 import '../../models/scene.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
 import 'scene_editor_screen.dart';
 
-class ScenesScreen extends ConsumerWidget {
+class ScenesScreen extends ConsumerStatefulWidget {
   const ScenesScreen({super.key});
 
-  Color _swatchFor(Scene scene, WidgetRef ref) {
+  @override
+  ConsumerState<ScenesScreen> createState() => _ScenesScreenState();
+}
+
+class _ScenesScreenState extends ConsumerState<ScenesScreen> {
+  String? _activeSceneId;
+
+  Color _swatchFor(Scene scene) {
     final patched = ref.read(patchedFixturesProvider);
     for (final fixture in patched) {
       final values = scene.fixtureValues[fixture.id];
@@ -39,13 +47,13 @@ class ScenesScreen extends ConsumerWidget {
     return AppColors.panel2;
   }
 
-  Future<void> _openEditor(BuildContext context, {Scene? scene}) async {
+  Future<void> _openEditor({Scene? scene}) async {
     await Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => SceneEditorScreen(existing: scene)),
     );
   }
 
-  void _preview(WidgetRef ref, Scene scene) {
+  void _preview(Scene scene) {
     final service = ref.read(artNetServiceProvider);
     if (!service.isConnected) return;
     outputScene(
@@ -54,9 +62,10 @@ class ScenesScreen extends ConsumerWidget {
       patchedFixtures: ref.read(patchedFixturesProvider),
       universes: ref.read(universesProvider),
     );
+    setState(() => _activeSceneId = scene.id);
   }
 
-  Future<void> _showActions(BuildContext context, WidgetRef ref, Scene scene) async {
+  Future<void> _showActions(Scene scene) async {
     final action = await showDialog<String>(
       context: context,
       builder: (context) => SimpleDialog(
@@ -75,15 +84,18 @@ class ScenesScreen extends ConsumerWidget {
       ),
     );
     if (action == 'duplicate') ref.read(scenesProvider.notifier).duplicate(scene.id);
-    if (action == 'delete') ref.read(scenesProvider.notifier).remove(scene.id);
+    if (action == 'delete') {
+      ref.read(scenesProvider.notifier).remove(scene.id);
+      if (_activeSceneId == scene.id) setState(() => _activeSceneId = null);
+    }
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final scenes = ref.watch(scenesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Scenes')),
+      appBar: AppBar(title: const Text('Scenes'), actions: const [SaveProjectAction()]),
       body: scenes.isEmpty
           ? const Center(
               child: Text('No scenes yet — tap + to create one', style: TextStyle(color: AppColors.textFaint)),
@@ -99,14 +111,19 @@ class ScenesScreen extends ConsumerWidget {
               ),
               itemBuilder: (context, index) {
                 final scene = scenes[index];
-                final color = _swatchFor(scene, ref);
+                final color = _swatchFor(scene);
+                final active = scene.id == _activeSceneId;
                 return Stack(
                   children: [
-                    Container(
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 150),
                       decoration: BoxDecoration(
-                        color: AppColors.panel,
+                        color: active ? AppColors.accent.withValues(alpha: 0.12) : AppColors.panel,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: AppColors.border, width: 1.5),
+                        border: Border.all(color: active ? AppColors.accent : AppColors.border, width: active ? 2 : 1.5),
+                        boxShadow: active
+                            ? [BoxShadow(color: AppColors.accent.withValues(alpha: 0.35), blurRadius: 10)]
+                            : null,
                       ),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8.5),
@@ -115,8 +132,8 @@ class ScenesScreen extends ConsumerWidget {
                           children: [
                             Expanded(
                               child: InkWell(
-                                onTap: () => _preview(ref, scene),
-                                onLongPress: () => _showActions(context, ref, scene),
+                                onTap: () => _preview(scene),
+                                onLongPress: () => _showActions(scene),
                                 child: Padding(
                                   padding: const EdgeInsets.all(8),
                                   child: Column(
@@ -134,14 +151,22 @@ class ScenesScreen extends ConsumerWidget {
                                       const SizedBox(height: 6),
                                       Text(
                                         scene.name,
-                                        style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
+                                        style: TextStyle(
+                                          fontSize: 10.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: active ? AppColors.accent : null,
+                                        ),
                                         textAlign: TextAlign.center,
                                         maxLines: 2,
                                         overflow: TextOverflow.ellipsis,
                                       ),
                                       Text(
-                                        '${scene.fixtureValues.length} fx',
-                                        style: const TextStyle(fontSize: 8.5, color: AppColors.textFaint),
+                                        active ? 'Active' : '${scene.fixtureValues.length} fx',
+                                        style: TextStyle(
+                                          fontSize: 8.5,
+                                          color: active ? AppColors.accent : AppColors.textFaint,
+                                          fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                                        ),
                                       ),
                                     ],
                                   ),
@@ -150,7 +175,7 @@ class ScenesScreen extends ConsumerWidget {
                             ),
                             const Divider(height: 1, thickness: 1, color: AppColors.border),
                             InkWell(
-                              onTap: () => _openEditor(context, scene: scene),
+                              onTap: () => _openEditor(scene: scene),
                               child: const SizedBox(
                                 width: double.infinity,
                                 height: 36,
@@ -166,7 +191,7 @@ class ScenesScreen extends ConsumerWidget {
                       right: 3,
                       child: InkWell(
                         borderRadius: BorderRadius.circular(12),
-                        onTap: () => _showActions(context, ref, scene),
+                        onTap: () => _showActions(scene),
                         child: Container(
                           padding: const EdgeInsets.all(3),
                           decoration: BoxDecoration(
@@ -182,7 +207,7 @@ class ScenesScreen extends ConsumerWidget {
               },
             ),
       floatingActionButton: FloatingActionButton(
-        onPressed: () => _openEditor(context),
+        onPressed: () => _openEditor(),
         tooltip: 'New Scene',
         child: const Icon(Icons.add),
       ),

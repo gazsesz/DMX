@@ -6,15 +6,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/playback/chase_player.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/audio/beat_detector.dart';
 import '../../core/widgets/beat_meter.dart';
+import '../../core/widgets/save_project_action.dart';
 import '../../models/chase.dart';
+import '../../models/dashboard_prefs.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
+import '../../state/dashboard_prefs_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
 import '../manual_control/manual_control_screen.dart';
@@ -27,47 +32,6 @@ class _DashboardTrigger {
   final String sub;
 
   const _DashboardTrigger({required this.id, required this.kind, required this.name, required this.sub});
-}
-
-enum _TriggerLayout { mosaic, list }
-
-enum _TriggerBoxSize { s, m, l, xl }
-
-extension on _TriggerBoxSize {
-  double get extent => switch (this) {
-    _TriggerBoxSize.s => 84,
-    _TriggerBoxSize.m => 130,
-    _TriggerBoxSize.l => 190,
-    _TriggerBoxSize.xl => 260,
-  };
-
-  String get label => switch (this) {
-    _TriggerBoxSize.s => 'S',
-    _TriggerBoxSize.m => 'M',
-    _TriggerBoxSize.l => 'L',
-    _TriggerBoxSize.xl => 'XL',
-  };
-
-  double get kindFontSize => switch (this) {
-    _TriggerBoxSize.s => 8,
-    _TriggerBoxSize.m => 9,
-    _TriggerBoxSize.l => 10,
-    _TriggerBoxSize.xl => 11,
-  };
-
-  double get nameFontSize => switch (this) {
-    _TriggerBoxSize.s => 11,
-    _TriggerBoxSize.m => 14,
-    _TriggerBoxSize.l => 18,
-    _TriggerBoxSize.xl => 22,
-  };
-
-  double get subFontSize => switch (this) {
-    _TriggerBoxSize.s => 8.5,
-    _TriggerBoxSize.m => 9.5,
-    _TriggerBoxSize.l => 10.5,
-    _TriggerBoxSize.xl => 11.5,
-  };
 }
 
 class DashboardScreen extends ConsumerStatefulWidget {
@@ -84,18 +48,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   double _fadeSeconds = 0.3;
   bool _beatSync = false;
   double _sensitivity = 0.6;
+  BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
   StreamSubscription<DateTime>? _beatSub;
-  _TriggerLayout _layout = _TriggerLayout.mosaic;
-  _TriggerBoxSize _boxSize = _TriggerBoxSize.s;
 
-  final _player = ChasePlayer();
+  late final ChasePlayer _player;
   String? _activeTriggerId;
 
   @override
   void initState() {
     super.initState();
+    _player = ref.read(playbackControllerProvider);
     final beatService = ref.read(beatDetectorProvider);
     _sensitivity = beatService.sensitivity;
+    _frequencyBand = beatService.frequencyBand;
     _beatSync = beatService.isListening;
     if (_beatSync) {
       _beatSub = beatService.beatEvents.listen((_) => _onTap());
@@ -105,7 +70,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void dispose() {
     _beatSub?.cancel();
-    _player.dispose();
     super.dispose();
   }
 
@@ -122,6 +86,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         return;
       }
       beatService.sensitivity = _sensitivity;
+      beatService.frequencyBand = _frequencyBand;
       _beatSub = beatService.beatEvents.listen((_) => _onTap());
     } else {
       await beatService.stop();
@@ -129,6 +94,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _beatSub = null;
     }
     if (mounted) setState(() => _beatSync = value);
+    await _restartActiveTriggerIfPlaying();
   }
 
   void _onTap() {
@@ -281,9 +247,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _fireTrigger(_DashboardTrigger trigger) async {
-    if (_activeTriggerId == trigger.id) {
+    if (_player.isPlaying && _activeTriggerId == trigger.id) {
       _player.stop();
       setState(() => _activeTriggerId = null);
+      ref.read(nowPlayingProvider.notifier).state = null;
       return;
     }
     final service = ref.read(artNetServiceProvider);
@@ -306,20 +273,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             fade: Duration(milliseconds: (_fadeSeconds * 1000).round()),
           ),
         ],
+        beatSync: _beatSync,
       );
     } else {
+      // Play the chase with its own configured timing the first time it's
+      // fired — Dashboard's Fade/Hold sliders only take over live if the
+      // user actually touches them while it's running (see
+      // `_restartActiveTriggerIfPlaying`), so a saved chase's own per-step
+      // timing isn't silently clobbered by Dashboard's defaults.
       final matches = ref.read(chasesProvider).where((c) => c.id == trigger.id);
       if (matches.isEmpty) return;
       chase = matches.first;
     }
 
+    await _startChase(chase);
+    setState(() => _activeTriggerId = trigger.id);
+    ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+      name: trigger.name,
+      isBank: trigger.kind == TriggerKind.bank,
+    );
+  }
+
+  Future<void> _startChase(Chase chase) async {
+    final service = ref.read(artNetServiceProvider);
     Stream<DateTime>? beatStream;
     if (chase.beatSync) {
       final beatService = ref.read(beatDetectorProvider);
       final started = await beatService.start();
       if (started) beatStream = beatService.beatEvents;
     }
-
     _player.play(
       chase: chase,
       scenes: ref.read(scenesProvider),
@@ -330,7 +312,42 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       beatStream: beatStream,
       onStep: (_) {},
     );
-    setState(() => _activeTriggerId = trigger.id);
+  }
+
+  /// Called when the user adjusts the Fade/Hold sliders (or beat sync) while
+  /// something is actively playing from the Dashboard — live-applies the new
+  /// timing to whatever's running (bank or chase) instead of only affecting
+  /// the *next* time it's fired.
+  Future<void> _restartActiveTriggerIfPlaying() async {
+    if (!_player.isPlaying || _activeTriggerId == null) return;
+    final id = _activeTriggerId!;
+    final matches = _triggers().where((t) => t.id == id);
+    if (matches.isEmpty) return;
+    final trigger = matches.first;
+
+    final hold = Duration(milliseconds: (_stepSeconds * 1000).round());
+    final fade = Duration(milliseconds: (_fadeSeconds * 1000).round());
+    Chase chase;
+    if (trigger.kind == TriggerKind.bank) {
+      chase = Chase(
+        id: 'dashboard-bank-${trigger.id}',
+        name: trigger.name,
+        steps: [ChaseStep(bankId: trigger.id, hold: hold, fade: fade)],
+        beatSync: _beatSync,
+      );
+    } else {
+      final matches = ref.read(chasesProvider).where((c) => c.id == trigger.id);
+      if (matches.isEmpty) return;
+      final saved = matches.first;
+      chase = saved.copyWith(
+        beatSync: _beatSync,
+        steps: [
+          for (final step in saved.steps)
+            ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: hold, fade: fade),
+        ],
+      );
+    }
+    await _startChase(chase);
   }
 
   Future<void> _blackout() async {
@@ -340,6 +357,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       await service.connect(ref.read(artNetSettingsProvider));
     }
     service.blackoutAll(ref.read(universesProvider));
+    ref.read(nowPlayingProvider.notifier).state = null;
     if (mounted) {
       setState(() => _activeTriggerId = null);
       ScaffoldMessenger.of(
@@ -354,7 +372,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Widget build(BuildContext context) {
     final settings = ref.watch(artNetSettingsProvider);
     final universes = ref.watch(universesProvider);
+    final dashPrefs = ref.watch(dashboardPrefsProvider);
+    final layout = dashPrefs.layout;
+    final boxSize = dashPrefs.boxSize;
+    void setLayout(TriggerLayout value) {
+      ref.read(dashboardPrefsProvider.notifier).update((p) => DashboardPrefsState(layout: value, boxSize: p.boxSize));
+    }
+
+    void setBoxSize(DashboardBoxSize value) {
+      ref.read(dashboardPrefsProvider.notifier).update((p) => DashboardPrefsState(layout: p.layout, boxSize: value));
+    }
+
     final triggers = _triggers();
+    // The shared player may have been stopped or handed to a different
+    // screen (e.g. Banks' Run Bank) since we last set this, so only trust
+    // it while the player confirms something is actually still playing.
+    final activeTriggerId = _player.isPlaying ? _activeTriggerId : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -379,6 +412,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               MaterialPageRoute(builder: (_) => const ManualControlScreen()),
             ),
           ),
+          const SaveProjectAction(),
         ],
       ),
       body: Stack(
@@ -405,14 +439,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textFaint),
                         onPressed: _manageTriggers,
                       ),
-                      if (_layout == _TriggerLayout.mosaic)
-                        PopupMenuButton<_TriggerBoxSize>(
+                      if (layout == TriggerLayout.mosaic)
+                        PopupMenuButton<DashboardBoxSize>(
                           tooltip: 'Box size',
-                          initialValue: _boxSize,
-                          onSelected: (value) => setState(() => _boxSize = value),
+                          initialValue: boxSize,
+                          onSelected: setBoxSize,
                           color: AppColors.panel2,
                           itemBuilder: (context) => [
-                            for (final size in _TriggerBoxSize.values)
+                            for (final size in DashboardBoxSize.values)
                               PopupMenuItem(value: size, child: Text(size.label)),
                           ],
                           child: Padding(
@@ -422,7 +456,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                               children: [
                                 const Icon(Icons.photo_size_select_large_outlined, size: 16, color: AppColors.textFaint),
                                 const SizedBox(width: 3),
-                                Text(_boxSize.label, style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint)),
+                                Text(boxSize.label, style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint)),
                               ],
                             ),
                           ),
@@ -432,18 +466,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         icon: Icon(
                           Icons.grid_view,
                           size: 18,
-                          color: _layout == _TriggerLayout.mosaic ? AppColors.accent : AppColors.textFaint,
+                          color: layout == TriggerLayout.mosaic ? AppColors.accent : AppColors.textFaint,
                         ),
-                        onPressed: () => setState(() => _layout = _TriggerLayout.mosaic),
+                        onPressed: () => setLayout(TriggerLayout.mosaic),
                       ),
                       IconButton(
                         tooltip: 'List view',
                         icon: Icon(
                           Icons.view_list,
                           size: 18,
-                          color: _layout == _TriggerLayout.list ? AppColors.accent : AppColors.textFaint,
+                          color: layout == TriggerLayout.list ? AppColors.accent : AppColors.textFaint,
                         ),
-                        onPressed: () => setState(() => _layout = _TriggerLayout.list),
+                        onPressed: () => setLayout(TriggerLayout.list),
                       ),
                     ],
                   ),
@@ -460,20 +494,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     style: const TextStyle(color: AppColors.textFaint),
                   ),
                 )
-              else if (_layout == _TriggerLayout.mosaic)
+              else if (layout == TriggerLayout.mosaic)
                 GridView.builder(
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: triggers.length,
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: _boxSize.extent,
+                    maxCrossAxisExtent: boxSize.extent,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
                     childAspectRatio: 1.0,
                   ),
                   itemBuilder: (context, index) {
                     final trigger = triggers[index];
-                    final active = _activeTriggerId == trigger.id;
+                    final active = activeTriggerId == trigger.id;
                     final color = _kindColor(trigger.kind);
                     return InkWell(
                       borderRadius: BorderRadius.circular(10),
@@ -498,27 +532,27 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 Text(
                                   trigger.kind == TriggerKind.bank ? 'BANK' : 'CHASE',
                                   style: TextStyle(
-                                    fontSize: _boxSize.kindFontSize,
+                                    fontSize: boxSize.kindFontSize,
                                     fontWeight: FontWeight.w800,
                                     color: color,
                                   ),
                                 ),
                                 if (active) ...[
                                   const SizedBox(width: 4),
-                                  Icon(Icons.play_arrow, size: _boxSize.kindFontSize + 2, color: color),
+                                  Icon(Icons.play_arrow, size: boxSize.kindFontSize + 2, color: color),
                                 ],
                               ],
                             ),
                             const SizedBox(height: 2),
                             Text(
                               trigger.name,
-                              style: TextStyle(fontSize: _boxSize.nameFontSize, fontWeight: FontWeight.w700),
+                              style: TextStyle(fontSize: boxSize.nameFontSize, fontWeight: FontWeight.w700),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                             Text(
                               trigger.sub,
-                              style: TextStyle(fontSize: _boxSize.subFontSize, color: AppColors.textFaint),
+                              style: TextStyle(fontSize: boxSize.subFontSize, color: AppColors.textFaint),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -533,7 +567,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   children: [
                     for (final trigger in triggers)
                       Builder(builder: (context) {
-                        final active = _activeTriggerId == trigger.id;
+                        final active = activeTriggerId == trigger.id;
                         final color = _kindColor(trigger.kind);
                         return Card(
                           margin: const EdgeInsets.only(bottom: 6),
@@ -608,15 +642,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
-                                  'Step Speed (Bank triggers)',
-                                  style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                                Text(
+                                  _beatSync ? 'Step Speed (synced to beat)' : 'Step Speed (Bank triggers)',
+                                  style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                                 ),
                                 Slider(
                                   value: _stepSeconds,
                                   min: 0.0,
                                   max: 5,
-                                  onChanged: (value) => setState(() => _stepSeconds = value),
+                                  onChanged: _beatSync
+                                      ? null
+                                      : (value) => setState(() => _stepSeconds = value),
+                                  onChangeEnd: _beatSync ? null : (_) => _restartActiveTriggerIfPlaying(),
                                 ),
                                 Align(
                                   alignment: Alignment.centerRight,
@@ -632,7 +669,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(height: 4),
                       const Text(
-                        'Fade Time (Bank triggers)',
+                        'Fade Time (Bank/Chase triggers)',
                         style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                       ),
                       Slider(
@@ -641,6 +678,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         max: 5,
                         activeColor: AppColors.accent2,
                         onChanged: (value) => setState(() => _fadeSeconds = value),
+                        onChangeEnd: (_) => _restartActiveTriggerIfPlaying(),
                       ),
                       Align(
                         alignment: Alignment.centerRight,
@@ -680,6 +718,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           onChanged: (value) {
                             setState(() => _sensitivity = value);
                             ref.read(beatDetectorProvider).sensitivity = value;
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'React to',
+                          style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                        ),
+                        const SizedBox(height: 6),
+                        SegmentedButton<BeatFrequencyBand>(
+                          segments: [
+                            for (final band in BeatFrequencyBand.values)
+                              ButtonSegment(value: band, label: Text(band.label)),
+                          ],
+                          selected: {_frequencyBand},
+                          onSelectionChanged: (selection) {
+                            setState(() => _frequencyBand = selection.first);
+                            ref.read(beatDetectorProvider).frequencyBand = selection.first;
                           },
                         ),
                       ],

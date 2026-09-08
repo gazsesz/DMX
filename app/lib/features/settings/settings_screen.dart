@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/save_project_action.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
 
@@ -144,7 +145,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final status = ref.watch(connectionStatusProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: const Text('Settings'), actions: const [SaveProjectAction()]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [

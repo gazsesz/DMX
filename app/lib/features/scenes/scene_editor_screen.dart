@@ -350,89 +350,102 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                   ),
               ],
             ),
-            if (hasColor) ...[
-              const SizedBox(height: 14),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final entry in colorPresets.entries)
-                    InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: () => _applyColorToGroup(group, entry.value),
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppColors.border, width: 1.5),
+            const SizedBox(height: 14),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasColor)
+                  SizedBox(
+                    width: 216,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final entry in colorPresets.entries)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () => _applyColorToGroup(group, entry.value),
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.border, width: 1.5),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                if (hasColor) const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (hasPanTilt)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (functions.contains(ChannelFunction.pan))
+                              ChannelSliderTile(
+                                label: 'Pan',
+                                value: _valueForInGroup(group, ChannelFunction.pan),
+                                color: AppColors.accent2,
+                                onChanged: (v) => _setValueInGroup(group, ChannelFunction.pan, v),
+                              ),
+                            if (functions.contains(ChannelFunction.tilt))
+                              ChannelSliderTile(
+                                label: 'Tilt',
+                                value: _valueForInGroup(group, ChannelFunction.tilt),
+                                color: AppColors.accent2,
+                                onChanged: (v) => _setValueInGroup(group, ChannelFunction.tilt, v),
+                              ),
+                          ],
                         ),
-                      ),
-                    ),
-                ],
-              ),
-            ],
-            if (hasPanTilt) ...[
-              const SizedBox(height: 8),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  if (functions.contains(ChannelFunction.pan))
-                    ChannelSliderTile(
-                      label: 'Pan',
-                      value: _valueForInGroup(group, ChannelFunction.pan),
-                      color: AppColors.accent2,
-                      onChanged: (v) => _setValueInGroup(group, ChannelFunction.pan, v),
-                    ),
-                  if (functions.contains(ChannelFunction.tilt))
-                    ChannelSliderTile(
-                      label: 'Tilt',
-                      value: _valueForInGroup(group, ChannelFunction.tilt),
-                      color: AppColors.accent2,
-                      onChanged: (v) => _setValueInGroup(group, ChannelFunction.tilt, v),
-                    ),
-                ],
-              ),
-            ],
-            if (hasGobo) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  for (var i = 0; i < goboPresets.length; i++)
-                    ChoiceChip(
-                      label: Text(goboPresets[i], style: const TextStyle(fontSize: 11)),
-                      selected: _valueForInGroup(group, ChannelFunction.gobo) ~/ 32 == i,
-                      onSelected: (_) => _setValueInGroup(group, ChannelFunction.gobo, i * 32),
-                    ),
-                ],
-              ),
-              if (functions.contains(ChannelFunction.goboRotation))
-                ChannelSliderTile(
-                  label: 'Rotation',
-                  value: _valueForInGroup(group, ChannelFunction.goboRotation),
-                  color: AppColors.accent2,
-                  onChanged: (v) => _setValueInGroup(group, ChannelFunction.goboRotation, v),
+                      if (hasGobo) ...[
+                        if (hasPanTilt) const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (var i = 0; i < goboPresets.length; i++)
+                              ChoiceChip(
+                                label: Text(goboPresets[i], style: const TextStyle(fontSize: 11)),
+                                selected: _valueForInGroup(group, ChannelFunction.gobo) ~/ 32 == i,
+                                onSelected: (_) => _setValueInGroup(group, ChannelFunction.gobo, i * 32),
+                              ),
+                          ],
+                        ),
+                        if (functions.contains(ChannelFunction.goboRotation))
+                          ChannelSliderTile(
+                            label: 'Rotation',
+                            value: _valueForInGroup(group, ChannelFunction.goboRotation),
+                            color: AppColors.accent2,
+                            onChanged: (v) => _setValueInGroup(group, ChannelFunction.goboRotation, v),
+                          ),
+                      ],
+                      if (functions.isNotEmpty) ...[
+                        if (hasPanTilt || hasGobo) const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 10,
+                          children: [
+                            for (final function in functions)
+                              ChannelSliderTile(
+                                label: function.label,
+                                value: _valueForInGroup(group, function),
+                                color: AppColors.accent,
+                                onChanged: (v) => _setValueInGroup(group, function, v),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
-            ],
-            if (functions.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 6,
-                runSpacing: 10,
-                children: [
-                  for (final function in functions)
-                    ChannelSliderTile(
-                      label: function.label,
-                      value: _valueForInGroup(group, function),
-                      color: AppColors.accent,
-                      onChanged: (v) => _setValueInGroup(group, function, v),
-                    ),
-                ],
-              ),
-            ],
+              ],
+            ),
           ],
         ),
       ),

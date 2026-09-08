@@ -30,6 +30,13 @@ class _FadeTarget {
   });
 }
 
+/// The minimum time a step is ever allowed to hold for, even if the user
+/// dials Hold Time down to 0 — without this floor, a 0s hold with 0s fade
+/// never awaits a real (timer-based) delay, which starves the event loop
+/// solid (freezing the whole app) and floods the node with back-to-back
+/// packets as fast as the CPU can issue them.
+const _minStepDuration = Duration(milliseconds: 15);
+
 /// Drives a [Chase] (or a single [Bank] treated as one) in real time.
 ///
 /// A bank step is expanded into one instant per filled slot — playing a
@@ -38,14 +45,25 @@ class _FadeTarget {
 /// last known channel values over its own `fade` duration, then holds for
 /// `hold` — all channel writes for one tick of one universe go out as a
 /// single Art-Net packet, never one packet per channel.
+///
+/// One instance is meant to be shared app-wide (see `playbackControllerProvider`)
+/// so starting playback from anywhere always cleanly supersedes whatever was
+/// already running, instead of two independent loops racing over the same
+/// universes. Each [play] call gets its own generation token; a loop only
+/// keeps running while its generation is still current, so even if [stop]
+/// and a fresh [play] race each other, a stale loop can never come back to
+/// life and run alongside the new one.
 class ChasePlayer {
   bool _running = false;
+  int _generation = 0;
   int _index = 0;
   bool _forward = true;
   final _random = Random();
 
   bool get isPlaying => _running;
   int get currentStepIndex => _index;
+
+  bool _isCurrent(int generation) => _running && _generation == generation;
 
   List<_Instant> _flatten(Chase chase, List<Scene> scenes, List<Bank> banks) {
     final result = <_Instant>[];
@@ -83,12 +101,13 @@ class ChasePlayer {
     final instants = _flatten(chase, scenes, banks);
     if (instants.isEmpty) return;
 
+    final myGeneration = ++_generation;
     final useBeat = chase.beatSync && beatStream != null;
     _running = true;
     _index = chase.direction == ChaseDirection.random ? _random.nextInt(instants.length) : 0;
     _forward = true;
 
-    while (_running) {
+    while (_isCurrent(myGeneration)) {
       onStep?.call(_index);
       await _crossfadeTo(
         instants[_index].scene,
@@ -96,25 +115,26 @@ class ChasePlayer {
         service: service,
         patchedFixtures: patchedFixtures,
         universes: universes,
+        generation: myGeneration,
       );
-      if (!_running) break;
+      if (!_isCurrent(myGeneration)) break;
       if (useBeat) {
-        await _waitForBeat(beatStream);
+        await _waitForBeat(beatStream, myGeneration);
       } else {
-        await _holdFor(instants[_index].hold);
+        await _holdFor(instants[_index].hold, myGeneration);
       }
-      if (!_running) break;
+      if (!_isCurrent(myGeneration)) break;
       _advance(instants.length, chase.direction);
     }
   }
 
-  Future<void> _waitForBeat(Stream<DateTime> beatStream) async {
+  Future<void> _waitForBeat(Stream<DateTime> beatStream, int generation) async {
     final completer = Completer<void>();
     final subscription = beatStream.listen((_) {
       if (!completer.isCompleted) completer.complete();
     });
     final safetyCheck = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!_running && !completer.isCompleted) completer.complete();
+      if (!_isCurrent(generation) && !completer.isCompleted) completer.complete();
     });
     await completer.future;
     safetyCheck.cancel();
@@ -127,6 +147,7 @@ class ChasePlayer {
     required ArtNetService service,
     required List<PatchedFixture> patchedFixtures,
     required List<UniverseConfig> universes,
+    required int generation,
   }) async {
     final targets = <_FadeTarget>[];
     for (final entry in target.fixtureValues.entries) {
@@ -145,12 +166,14 @@ class ChasePlayer {
 
     if (fade <= Duration.zero) {
       _writeStep(targets, 1.0, service);
+      // Still yield one real event-loop tick — see `_minStepDuration`.
+      await Future<void>.delayed(_minStepDuration);
       return;
     }
 
     const tickMs = 40;
     final tickCount = (fade.inMilliseconds / tickMs).ceil().clamp(1, 2000);
-    for (var tick = 1; tick <= tickCount && _running; tick++) {
+    for (var tick = 1; tick <= tickCount && _isCurrent(generation); tick++) {
       _writeStep(targets, tick / tickCount, service);
       await Future<void>.delayed(const Duration(milliseconds: tickMs));
     }
@@ -170,10 +193,11 @@ class ChasePlayer {
     }
   }
 
-  Future<void> _holdFor(Duration duration) async {
-    final end = DateTime.now().add(duration);
-    while (_running && DateTime.now().isBefore(end)) {
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+  Future<void> _holdFor(Duration duration, int generation) async {
+    final effective = duration < _minStepDuration ? _minStepDuration : duration;
+    final end = DateTime.now().add(effective);
+    while (_isCurrent(generation) && DateTime.now().isBefore(end)) {
+      await Future<void>.delayed(const Duration(milliseconds: 15));
     }
   }
 
@@ -204,8 +228,13 @@ class ChasePlayer {
     }
   }
 
+  /// Stops playback immediately and invalidates any in-flight loop's
+  /// generation, so a stale loop still unwinding (e.g. mid-fade-tick) can
+  /// never mistake a subsequent [play] call's generation for its own and
+  /// keep running alongside it.
   void stop() {
     _running = false;
+    _generation++;
   }
 
   void dispose() => stop();

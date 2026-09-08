@@ -5,6 +5,7 @@ import '../../core/playback/chase_player.dart';
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
@@ -12,11 +13,19 @@ import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 import 'program_generator_screen.dart';
 
 class BanksScreen extends ConsumerStatefulWidget {
-  const BanksScreen({super.key});
+  /// This section's index in AppShell's nav — used to notice when the user
+  /// has switched to a different tab, so a running "Run Bank" preview stops
+  /// instead of lingering forever in the background (AppShell keeps every
+  /// tab mounted for state preservation, so `dispose()` never fires on a
+  /// plain tab switch).
+  final int sectionIndex;
+
+  const BanksScreen({super.key, required this.sectionIndex});
 
   @override
   ConsumerState<BanksScreen> createState() => _BanksScreenState();
@@ -24,15 +33,15 @@ class BanksScreen extends ConsumerStatefulWidget {
 
 class _BanksScreenState extends ConsumerState<BanksScreen> {
   String? _selectedBankId;
-  final _player = ChasePlayer();
+  late final ChasePlayer _player;
   double _runHoldSeconds = 0.8;
   double _runFadeSeconds = 0.3;
   int? _runningSlot;
 
   @override
-  void dispose() {
-    _player.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _player = ref.read(playbackControllerProvider);
   }
 
   void _toggleRun(Bank bank) {
@@ -172,11 +181,17 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen<int>(activeSectionIndexProvider, (previous, next) {
+      if (next != widget.sectionIndex && _player.isPlaying) {
+        _player.stop();
+        setState(() => _runningSlot = null);
+      }
+    });
     final banks = ref.watch(banksProvider);
     final scenes = ref.watch(scenesProvider);
     if (banks.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Banks')),
+        appBar: AppBar(title: const Text('Banks'), actions: const [SaveProjectAction()]),
         body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
       );
     }
@@ -228,6 +243,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
             tooltip: 'Rename bank',
             onPressed: () => _renameBank(selected),
           ),
+          const SaveProjectAction(),
         ],
       ),
       body: Column(
@@ -350,7 +366,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     ? null
                     : scenes.where((s) => s.id == sceneId).firstOrNull;
                 final isRunning = index == highlightIndex;
-                return InkWell(
+                return Stack(
+                  children: [
+                    InkWell(
                   borderRadius: BorderRadius.circular(8),
                   onTap: () => scene == null ? _pickScene(selected, index) : _playSlot(selected, index),
                   onLongPress: () => _pickScene(selected, index),
@@ -387,6 +405,25 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       ],
                     ),
                   ),
+                    ),
+                    if (scene != null)
+                      Positioned(
+                        top: 1,
+                        right: 1,
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(9),
+                          onTap: () => _pickScene(selected, index),
+                          child: Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: BoxDecoration(
+                              color: AppColors.background.withValues(alpha: 0.75),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.edit, size: 10, color: AppColors.textDim),
+                          ),
+                        ),
+                      ),
+                  ],
                 );
               },
               );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/save_project_action.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../state/chase_providers.dart';
@@ -22,7 +23,7 @@ class ChasesScreen extends ConsumerWidget {
     final chases = ref.watch(chasesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chases')),
+      appBar: AppBar(title: const Text('Chases'), actions: const [SaveProjectAction()]),
       body: chases.isEmpty
           ? const Center(
               child: Text('No chases yet — tap + to create one', style: TextStyle(color: AppColors.textFaint)),
