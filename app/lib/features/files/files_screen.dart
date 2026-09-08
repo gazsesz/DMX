@@ -132,7 +132,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       utf8.encode(const JsonEncoder.withIndent('  ').convert(_snapshot().toJson())),
     );
     final name = ref.read(currentProjectNameProvider);
-    await FilePicker.platform.saveFile(
+    await FilePicker.saveFile(
       dialogTitle: 'Export project',
       fileName: '$name.json',
       bytes: bytes,
@@ -142,11 +142,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
   }
 
   Future<void> _importFromFile() async {
-    final result = await FilePicker.platform.pickFiles(
+    final file = await FilePicker.pickFile(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
-    final path = result?.files.single.path;
+    final path = file?.path;
     if (path == null) return;
     final builtIns = ref.read(fixtureLibraryProvider).where((f) => f.isBuiltIn).toList();
     final content = await File(path).readAsString();
