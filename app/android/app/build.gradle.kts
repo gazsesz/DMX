@@ -6,7 +6,9 @@ plugins {
 
 android {
     namespace = "com.energiaborze.dmx_controller"
-    compileSdk = flutter.compileSdkVersion
+    // flutter.compileSdkVersion lagged behind what flutter_plugin_android_lifecycle
+    // requires (36+); pin explicitly instead of relying on the Flutter template default.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
