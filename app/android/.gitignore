@@ -12,3 +12,7 @@ GeneratedPluginRegistrant.java
 key.properties
 **/*.keystore
 **/*.jks
+# Exception: a fixed *debug*-only key (not a release-signing key) so every
+# build — local or CI — signs identically and `adb install` can upgrade an
+# existing install instead of refusing on a signature mismatch.
+!app/debug.keystore
