@@ -1,0 +1,204 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .tablet{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:1024px; height:820px; background:var(--bg); position:relative;
+    display:flex; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .rail{ width:84px; flex:none; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:24px 0; gap:8px; }
+  .rail-item{ width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--text-faint); }
+  .rail-item.active{ background:var(--panel-2); color:var(--accent); }
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .header{ display:flex; align-items:center; gap:14px; padding:22px 28px; border-bottom:1px solid var(--border); }
+  .icon-btn{ width:38px; height:38px; border-radius:10px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex:none; }
+  .icon-btn.save{ background:var(--accent); border-color:var(--accent); color:#20130a; }
+  .name-input{ height:38px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:0 14px; font-weight:800; font-size:16px; width:280px; }
+  .body{ flex:1; display:flex; gap:20px; padding:22px 28px; overflow:hidden; }
+  .col{ display:flex; flex-direction:column; gap:16px; min-width:0; }
+  .section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin:0 0 10px; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .f-list{ background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; flex:1; }
+  .f-row{ display:flex; align-items:center; gap:10px; padding:13px 14px; border-bottom:1px solid var(--border); font-size:13px; font-weight:700; color:var(--text-dim); }
+  .f-row:last-child{ border-bottom:none; }
+  .f-row.active{ color:var(--text); }
+  .f-check{ width:18px; height:18px; border-radius:5px; border:1.5px solid var(--border); background:var(--panel-2); display:flex; align-items:center; justify-content:center; flex:none; }
+  .f-row.active .f-check{ background:var(--accent); border-color:var(--accent); color:#20130a; }
+  .f-summary{ font-size:10.5px; color:var(--text-faint); padding:10px 14px 0; }
+  .knob-row{ display:flex; gap:20px; justify-content:center; }
+  .knob-wrap{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  .knob{ width:52px; height:52px; border-radius:50%; background:var(--panel-2); border:2px solid var(--border); position:relative; }
+  .knob .indicator{ position:absolute; width:3px; height:18px; background:var(--accent); top:5px; left:50%; transform-origin:bottom center; transform:translateX(-50%) rotate(35deg); border-radius:2px; }
+  .knob-label{ font-size:10px; color:var(--text-faint); font-weight:700; }
+  .color-preview-row{ display:flex; align-items:center; gap:12px; }
+  .color-preview{ width:44px; height:44px; border-radius:10px; border:2px solid var(--border); flex:none; background:#f5a623; }
+  .swatch-grid{ display:grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap:7px; flex:1; }
+  .swatch{ aspect-ratio:1; border-radius:7px; border:2px solid transparent; }
+  .swatch.selected{ border-color:#fff; }
+  .gobo-grid{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:8px; }
+  .gobo-swatch{ aspect-ratio:1; border-radius:8px; border:2px solid var(--border); background-color:var(--panel-2); }
+  .gobo-swatch.selected{ border-color:var(--accent-2); }
+  .ch-list{ display:flex; flex-direction:column; gap:12px; }
+  .ch-item{ display:flex; align-items:center; gap:12px; }
+  .ch-label{ width:60px; font-size:12px; font-weight:700; color:var(--text-dim); flex:none; }
+  .slider{ flex:1; height:6px; border-radius:999px; background:var(--panel-2); position:relative; }
+  .slider .fill{ position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:var(--accent); }
+  .slider .thumb{ position:absolute; top:50%; width:15px; height:15px; border-radius:50%; background:var(--accent); border:2.5px solid var(--panel); transform:translate(-50%,-50%); }
+  .val-box{ width:44px; height:28px; border-radius:7px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11.5px; flex:none; }
+  .btn-row{ display:flex; gap:10px; margin-top:auto; }
+  .btn{ flex:1; display:flex; align-items:center; justify-content:center; gap:6px; height:44px; border-radius:9px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); font-family:inherit; font-weight:700; font-size:13px; }
+  .btn-primary{ background:var(--accent); border-color:var(--accent); color:#20130a; }
+</style>
+</helmet>
+
+<div class="tablet">
+  <div class="rail">
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7M18.1 18.1l-1.7-1.7M7.6 7.6 5.9 5.9"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 6-6 3-6-3 3-6z"/><path d="M9 12v6a3 3 0 0 0 6 0v-6"/></svg></div>
+    <div class="rail-item active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14l8-7-8-7z"/><path d="M13 5v14l8-7-8-7z"/></svg></div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+      <input class="name-input" value="Rainbow Sweep" />
+      <div class="icon-btn save" style="margin-left:auto;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-9"/></svg></div>
+    </div>
+
+    <div class="body">
+      <div class="col" style="width:200px; flex:none;">
+        <div class="section-title">Fixtures</div>
+        <div class="f-list">
+          <sc-for list="{{fixtures}}" as="f" hint-placeholder-count="4">
+            <div class="f-row {{f.cls}}">
+              <div class="f-check">
+                <sc-if value="{{f.checked}}" hint-placeholder-val="{{true}}">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-9"/></svg>
+                </sc-if>
+              </div>
+              {{f.name}}
+            </div>
+          </sc-for>
+          <div class="f-summary">2 selected &ndash; edits apply to both</div>
+        </div>
+      </div>
+
+      <div class="col" style="width:280px; flex:none;">
+        <div>
+          <div class="section-title">Pan / Tilt</div>
+          <div class="card">
+            <div class="knob-row">
+              <div class="knob-wrap"><div class="knob"><div class="indicator"></div></div><div class="knob-label mono">PAN 128</div></div>
+              <div class="knob-wrap"><div class="knob"><div class="indicator" style="transform:translateX(-50%) rotate(-20deg);"></div></div><div class="knob-label mono">TILT 64</div></div>
+            </div>
+          </div>
+        </div>
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          <div class="section-title">Gobo</div>
+          <div class="card" style="flex:1;">
+            <div class="gobo-grid">
+              <sc-for list="{{gobos}}" as="g" hint-placeholder-count="8">
+                <div class="gobo-swatch {{g.cls}}" style="background-image: {{g.pattern}};"></div>
+              </sc-for>
+            </div>
+            <div style="margin-top:12px;">
+              <div style="font-size:10.5px; color:var(--text-faint); margin-bottom:6px;">Gobo Rotation</div>
+              <div class="slider"><div class="fill" style="width:30%; background:var(--accent-2);"></div><div class="thumb" style="left:30%; background:var(--accent-2);"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col" style="flex:1;">
+        <div>
+          <div class="section-title">Color</div>
+          <div class="card">
+            <div class="color-preview-row">
+              <div class="color-preview"></div>
+              <div class="swatch-grid">
+                <sc-for list="{{presets}}" as="p" hint-placeholder-count="16">
+                  <div class="swatch" style="background: {{p}};"></div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          <div class="section-title">Channels</div>
+          <div class="card" style="flex:1;">
+            <div class="ch-list">
+              <sc-for list="{{channels}}" as="c" hint-placeholder-count="5">
+                <div class="ch-item">
+                  <div class="ch-label">{{c.name}}</div>
+                  <div class="slider"><div class="fill" style="width: {{c.pct}}%; background: {{c.color}};"></div><div class="thumb" style="left: {{c.pct}}%; background: {{c.color}};"></div></div>
+                  <div class="val-box mono">{{c.val}}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <div class="btn">Assign to Bank</div>
+          <div class="btn btn-primary">Save Scene</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const fixtures = [
+      {name:'PAR 1', cls:'', checked:false},
+      {name:'PAR 2', cls:'', checked:false},
+      {name:'Moving Head 1', cls:'active', checked:true},
+      {name:'Moving Head 2', cls:'active', checked:true},
+    ];
+    const presets = ['#ef4444','#f97316','#f5a623','#facc15','#a3e635','#22c55e','#22d3ee','#0ea5e9','#3b82f6','#6366f1','#a855f7','#d946ef','#ec4899','#ffffff','#f8fafc','#111827'];
+    const goboPatterns = [
+      'none',
+      'radial-gradient(#fff 22%, transparent 23%)',
+      'repeating-conic-gradient(#fff 0 10deg, transparent 10deg 24deg)',
+      'radial-gradient(#fff 12%, transparent 13%), radial-gradient(#fff 12%, transparent 13%)',
+      'repeating-linear-gradient(45deg, #fff 0 3px, transparent 3px 9px)',
+      'conic-gradient(from 0deg, #fff, transparent 65%)',
+      'linear-gradient(135deg, #fff 50%, transparent 50%)',
+      'conic-gradient(#ef4444,#f5a623,#facc15,#22c55e,#22d3ee,#6366f1,#ef4444)',
+    ];
+    const selectedGobo = 5;
+    const gobos = goboPatterns.map((pattern, i) => ({ pattern, cls: i === selectedGobo ? 'selected' : '' }));
+    const channels = [
+      {name:'Dimmer', val:255, pct:100, color:'#f5a623'},
+      {name:'Red', val:255, pct:100, color:'#ef4444'},
+      {name:'Green', val:40, pct:16, color:'#22c55e'},
+      {name:'Blue', val:180, pct:70, color:'#3b82f6'},
+      {name:'Strobe', val:0, pct:0, color:'#9098a8'},
+    ];
+    return { fixtures, presets, gobos, channels };
+  }
+}
+</script>
+</body>
+</html>

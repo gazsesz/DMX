@@ -1,0 +1,115 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .phone{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:390px; height:1180px; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .header{ display:flex; align-items:center; justify-content:space-between; padding:22px 18px 14px; border-bottom:1px solid var(--border); }
+  .header h1{ font-size:21px; font-weight:800; margin:0; }
+  .icon-btn{ width:34px; height:34px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex:none; }
+  .content{ flex:1; padding:16px 16px 20px; display:flex; flex-direction:column; gap:16px; overflow:hidden; }
+  .segmented{ display:flex; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:3px; gap:3px; }
+  .segmented .seg{ flex:1; text-align:center; padding:8px 0; border-radius:7px; font-size:12px; font-weight:700; color:var(--text-dim); }
+  .segmented .seg.active{ background:var(--accent); color:#20130a; }
+  .scene-grid{ display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:12px; }
+  .scene-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .scene-swatch{ height:64px; display:flex; }
+  .scene-swatch div{ flex:1; }
+  .scene-info{ padding:10px 12px 12px; }
+  .scene-name{ font-size:13px; font-weight:700; }
+  .scene-meta{ font-size:10px; color:var(--text-faint); margin-top:2px; }
+  .scene-actions{ display:flex; gap:6px; margin-top:8px; }
+  .s-icon{ width:26px; height:26px; border-radius:7px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-faint); }
+  .fab{ position:absolute; right:16px; bottom:86px; width:58px; height:58px; border-radius:50%; background:var(--accent); display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(245,166,35,.4); border:none; z-index:5; }
+  .nav{ display:flex; border-top:1px solid var(--border); background:var(--panel); }
+  .nav-item{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 2px 12px; color:var(--text-faint); }
+  .nav-item.active{ color:var(--accent); }
+  .nav-item span{ font-size:8.5px; font-weight:700; }
+</style>
+</helmet>
+
+<div class="phone">
+  <div class="header">
+    <h1>Scenes</h1>
+    <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></div>
+  </div>
+
+  <div class="content">
+    <div class="segmented">
+      <div class="seg active">All Scenes (8)</div>
+      <div class="seg">Presets</div>
+    </div>
+
+    <div class="scene-grid">
+      <sc-for list="{{scenes}}" as="s" hint-placeholder-count="8">
+        <div class="scene-card">
+          <div class="scene-swatch">
+            <sc-for list="{{s.swatch}}" as="c" hint-placeholder-count="3">
+              <div style="background: {{c}};"></div>
+            </sc-for>
+          </div>
+          <div class="scene-info">
+            <div class="scene-name">{{s.name}}</div>
+            <div class="scene-meta mono">{{s.fixtures}} fixtures</div>
+            <div class="scene-actions">
+              <div class="s-icon" title="Duplicate"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg></div>
+              <div class="s-icon" title="Rename"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/></svg></div>
+              <div class="s-icon" title="Delete"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div class="fab" title="New Scene">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#20130a" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+  </div>
+
+  <div class="nav">
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg><span>FILES</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>HOME</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7M18.1 18.1l-1.7-1.7M7.6 7.6 5.9 5.9"/></svg><span>SETUP</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 6-6 3-6-3 3-6z"/><path d="M9 12v6a3 3 0 0 0 6 0v-6"/></svg><span>FIXTURE</span></div>
+    <div class="nav-item active"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>SCENE</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg><span>BANK</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14l8-7-8-7z"/><path d="M13 5v14l8-7-8-7z"/></svg><span>CHASE</span></div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const scenes = [
+      {name:'Warm Wash', fixtures:6, swatch:['#f5a623','#ffcf7a','#7a4a10']},
+      {name:'Deep Blue', fixtures:6, swatch:['#1d4ed8','#22d3ee','#0b3a66']},
+      {name:'Full Red Alert', fixtures:8, swatch:['#ef4444','#b91c1c','#7f1d1d']},
+      {name:'Rainbow Sweep', fixtures:8, swatch:['#a855f7','#22d3ee','#f5a623']},
+      {name:'Cold White', fixtures:6, swatch:['#e5e7eb','#cbd5e1','#94a3b8']},
+      {name:'Amber Pulse Preset', fixtures:6, swatch:['#f5a623','#7c4a12','#3a2306']},
+      {name:'Green/Purple Preset', fixtures:8, swatch:['#22c55e','#a855f7','#134e2b']},
+      {name:'Moving Head Circle Preset', fixtures:2, swatch:['#f5a623','#22d3ee','#a855f7']},
+    ];
+    return { scenes };
+  }
+}
+</script>
+</body>
+</html>

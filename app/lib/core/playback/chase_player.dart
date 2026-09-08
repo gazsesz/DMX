@@ -1,0 +1,212 @@
+import 'dart:async';
+import 'dart:math';
+
+import '../../models/bank.dart';
+import '../../models/chase.dart';
+import '../../models/patched_fixture.dart';
+import '../../models/scene.dart';
+import '../../models/universe_config.dart';
+import '../artnet/artnet_service.dart';
+
+class _Instant {
+  final Scene scene;
+  final Duration hold;
+  final Duration fade;
+
+  const _Instant({required this.scene, required this.hold, required this.fade});
+}
+
+class _FadeTarget {
+  final UniverseConfig universe;
+  final int startChannel;
+  final List<int> from;
+  final List<int> to;
+
+  const _FadeTarget({
+    required this.universe,
+    required this.startChannel,
+    required this.from,
+    required this.to,
+  });
+}
+
+/// Drives a [Chase] (or a single [Bank] treated as one) in real time.
+///
+/// A bank step is expanded into one instant per filled slot — playing a
+/// bank steps through its scenes just like a chase, instead of collapsing
+/// them into one merged look. Each instant cross-fades in from the node's
+/// last known channel values over its own `fade` duration, then holds for
+/// `hold` — all channel writes for one tick of one universe go out as a
+/// single Art-Net packet, never one packet per channel.
+class ChasePlayer {
+  bool _running = false;
+  int _index = 0;
+  bool _forward = true;
+  final _random = Random();
+
+  bool get isPlaying => _running;
+  int get currentStepIndex => _index;
+
+  List<_Instant> _flatten(Chase chase, List<Scene> scenes, List<Bank> banks) {
+    final result = <_Instant>[];
+    for (final step in chase.steps) {
+      if (step.sceneId != null) {
+        final matches = scenes.where((s) => s.id == step.sceneId);
+        if (matches.isNotEmpty) {
+          result.add(_Instant(scene: matches.first, hold: step.hold, fade: step.fade));
+        }
+      } else if (step.bankId != null) {
+        final bankMatches = banks.where((b) => b.id == step.bankId);
+        if (bankMatches.isEmpty) continue;
+        for (final slotSceneId in bankMatches.first.sceneSlots) {
+          if (slotSceneId == null) continue;
+          final sceneMatches = scenes.where((s) => s.id == slotSceneId);
+          if (sceneMatches.isEmpty) continue;
+          result.add(_Instant(scene: sceneMatches.first, hold: step.hold, fade: step.fade));
+        }
+      }
+    }
+    return result;
+  }
+
+  Future<void> play({
+    required Chase chase,
+    required List<Scene> scenes,
+    required List<Bank> banks,
+    required List<PatchedFixture> patchedFixtures,
+    required List<UniverseConfig> universes,
+    required ArtNetService service,
+    Stream<DateTime>? beatStream,
+    void Function(int instantIndex)? onStep,
+  }) async {
+    stop();
+    final instants = _flatten(chase, scenes, banks);
+    if (instants.isEmpty) return;
+
+    final useBeat = chase.beatSync && beatStream != null;
+    _running = true;
+    _index = chase.direction == ChaseDirection.random ? _random.nextInt(instants.length) : 0;
+    _forward = true;
+
+    while (_running) {
+      onStep?.call(_index);
+      await _crossfadeTo(
+        instants[_index].scene,
+        fade: instants[_index].fade,
+        service: service,
+        patchedFixtures: patchedFixtures,
+        universes: universes,
+      );
+      if (!_running) break;
+      if (useBeat) {
+        await _waitForBeat(beatStream);
+      } else {
+        await _holdFor(instants[_index].hold);
+      }
+      if (!_running) break;
+      _advance(instants.length, chase.direction);
+    }
+  }
+
+  Future<void> _waitForBeat(Stream<DateTime> beatStream) async {
+    final completer = Completer<void>();
+    final subscription = beatStream.listen((_) {
+      if (!completer.isCompleted) completer.complete();
+    });
+    final safetyCheck = Timer.periodic(const Duration(milliseconds: 100), (_) {
+      if (!_running && !completer.isCompleted) completer.complete();
+    });
+    await completer.future;
+    safetyCheck.cancel();
+    await subscription.cancel();
+  }
+
+  Future<void> _crossfadeTo(
+    Scene target, {
+    required Duration fade,
+    required ArtNetService service,
+    required List<PatchedFixture> patchedFixtures,
+    required List<UniverseConfig> universes,
+  }) async {
+    final targets = <_FadeTarget>[];
+    for (final entry in target.fixtureValues.entries) {
+      final fixtureMatches = patchedFixtures.where((f) => f.id == entry.key);
+      if (fixtureMatches.isEmpty) continue;
+      final fixture = fixtureMatches.first;
+      final universeMatches = universes.where((u) => u.id == fixture.universeId);
+      if (universeMatches.isEmpty) continue;
+      final universe = universeMatches.first;
+      final to = entry.value;
+      final from = [
+        for (var i = 0; i < to.length; i++) service.getChannelValue(universe, fixture.startChannel + i),
+      ];
+      targets.add(_FadeTarget(universe: universe, startChannel: fixture.startChannel, from: from, to: to));
+    }
+
+    if (fade <= Duration.zero) {
+      _writeStep(targets, 1.0, service);
+      return;
+    }
+
+    const tickMs = 40;
+    final tickCount = (fade.inMilliseconds / tickMs).ceil().clamp(1, 2000);
+    for (var tick = 1; tick <= tickCount && _running; tick++) {
+      _writeStep(targets, tick / tickCount, service);
+      await Future<void>.delayed(const Duration(milliseconds: tickMs));
+    }
+  }
+
+  void _writeStep(List<_FadeTarget> targets, double t, ArtNetService service) {
+    final touched = <UniverseConfig>{};
+    for (final target in targets) {
+      for (var i = 0; i < target.to.length; i++) {
+        final value = (target.from[i] + (target.to[i] - target.from[i]) * t).round();
+        service.setChannel(target.universe, target.startChannel + i, value.clamp(0, 255), send: false);
+      }
+      touched.add(target.universe);
+    }
+    for (final universe in touched) {
+      service.flush(universe);
+    }
+  }
+
+  Future<void> _holdFor(Duration duration) async {
+    final end = DateTime.now().add(duration);
+    while (_running && DateTime.now().isBefore(end)) {
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+  }
+
+  void _advance(int total, ChaseDirection direction) {
+    switch (direction) {
+      case ChaseDirection.forward:
+        _index = (_index + 1) % total;
+        break;
+      case ChaseDirection.bounce:
+        if (total == 1) break;
+        if (_forward) {
+          _index++;
+          if (_index >= total - 1) {
+            _index = total - 1;
+            _forward = false;
+          }
+        } else {
+          _index--;
+          if (_index <= 0) {
+            _index = 0;
+            _forward = true;
+          }
+        }
+        break;
+      case ChaseDirection.random:
+        _index = _random.nextInt(total);
+        break;
+    }
+  }
+
+  void stop() {
+    _running = false;
+  }
+
+  void dispose() => stop();
+}

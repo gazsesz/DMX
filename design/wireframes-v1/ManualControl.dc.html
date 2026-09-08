@@ -1,0 +1,168 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .phone{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:390px; height:1180px; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .header{ display:flex; align-items:center; gap:12px; padding:22px 18px 14px; border-bottom:1px solid var(--border); }
+  .header h1{ font-size:18px; font-weight:800; margin:0; }
+  .live-badge{ display:flex; align-items:center; gap:5px; border:1.5px solid var(--danger); color:var(--danger); border-radius:999px; padding:4px 10px 4px 8px; font-size:10px; font-weight:800; letter-spacing:.04em; }
+  .live-dot{ width:6px; height:6px; border-radius:50%; background:var(--danger); }
+  .icon-btn{ width:34px; height:34px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex:none; margin-left:auto; }
+  .content{ flex:1; padding:16px 16px 20px; display:flex; flex-direction:column; gap:14px; overflow:hidden; }
+  .u-tabs{ display:flex; gap:8px; }
+  .u-chip{ padding:7px 13px; border-radius:999px; background:var(--panel-2); border:1px solid var(--border); font-size:11.5px; font-weight:700; color:var(--text-dim); }
+  .u-chip.active{ background:var(--accent-2); border-color:var(--accent-2); color:#06222a; }
+  .fx-card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:13px; display:flex; flex-direction:column; gap:11px; }
+  .fx-head{ display:flex; align-items:center; gap:10px; }
+  .fx-name{ font-size:13.5px; font-weight:700; flex:1; }
+  .fx-addr{ font-size:9.5px; color:var(--text-faint); margin-top:1px; }
+  .toggle{ width:36px; height:20px; border-radius:999px; background:var(--panel-2); border:1px solid var(--border); position:relative; flex:none; }
+  .toggle.on{ background:var(--success); border-color:var(--success); }
+  .toggle .knob{ position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%; background:#0b0d10; }
+  .toggle.on .knob{ left:18px; background:#062b17; }
+  .chev{ width:26px; height:26px; border-radius:7px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-faint); flex:none; }
+  .fader-row{ display:flex; align-items:center; gap:10px; }
+  .fader-label{ width:52px; font-size:10.5px; font-weight:800; letter-spacing:.03em; color:var(--text-faint); flex:none; }
+  .slider{ flex:1; height:6px; border-radius:999px; background:var(--panel-2); position:relative; }
+  .slider .fill{ position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:var(--accent); }
+  .slider .thumb{ position:absolute; top:50%; width:15px; height:15px; border-radius:50%; background:var(--accent); border:2.5px solid var(--panel); transform:translate(-50%,-50%); }
+  .val-box{ width:40px; height:26px; border-radius:6px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-size:11px; flex:none; }
+  .quick-colors{ display:flex; gap:7px; }
+  .qc{ width:24px; height:24px; border-radius:6px; border:1.5px solid var(--border); flex:none; }
+  .gobo-chip{ display:flex; align-items:center; gap:6px; padding:5px 10px; border-radius:7px; background:var(--panel-2); border:1px solid var(--border); font-size:10.5px; font-weight:700; color:var(--text-dim); width:fit-content; }
+  .gobo-chip .g-icon{ width:14px; height:14px; border-radius:4px; background-color:var(--panel); }
+  .fab{ position:absolute; right:16px; bottom:24px; width:58px; height:58px; border-radius:50%; background:var(--danger); display:flex; align-items:center; justify-content:center; box-shadow:0 10px 24px rgba(239,68,68,.4); border:none; z-index:5; }
+</style>
+</helmet>
+
+<div class="phone">
+  <div class="header">
+    <div class="icon-btn" style="margin-left:0;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+    <h1>Manual Control</h1>
+    <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+  </div>
+
+  <div class="content">
+    <div class="u-tabs">
+      <div class="u-chip active">All Universes</div>
+      <div class="u-chip">U1</div>
+      <div class="u-chip">U2</div>
+      <div class="u-chip">U3</div>
+    </div>
+
+    <sc-for list="{{fixtures}}" as="fx" hint-placeholder-count="4">
+      <div class="fx-card">
+        <div class="fx-head">
+          <div style="flex:1;">
+            <div class="fx-name">{{fx.name}}</div>
+            <div class="fx-addr mono">{{fx.addr}}</div>
+          </div>
+          <div class="toggle on"><div class="knob"></div></div>
+          <div class="chev">
+            <sc-if value="{{fx.expanded}}" hint-placeholder-val="{{true}}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+            </sc-if>
+            <sc-if value="{{fx.collapsed}}" hint-placeholder-val="{{false}}">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </sc-if>
+          </div>
+        </div>
+
+        <div class="fader-row">
+          <div class="fader-label">DIMMER</div>
+          <div class="slider"><div class="fill" style="width: {{fx.dimmerPct}}%;"></div><div class="thumb" style="left: {{fx.dimmerPct}}%;"></div></div>
+          <div class="val-box mono">{{fx.dimmerVal}}</div>
+        </div>
+
+        <sc-if value="{{fx.isRgb}}" hint-placeholder-val="{{true}}">
+          <div class="quick-colors">
+            <sc-for list="{{fx.colors}}" as="c" hint-placeholder-count="6">
+              <div class="qc" style="background: {{c}};"></div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{fx.isMovingExpanded}}" hint-placeholder-val="{{false}}">
+          <div class="fader-row">
+            <div class="fader-label">PAN</div>
+            <div class="slider"><div class="fill" style="width: {{fx.panPct}}%; background:var(--accent-2);"></div><div class="thumb" style="left: {{fx.panPct}}%; background:var(--accent-2);"></div></div>
+            <div class="val-box mono">{{fx.panVal}}</div>
+          </div>
+          <div class="fader-row">
+            <div class="fader-label">TILT</div>
+            <div class="slider"><div class="fill" style="width: {{fx.tiltPct}}%; background:var(--accent-2);"></div><div class="thumb" style="left: {{fx.tiltPct}}%; background:var(--accent-2);"></div></div>
+            <div class="val-box mono">{{fx.tiltVal}}</div>
+          </div>
+          <div class="gobo-chip"><div class="g-icon"></div>Gobo: {{fx.gobo}}</div>
+        </sc-if>
+
+        <sc-if value="{{fx.isMovingCollapsed}}" hint-placeholder-val="{{false}}">
+          <div class="fx-addr mono" style="font-size:10.5px;">Pan {{fx.panVal}} &middot; Tilt {{fx.tiltVal}} &middot; Gobo: {{fx.gobo}}</div>
+        </sc-if>
+      </div>
+    </sc-for>
+  </div>
+
+  <div class="fab" title="Blackout">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      {
+        name:'PAR 1', addr:'U1 / Ch 1-5', isRgb:true, isMoving:false,
+        expanded:false, collapsed:true,
+        dimmerVal:255, dimmerPct:100,
+        colors:['#ef4444','#f5a623','#22c55e','#22d3ee','#6366f1','#ffffff'],
+      },
+      {
+        name:'PAR 2', addr:'U1 / Ch 6-10', isRgb:true, isMoving:false,
+        expanded:false, collapsed:true,
+        dimmerVal:180, dimmerPct:70,
+        colors:['#ef4444','#f5a623','#22c55e','#22d3ee','#6366f1','#ffffff'],
+      },
+      {
+        name:'Moving Head 1', addr:'U2 / Ch 1-10', isRgb:false, isMoving:true,
+        expanded:true, collapsed:false,
+        dimmerVal:255, dimmerPct:100,
+        panVal:128, panPct:50, tiltVal:64, tiltPct:25, gobo:'Breakup',
+      },
+      {
+        name:'Moving Head 2', addr:'U2 / Ch 11-20', isRgb:false, isMoving:true,
+        expanded:false, collapsed:true,
+        dimmerVal:0, dimmerPct:0,
+        panVal:128, panPct:50, tiltVal:128, tiltPct:50, gobo:'Open',
+      },
+    ];
+    const fixtures = raw.map(fx => ({
+      ...fx,
+      isMovingExpanded: fx.isMoving && fx.expanded,
+      isMovingCollapsed: fx.isMoving && fx.collapsed,
+    }));
+    return { fixtures };
+  }
+}
+</script>
+</body>
+</html>

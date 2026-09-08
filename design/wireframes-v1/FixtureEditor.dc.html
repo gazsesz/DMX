@@ -1,0 +1,124 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .phone{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:390px; height:1220px; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .header{ display:flex; align-items:center; gap:12px; padding:22px 18px 14px; border-bottom:1px solid var(--border); }
+  .header h1{ font-size:18px; font-weight:800; margin:0; flex:1; }
+  .icon-btn{ width:34px; height:34px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex:none; }
+  .icon-btn.save{ background:var(--accent); border-color:var(--accent); color:#20130a; }
+  .content{ flex:1; padding:16px 16px 20px; display:flex; flex-direction:column; gap:18px; overflow:hidden; }
+  .field label{ display:block; font-size:11px; color:var(--text-faint); margin-bottom:6px; }
+  .input{ width:100%; height:42px; border-radius:8px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:0 12px; font-family:'IBM Plex Mono',monospace; font-size:13px; }
+  .type-row{ display:flex; gap:10px; }
+  .type-opt{ flex:1; display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 6px; border-radius:10px; border:1.5px solid var(--border); background:var(--panel); }
+  .type-opt.selected{ border-color:var(--accent); background:var(--panel-2); }
+  .type-opt span{ font-size:10px; font-weight:700; color:var(--text-dim); }
+  .stepper{ display:flex; align-items:center; gap:12px; }
+  .round-btn{ width:36px; height:36px; border-radius:50%; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; flex:none; }
+  .stepper .val{ flex:1; text-align:center; font-size:20px; font-weight:800; }
+  .section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin:0 0 10px; }
+  .table{ background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .th{ display:flex; padding:9px 12px; background:var(--panel-2); font-size:10px; font-weight:800; letter-spacing:.05em; color:var(--text-faint); text-transform:uppercase; }
+  .ch-row{ display:flex; align-items:center; gap:8px; padding:9px 12px; border-top:1px solid var(--border); }
+  .ch-num{ width:26px; height:26px; border-radius:6px; background:var(--panel-2); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:var(--accent-2); flex:none; }
+  .ch-func{ flex:1; height:32px; border-radius:6px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; padding:0 10px; font-size:12px; }
+  .ch-func svg{ margin-left:auto; }
+  .fine-tag{ font-size:8.5px; font-weight:800; color:var(--text-faint); border:1px solid var(--border); border-radius:4px; padding:2px 5px; flex:none; }
+  .add-ch{ display:flex; align-items:center; justify-content:center; gap:6px; padding:11px; border-top:1px solid var(--border); font-size:12.5px; font-weight:700; color:var(--accent); }
+  .btn{ display:flex; align-items:center; justify-content:center; gap:6px; height:48px; border-radius:9px; border:1px solid var(--accent); background:var(--accent); color:#20130a; font-family:inherit; font-weight:800; font-size:14px; }
+</style>
+</helmet>
+
+<div class="phone">
+  <div class="header">
+    <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+    <h1>New Fixture</h1>
+    <div class="icon-btn save"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-9"/></svg></div>
+  </div>
+
+  <div class="content">
+    <div class="field">
+      <label>Fixture Name</label>
+      <input class="input" value="Moving Head Spot 10ch" style="font-family:'Manrope',sans-serif; font-weight:700;" />
+    </div>
+
+    <div class="field">
+      <label>Fixture Type (icon)</label>
+      <div class="type-row">
+        <div class="type-opt selected"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 6-6 3-6-3 3-6z"/><path d="M9 12v6a3 3 0 0 0 6 0v-6"/></svg><span>Moving Head</span></div>
+        <div class="type-opt"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="15" rx="3"/><path d="M9 21h6"/></svg><span>RGB / Par</span></div>
+        <div class="type-opt"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/></svg><span>Generic</span></div>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Channel Count</label>
+      <div class="stepper">
+        <div class="round-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></div>
+        <div class="val mono">10</div>
+        <div class="round-btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Channel Map</div>
+      <div class="table">
+        <div class="th"><div style="width:34px;">#</div><div style="flex:1;">Function</div><div style="width:34px; text-align:right;">16b</div></div>
+        <sc-for list="{{channels}}" as="c" hint-placeholder-count="10">
+          <div class="ch-row">
+            <div class="ch-num mono">{{c.num}}</div>
+            <div class="ch-func">{{c.func}}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-faint)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></div>
+            <div class="fine-tag">{{c.fine}}</div>
+          </div>
+        </sc-for>
+        <div class="add-ch">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+          Add Channel
+        </div>
+      </div>
+    </div>
+
+    <div class="btn">Save Fixture</div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const channels = [
+      {num:1, func:'Pan', fine:'16b'},
+      {num:2, func:'Tilt', fine:'16b'},
+      {num:3, func:'Dimmer', fine:'8b'},
+      {num:4, func:'Strobe', fine:'8b'},
+      {num:5, func:'Red', fine:'8b'},
+      {num:6, func:'Green', fine:'8b'},
+      {num:7, func:'Blue', fine:'8b'},
+      {num:8, func:'White', fine:'8b'},
+      {num:9, func:'Gobo Wheel', fine:'8b'},
+      {num:10, func:'Gobo Rotation', fine:'8b'},
+    ];
+    return { channels };
+  }
+}
+</script>
+</body>
+</html>

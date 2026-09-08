@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .phone{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:390px; height:1220px; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .header{ display:flex; align-items:center; justify-content:space-between; padding:22px 18px 14px; border-bottom:1px solid var(--border); }
+  .header h1{ font-size:21px; font-weight:800; margin:0; }
+  .icon-btn{ width:34px; height:34px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex:none; }
+  .content{ flex:1; padding:16px 16px 20px; display:flex; flex-direction:column; gap:18px; overflow:hidden; }
+  .name-row{ display:flex; align-items:center; gap:10px; }
+  .name-input{ flex:1; height:42px; border-radius:8px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:0 12px; font-weight:700; font-size:14px; }
+  .section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; }
+  .segmented{ display:flex; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:3px; gap:3px; }
+  .segmented .seg{ flex:1; text-align:center; padding:7px 0; border-radius:7px; font-size:11.5px; font-weight:700; color:var(--text-dim); }
+  .segmented .seg.active{ background:var(--accent); color:#20130a; }
+  .step-list{ background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; }
+  .step-row{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-top:1px solid var(--border); }
+  .step-row:first-child{ border-top:none; }
+  .drag{ color:var(--text-faint); flex:none; }
+  .step-num{ width:24px; height:24px; border-radius:6px; background:var(--panel-2); color:var(--accent-2); font-size:11px; font-weight:800; display:flex; align-items:center; justify-content:center; flex:none; }
+  .step-name{ font-size:12.5px; font-weight:700; flex:1; }
+  .step-time{ font-size:10.5px; color:var(--text-faint); }
+  .step-time b{ color:var(--text-dim); }
+  .trash{ color:var(--text-faint); flex:none; }
+  .add-row{ display:flex; align-items:center; justify-content:center; gap:6px; padding:12px; border-top:1px solid var(--border); font-size:12.5px; font-weight:700; color:var(--accent); }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; display:flex; flex-direction:column; gap:16px; }
+  .row{ display:flex; align-items:center; gap:12px; }
+  .round-btn{ width:32px; height:32px; border-radius:50%; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; flex:none; }
+  .slider{ flex:1; height:6px; border-radius:999px; background:var(--panel-2); position:relative; }
+  .slider .fill{ position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:var(--accent); }
+  .slider .thumb{ position:absolute; top:50%; width:16px; height:16px; border-radius:50%; background:var(--accent); border:2.5px solid var(--panel); transform:translate(-50%,-50%); }
+  .toggle{ width:40px; height:22px; border-radius:999px; background:var(--panel-2); border:1px solid var(--border); position:relative; flex:none; }
+  .toggle.on{ background:var(--accent); border-color:var(--accent); }
+  .toggle .knob{ position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#0b0d10; }
+  .toggle.on .knob{ left:20px; background:#20130a; }
+  .btn-row{ display:flex; gap:10px; }
+  .btn{ flex:1; display:flex; align-items:center; justify-content:center; gap:6px; height:48px; border-radius:9px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); font-family:inherit; font-weight:800; font-size:13.5px; }
+  .btn-primary{ background:var(--accent); border-color:var(--accent); color:#20130a; }
+  .nav{ display:flex; border-top:1px solid var(--border); background:var(--panel); }
+  .nav-item{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 2px 12px; color:var(--text-faint); }
+  .nav-item.active{ color:var(--accent); }
+  .nav-item span{ font-size:8.5px; font-weight:700; }
+</style>
+</helmet>
+
+<div class="phone">
+  <div class="header">
+    <h1>Chase Editor</h1>
+    <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-9"/></svg></div>
+  </div>
+
+  <div class="content">
+    <div class="name-row">
+      <input class="name-input" value="Rainbow Color Wave" />
+    </div>
+
+    <div>
+      <div class="section-title">
+        Steps
+        <div class="segmented" style="width:150px;"><div class="seg active">+ Scene</div><div class="seg">+ Bank</div></div>
+      </div>
+      <div class="step-list">
+        <sc-for list="{{steps}}" as="s" hint-placeholder-count="5">
+          <div class="step-row">
+            <svg class="drag" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>
+            <div class="step-num mono">{{s.num}}</div>
+            <div class="step-name">{{s.name}}</div>
+            <div class="step-time mono">Hold <b>{{s.hold}}</b> / Fade <b>{{s.fade}}</b></div>
+            <svg class="trash" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16"/><path d="M6 7l1 13a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-13"/></svg>
+          </div>
+        </sc-for>
+        <div class="add-row"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg> Add Step</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Speed &amp; Sync</div>
+      <div class="card">
+        <div>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:6px;">Chase Speed</div>
+          <div class="row">
+            <div class="round-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></div>
+            <div class="slider"><div class="fill" style="width:45%;"></div><div class="thumb" style="left:45%;"></div></div>
+            <div class="round-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+          </div>
+          <div class="mono" style="font-size:11px; color:var(--text-dim); text-align:right; margin-top:6px;">0.90s / step</div>
+        </div>
+        <div class="row" style="justify-content:space-between;">
+          <span style="font-size:13px; font-weight:600;">Sync to Beat (Mic)</span>
+          <div class="toggle"><div class="knob"></div></div>
+        </div>
+        <div>
+          <div style="font-size:11px; color:var(--text-faint); margin-bottom:8px;">Direction</div>
+          <div class="segmented"><div class="seg active">Forward</div><div class="seg">Bounce</div><div class="seg">Random</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <div class="btn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4l13 8-13 8V4z"/></svg>&nbsp; Preview</div>
+      <div class="btn btn-primary">Save Chase</div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg><span>FILES</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>HOME</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7M18.1 18.1l-1.7-1.7M7.6 7.6 5.9 5.9"/></svg><span>SETUP</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 6-6 3-6-3 3-6z"/><path d="M9 12v6a3 3 0 0 0 6 0v-6"/></svg><span>FIXTURE</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>SCENE</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg><span>BANK</span></div>
+    <div class="nav-item active"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14l8-7-8-7z"/><path d="M13 5v14l8-7-8-7z"/></svg><span>CHASE</span></div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const steps = [
+      {num:1, name:'Scene: Warm Wash', hold:'0.8s', fade:'0.3s'},
+      {num:2, name:'Scene: Deep Blue', hold:'0.8s', fade:'0.3s'},
+      {num:3, name:'Bank 2 (16 scenes)', hold:'0.5s', fade:'0.2s'},
+      {num:4, name:'Scene: Full Red Alert', hold:'0.8s', fade:'0.3s'},
+      {num:5, name:'Scene: Cold White', hold:'0.8s', fade:'0.3s'},
+    ];
+    return { steps };
+  }
+}
+</script>
+</body>
+</html>

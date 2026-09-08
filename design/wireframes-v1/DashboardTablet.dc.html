@@ -1,0 +1,162 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .tablet{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:1024px; height:820px; background:var(--bg); position:relative;
+    display:flex; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .rail{ width:84px; flex:none; background:var(--panel); border-right:1px solid var(--border); display:flex; flex-direction:column; align-items:center; padding:24px 0; gap:8px; }
+  .rail-item{ width:52px; height:52px; border-radius:12px; display:flex; align-items:center; justify-content:center; color:var(--text-faint); }
+  .rail-item.active{ background:var(--panel-2); color:var(--accent); }
+  .main{ flex:1; display:flex; flex-direction:column; min-width:0; }
+  .header{ display:flex; align-items:center; justify-content:space-between; padding:24px 28px 18px; border-bottom:1px solid var(--border); }
+  .header h1{ font-size:24px; font-weight:800; margin:0; }
+  .status-chip{ display:flex; align-items:center; gap:6px; background:var(--panel-2); border:1px solid var(--border); border-radius:999px; padding:7px 12px; font-size:11.5px; color:var(--text-dim); }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--success); }
+  .body{ flex:1; display:flex; gap:24px; padding:24px 28px; overflow:hidden; }
+  .triggers-col{ flex:1; min-width:0; }
+  .section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin:0 0 12px; }
+  .trigger-grid{ display:grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap:12px; }
+  .trigger{ background:var(--panel); border:1.5px solid var(--border); border-radius:10px; padding:14px 10px; display:flex; flex-direction:column; gap:6px; min-height:88px; justify-content:center; }
+  .trigger .kind{ font-size:9px; font-weight:800; letter-spacing:.06em; }
+  .trigger .label{ font-size:13.5px; font-weight:700; }
+  .trigger .sub{ font-size:10.5px; color:var(--text-faint); }
+  .side-col{ width:300px; flex:none; display:flex; flex-direction:column; gap:16px; }
+  .blackout-card{ background:var(--danger); border-radius:14px; padding:18px; display:flex; align-items:center; gap:12px; }
+  .blackout-card .label{ font-size:15px; font-weight:800; color:#fff; }
+  .blackout-card .sub{ font-size:11px; color:rgba(255,255,255,.75); }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px; display:flex; flex-direction:column; gap:16px; }
+  .tap-btn{ width:60px; height:60px; border-radius:12px; background:var(--panel-2); border:1.5px solid var(--accent); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; flex:none; }
+  .tap-btn span{ font-size:9px; font-weight:800; color:var(--accent); letter-spacing:.06em; }
+  .row{ display:flex; align-items:center; gap:12px; }
+  .round-btn{ width:32px; height:32px; border-radius:50%; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; flex:none; color:var(--text); }
+  .slider{ flex:1; height:6px; border-radius:999px; background:var(--panel-2); position:relative; }
+  .slider .fill{ position:absolute; left:0; top:0; bottom:0; border-radius:999px; background:var(--accent); }
+  .slider .thumb{ position:absolute; top:50%; width:16px; height:16px; border-radius:50%; background:var(--accent); border:2.5px solid var(--panel); transform:translate(-50%,-50%); }
+  .toggle{ width:40px; height:22px; border-radius:999px; background:var(--panel-2); border:1px solid var(--border); position:relative; flex:none; }
+  .toggle.on{ background:var(--accent); border-color:var(--accent); }
+  .toggle .knob{ position:absolute; top:2px; left:2px; width:16px; height:16px; border-radius:50%; background:#0b0d10; }
+  .toggle.on .knob{ left:20px; background:#20130a; }
+</style>
+</helmet>
+
+<div class="tablet">
+  <div class="rail">
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg></div>
+    <div class="rail-item active"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7M18.1 18.1l-1.7-1.7M7.6 7.6 5.9 5.9"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 6-6 3-6-3 3-6z"/><path d="M9 12v6a3 3 0 0 0 6 0v-6"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="M3 13l9 5 9-5"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg></div>
+    <div class="rail-item"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14l8-7-8-7z"/><path d="M13 5v14l8-7-8-7z"/></svg></div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <h1>Dashboard</h1>
+      <div class="status-chip"><span class="dot"></span>EasyNode Blue &middot; 3 Universes &middot; 42ms</div>
+    </div>
+
+    <div class="body">
+      <div class="triggers-col">
+        <div class="section-title">Quick Triggers</div>
+        <div class="trigger-grid">
+          <sc-for list="{{triggers}}" as="item" hint-placeholder-count="15">
+            <div class="trigger" style="border-color: {{item.borderColor}}; box-shadow: {{item.glow}};">
+              <div class="kind" style="color: {{item.color}};">{{item.kind}}</div>
+              <div class="label">{{item.label}}</div>
+              <div class="sub">{{item.sub}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div class="side-col">
+        <div class="blackout-card">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v9"/><path d="M6.3 6.3a8 8 0 1 0 11.4 0"/></svg>
+          <div>
+            <div class="label">BLACKOUT</div>
+            <div class="sub">Tap to kill all output</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="row">
+            <div class="tap-btn"><span>TAP</span><div class="mono" style="font-size:13px; font-weight:700;">128</div></div>
+            <div style="flex:1;">
+              <div style="font-size:11px; color:var(--text-faint); margin-bottom:6px;">Step Speed</div>
+              <div class="row">
+                <div class="round-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></div>
+                <div class="slider"><div class="fill" style="width:38%;"></div><div class="thumb" style="left:38%;"></div></div>
+                <div class="round-btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+              </div>
+              <div class="mono" style="font-size:10.5px; color:var(--text-dim); margin-top:5px; text-align:right;">1.20s / step</div>
+            </div>
+          </div>
+          <div style="border-top:1px solid var(--border);"></div>
+          <div>
+            <div class="row" style="justify-content:space-between;">
+              <div class="row" style="gap:8px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-dim)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/><path d="M9 21h6"/></svg>
+                <span style="font-size:13px; font-weight:600;">Beat Sync</span>
+              </div>
+              <div class="toggle on"><div class="knob"></div></div>
+            </div>
+            <div style="margin-top:12px;">
+              <div style="font-size:11px; color:var(--text-faint); margin-bottom:6px;">Sensitivity</div>
+              <div class="slider"><div class="fill" style="width:62%; background:var(--accent-2);"></div><div class="thumb" style="left:62%; background:var(--accent-2);"></div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const raw = [
+      {label:'Bank 1', sub:'Scene 3', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'Bank 2', sub:'Scene 1', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'Sweep', sub:'Chase', kind:'CHASE', color:'#f5a623', active:true},
+      {label:'Bank 3', sub:'Scene 5', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'Rainbow', sub:'Chase', kind:'CHASE', color:'#f5a623', active:false},
+      {label:'Bank 4', sub:'Scene 2', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'Strobe FX', sub:'Chase', kind:'CHASE', color:'#f5a623', active:false},
+      {label:'Bank 5', sub:'Scene 4', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'Slow Fade', sub:'Chase', kind:'CHASE', color:'#f5a623', active:false},
+      {label:'Bank 6', sub:'Scene 1', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'Color Wave', sub:'Chase', kind:'CHASE', color:'#f5a623', active:false},
+      {label:'Bank 7', sub:'Scene 6', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'Circle FX', sub:'Chase', kind:'CHASE', color:'#f5a623', active:false},
+      {label:'Bank 8', sub:'Scene 2', kind:'BANK', color:'#22d3ee', active:false},
+      {label:'+ Add', sub:'Custom', kind:'', color:'#5b6270', active:false},
+    ];
+    const triggers = raw.map(t => ({
+      ...t,
+      borderColor: t.active ? '#f5a623' : '#262b33',
+      glow: t.active ? '0 0 0 1px #f5a623, 0 0 16px rgba(245,166,35,.35)' : 'none',
+    }));
+    return { triggers };
+  }
+}
+</script>
+</body>
+</html>

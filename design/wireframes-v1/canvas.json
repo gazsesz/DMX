@@ -1,0 +1,23 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 390, "h": 1010 },
+    { "file": "Files.dc.html", "x": 490, "y": 0, "w": 390, "h": 1020 },
+    { "file": "Settings.dc.html", "x": 980, "y": 0, "w": 390, "h": 1520 },
+    { "file": "Fixtures.dc.html", "x": 1470, "y": 0, "w": 390, "h": 1150 },
+    { "file": "FixtureEditor.dc.html", "x": 1960, "y": 0, "w": 390, "h": 1220 },
+    { "file": "Scenes.dc.html", "x": 0, "y": 1670, "w": 390, "h": 1180 },
+    { "file": "SceneEditor.dc.html", "x": 490, "y": 1670, "w": 390, "h": 1520 },
+    { "file": "Bank.dc.html", "x": 980, "y": 1670, "w": 390, "h": 1220 },
+    { "file": "Chase.dc.html", "x": 1470, "y": 1670, "w": 390, "h": 1220 },
+    { "file": "BankGenerator.dc.html", "x": 0, "y": 3340, "w": 390, "h": 1220 },
+    { "file": "ManualControl.dc.html", "x": 490, "y": 3340, "w": 390, "h": 1180 },
+    { "file": "DashboardTablet.dc.html", "x": 980, "y": 3340, "w": 1024, "h": 820 },
+    { "file": "SceneEditorTablet.dc.html", "x": 2104, "y": 3340, "w": 1024, "h": 820 }
+  ],
+  "annotations": [
+    { "id": "row1-note", "x": 0, "y": -90, "w": 460, "text": "Top-level nav screens: Dashboard, Files, Settings, Fixture (library + import), Fixture (create custom, with gobo channels)" },
+    { "id": "row2-note", "x": 0, "y": 1580, "w": 460, "text": "Scene (list + editor with multi-fixture select & gobo picker), Bank, Chase" },
+    { "id": "row3-note", "x": 0, "y": 3250, "w": 1100, "text": "New: Quick Program Generator, Manual Control (live desk view), and tablet-optimized layouts (side nav rail, multi-column). Duplicate actions added to Fixtures/Scenes/Bank." }
+  ],
+  "launch": { "view": "canvas" }
+}

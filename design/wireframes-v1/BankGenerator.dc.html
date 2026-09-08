@@ -1,0 +1,149 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .phone{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:390px; height:1220px; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .header{ display:flex; align-items:center; gap:12px; padding:22px 18px 14px; border-bottom:1px solid var(--border); }
+  .header h1{ font-size:18px; font-weight:800; margin:0; flex:1; }
+  .icon-btn{ width:34px; height:34px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex:none; }
+  .content{ flex:1; padding:16px 16px 20px; display:flex; flex-direction:column; gap:20px; overflow:hidden; }
+  .section-title{ font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin:0 0 10px; display:flex; align-items:center; justify-content:space-between; }
+  .section-title .hint{ text-transform:none; font-weight:600; color:var(--text-faint); letter-spacing:0; }
+  .card{ background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px; }
+  .swatch-grid{ display:grid; grid-template-columns: repeat(8, minmax(0,1fr)); gap:8px; }
+  .swatch{ aspect-ratio:1; border-radius:8px; border:2px solid transparent; position:relative; display:flex; align-items:center; justify-content:center; }
+  .swatch.selected{ border-color:#fff; }
+  .swatch.selected::after{ content:''; width:7px; height:7px; border-radius:50%; background:#fff; box-shadow:0 0 0 2px rgba(0,0,0,.35); }
+  .effect-grid{ display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap:10px; }
+  .effect-card{ background:var(--panel); border:1.5px solid var(--border); border-radius:10px; padding:12px 6px; display:flex; flex-direction:column; align-items:center; gap:7px; }
+  .effect-card.selected{ border-color:var(--accent); background:var(--panel-2); }
+  .effect-card span{ font-size:10px; font-weight:700; color:var(--text-dim); text-align:center; line-height:1.2; }
+  .segmented{ display:flex; background:var(--panel-2); border:1px solid var(--border); border-radius:9px; padding:3px; gap:3px; }
+  .segmented .seg{ flex:1; text-align:center; padding:8px 4px; border-radius:7px; font-size:11.5px; font-weight:700; color:var(--text-dim); }
+  .segmented .seg.active{ background:var(--accent); color:#20130a; }
+  .out-row{ display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--border); }
+  .out-row:last-child{ border-bottom:none; }
+  .out-label{ font-size:13px; font-weight:600; }
+  .out-value{ display:flex; align-items:center; gap:6px; font-size:12.5px; font-weight:700; color:var(--accent-2); }
+  .stepper-mini{ display:flex; align-items:center; gap:10px; }
+  .round-btn{ width:28px; height:28px; border-radius:50%; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; flex:none; }
+  .btn{ display:flex; align-items:center; justify-content:center; gap:8px; height:50px; border-radius:10px; border:1px solid var(--accent); background:var(--accent); color:#20130a; font-family:inherit; font-weight:800; font-size:14.5px; }
+</style>
+</helmet>
+
+<div class="phone">
+  <div class="header">
+    <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></div>
+    <h1>Generate Program</h1>
+  </div>
+
+  <div class="content">
+    <div>
+      <div class="section-title">Base Colors <span class="hint">pick up to 4</span></div>
+      <div class="card">
+        <div class="swatch-grid">
+          <sc-for list="{{colors}}" as="c" hint-placeholder-count="16">
+            <div class="swatch {{c.cls}}" style="background: {{c.hex}};"></div>
+          </sc-for>
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Effect Style</div>
+      <div class="effect-grid">
+        <sc-for list="{{effects}}" as="e" hint-placeholder-count="6">
+          <div class="effect-card {{e.cls}}">
+            <div style="width:20px; height:20px; display:flex; align-items:center; justify-content:center; color: {{e.iconColor}};" class="mono">{{e.glyph}}</div>
+            <span>{{e.name}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Apply To</div>
+      <div class="segmented">
+        <div class="seg active">All Fixtures</div>
+        <div class="seg">RGB Only</div>
+        <div class="seg">Moving Heads</div>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Output</div>
+      <div class="card" style="padding:4px 14px;">
+        <div class="out-row">
+          <div class="out-label">Destination Bank</div>
+          <div class="out-value">Bank 4 (empty)<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></div>
+        </div>
+        <div class="out-row">
+          <div class="out-label">Number of Scenes</div>
+          <div class="stepper-mini">
+            <div class="round-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14"/></svg></div>
+            <div class="mono" style="font-weight:800; width:18px; text-align:center;">6</div>
+            <div class="round-btn"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+          </div>
+        </div>
+        <div class="out-row">
+          <div class="out-label">Also Create Chase</div>
+          <div class="out-value" style="color:var(--success);">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-9"/></svg>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="btn">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.5 15.5l2.9 2.9M18.4 5.6l-2.8 2.8M8.4 15.5l-2.9 2.9"/></svg>
+      Generate 6 Scenes
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const palette = ['#ef4444','#f97316','#f5a623','#facc15','#a3e635','#22c55e','#22d3ee','#0ea5e9','#3b82f6','#6366f1','#a855f7','#d946ef','#ec4899','#ffffff','#f8fafc','#111827'];
+    const chosen = [0, 6, 10, 13];
+    const colors = palette.map((hex, i) => ({ hex, cls: chosen.includes(i) ? 'selected' : '' }));
+
+    const effectDefs = [
+      { name: 'Static Colors', glyph: '■' },
+      { name: 'Fade Transition', glyph: '△' },
+      { name: 'Color Chase', glyph: '→' },
+      { name: 'Strobe / Pulse', glyph: '⚡' },
+      { name: 'Rainbow Sweep', glyph: '◎' },
+      { name: 'Circle (Pan/Tilt)', glyph: '○' },
+    ];
+    const selectedEffect = 2;
+    const effects = effectDefs.map((e, i) => ({
+      ...e,
+      iconColor: i === selectedEffect ? '#f5a623' : '#9098a8',
+      cls: i === selectedEffect ? 'selected' : '',
+    }));
+
+    return { colors, effects };
+  }
+}
+</script>
+</body>
+</html>

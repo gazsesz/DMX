@@ -1,0 +1,131 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  * { box-sizing: border-box; }
+  a { color: #f5a623; } a:hover { color: #ffbf4d; }
+  .phone{
+    --bg:#0b0d10; --panel:#15181d; --panel-2:#1c2027; --border:#262b33;
+    --text:#eef1f5; --text-dim:#9098a8; --text-faint:#5b6270;
+    --accent:#f5a623; --accent-2:#22d3ee; --danger:#ef4444; --success:#22c55e;
+    width:390px; height:1220px; background:var(--bg); position:relative;
+    display:flex; flex-direction:column; overflow:hidden;
+    font-family:'Manrope',system-ui,sans-serif; color:var(--text);
+  }
+  .mono{ font-family:'IBM Plex Mono',ui-monospace,monospace; }
+  .header{ display:flex; align-items:center; justify-content:space-between; padding:22px 18px 14px; border-bottom:1px solid var(--border); }
+  .header h1{ font-size:21px; font-weight:800; margin:0; }
+  .icon-btn{ width:34px; height:34px; border-radius:9px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; color:var(--text-dim); flex:none; }
+  .content{ flex:1; padding:16px 16px 20px; display:flex; flex-direction:column; gap:16px; overflow:hidden; }
+  .bank-tabs{ display:flex; gap:8px; overflow:hidden; }
+  .bank-chip{ padding:9px 16px; border-radius:999px; background:var(--panel-2); border:1px solid var(--border); font-size:12.5px; font-weight:700; color:var(--text-dim); white-space:nowrap; }
+  .bank-chip.active{ background:var(--accent); border-color:var(--accent); color:#20130a; }
+  .bank-chip.add{ width:36px; display:flex; align-items:center; justify-content:center; padding:0; }
+  .size-row{ display:flex; align-items:center; justify-content:space-between; font-size:12px; color:var(--text-faint); }
+  .size-row b{ color:var(--text); font-weight:700; }
+  .slot-grid{ display:grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap:10px; }
+  .slot{ aspect-ratio:1; border-radius:10px; background:var(--panel); border:1.5px solid var(--border); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px; padding:6px; text-align:center; }
+  .slot.filled{ border-color:var(--border); }
+  .slot.active{ border-color:var(--accent); box-shadow:0 0 0 1px var(--accent), 0 0 14px rgba(245,166,35,.35); }
+  .slot .num{ font-size:9px; color:var(--text-faint); font-weight:700; }
+  .slot .name{ font-size:10.5px; font-weight:700; line-height:1.1; }
+  .slot.empty{ border-style:dashed; color:var(--text-faint); }
+  .dot{ width:14px; height:14px; border-radius:4px; }
+  .btn-row{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+  .btn{ flex:1; display:flex; align-items:center; justify-content:center; gap:6px; height:44px; border-radius:9px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); font-family:inherit; font-weight:700; font-size:12.5px; }
+  .btn-danger{ color:var(--danger); }
+  .nav{ display:flex; border-top:1px solid var(--border); background:var(--panel); }
+  .nav-item{ flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 2px 12px; color:var(--text-faint); }
+  .nav-item.active{ color:var(--accent); }
+  .nav-item span{ font-size:8.5px; font-weight:700; }
+</style>
+</helmet>
+
+<div class="phone">
+  <div class="header">
+    <h1>Banks</h1>
+    <div style="display:flex; gap:8px;">
+      <div class="icon-btn" style="background:var(--accent); border-color:var(--accent); color:#20130a;" title="Generate Program"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.5 15.5l2.9 2.9M18.4 5.6l-2.8 2.8M8.4 15.5l-2.9 2.9"/></svg></div>
+      <div class="icon-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16l-1 4z"/></svg></div>
+    </div>
+  </div>
+
+  <div class="content">
+    <div class="bank-tabs">
+      <div class="bank-chip">Bank 1</div>
+      <div class="bank-chip active">Bank 2</div>
+      <div class="bank-chip">Bank 3</div>
+      <div class="bank-chip add"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg></div>
+    </div>
+
+    <div class="size-row">
+      <span>Bank Size: <b>16 slots</b></span>
+      <span style="color:var(--accent-2); font-weight:700;">Edit Size</span>
+    </div>
+
+    <div class="slot-grid">
+      <sc-for list="{{slots}}" as="s" hint-placeholder-count="16">
+        <div class="slot {{s.state}}">
+          <sc-if value="{{s.filled}}" hint-placeholder-val="{{true}}">
+            <div class="dot" style="background: {{s.color}};"></div>
+            <div class="name">{{s.name}}</div>
+            <div class="num mono">{{s.num}}</div>
+          </sc-if>
+          <sc-if value="{{s.empty}}" hint-placeholder-val="{{false}}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+            <div class="num mono">{{s.num}}</div>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div class="btn-row">
+      <div class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>&nbsp; Add Scene</div>
+      <div class="btn"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/></svg>&nbsp; Duplicate Bank</div>
+      <div class="btn">Reorder</div>
+      <div class="btn btn-danger">Delete Bank</div>
+    </div>
+  </div>
+
+  <div class="nav">
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"/></svg><span>FILES</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>HOME</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.4M12 18.6V21M21 12h-2.4M5.4 12H3M18.1 5.9l-1.7 1.7M7.6 16.4l-1.7 1.7M18.1 18.1l-1.7-1.7M7.6 7.6 5.9 5.9"/></svg><span>SETUP</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6l3 6-6 3-6-3 3-6z"/><path d="M9 12v6a3 3 0 0 0 6 0v-6"/></svg><span>FIXTURE</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 3 8l9 5 9-5-9-5z"/><path d="M3 13l9 5 9-5"/></svg><span>SCENE</span></div>
+    <div class="nav-item active"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg><span>BANK</span></div>
+    <div class="nav-item"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5v14l8-7-8-7z"/><path d="M13 5v14l8-7-8-7z"/></svg><span>CHASE</span></div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const names = ['Warm Wash','Deep Blue','Full Red','Rainbow','Cold White','Amber Pulse','','Green Mix','','','Circle FX','','','','',''];
+    const colors = ['#f5a623','#3b82f6','#ef4444','#a855f7','#e5e7eb','#f5a623','','#22c55e','','','#22d3ee','','','','',''];
+    const activeIdx = 2;
+    const slots = names.map((n, i) => {
+      const filled = !!n;
+      return {
+        num: i + 1,
+        name: n,
+        color: colors[i],
+        filled,
+        empty: !filled,
+        state: !filled ? 'empty' : (i === activeIdx ? 'filled active' : 'filled'),
+      };
+    });
+    return { slots };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,703 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/playback/chase_player.dart';
+import '../../core/theme/app_colors.dart';
+import '../../core/theme/app_theme.dart';
+import '../../core/widgets/beat_meter.dart';
+import '../../models/chase.dart';
+import '../../models/dashboard_trigger.dart';
+import '../../state/artnet_providers.dart';
+import '../../state/audio_providers.dart';
+import '../../state/bank_providers.dart';
+import '../../state/chase_providers.dart';
+import '../../state/dashboard_providers.dart';
+import '../../state/fixture_providers.dart';
+import '../../state/scene_providers.dart';
+import '../manual_control/manual_control_screen.dart';
+
+class _DashboardTrigger {
+  final String id;
+  final TriggerKind kind;
+  final String name;
+  final String sub;
+
+  const _DashboardTrigger({required this.id, required this.kind, required this.name, required this.sub});
+}
+
+enum _TriggerLayout { mosaic, list }
+
+enum _TriggerBoxSize { s, m, l, xl }
+
+extension on _TriggerBoxSize {
+  double get extent => switch (this) {
+    _TriggerBoxSize.s => 96,
+    _TriggerBoxSize.m => 130,
+    _TriggerBoxSize.l => 168,
+    _TriggerBoxSize.xl => 210,
+  };
+
+  String get label => switch (this) {
+    _TriggerBoxSize.s => 'S',
+    _TriggerBoxSize.m => 'M',
+    _TriggerBoxSize.l => 'L',
+    _TriggerBoxSize.xl => 'XL',
+  };
+
+  double get kindFontSize => switch (this) {
+    _TriggerBoxSize.s => 8,
+    _TriggerBoxSize.m => 9,
+    _TriggerBoxSize.l => 10,
+    _TriggerBoxSize.xl => 11,
+  };
+
+  double get nameFontSize => switch (this) {
+    _TriggerBoxSize.s => 11,
+    _TriggerBoxSize.m => 13,
+    _TriggerBoxSize.l => 15,
+    _TriggerBoxSize.xl => 17,
+  };
+
+  double get subFontSize => switch (this) {
+    _TriggerBoxSize.s => 8.5,
+    _TriggerBoxSize.m => 9.5,
+    _TriggerBoxSize.l => 10.5,
+    _TriggerBoxSize.xl => 11.5,
+  };
+}
+
+class DashboardScreen extends ConsumerStatefulWidget {
+  const DashboardScreen({super.key});
+
+  @override
+  ConsumerState<DashboardScreen> createState() => _DashboardScreenState();
+}
+
+class _DashboardScreenState extends ConsumerState<DashboardScreen> {
+  final List<DateTime> _taps = [];
+  double _bpm = 120;
+  double _stepSeconds = 1.2;
+  double _fadeSeconds = 0.3;
+  bool _beatSync = false;
+  double _sensitivity = 0.6;
+  StreamSubscription<DateTime>? _beatSub;
+  _TriggerLayout _layout = _TriggerLayout.mosaic;
+  _TriggerBoxSize _boxSize = _TriggerBoxSize.s;
+
+  final _player = ChasePlayer();
+  String? _activeTriggerId;
+
+  @override
+  void initState() {
+    super.initState();
+    final beatService = ref.read(beatDetectorProvider);
+    _sensitivity = beatService.sensitivity;
+    _beatSync = beatService.isListening;
+    if (_beatSync) {
+      _beatSub = beatService.beatEvents.listen((_) => _onTap());
+    }
+  }
+
+  @override
+  void dispose() {
+    _beatSub?.cancel();
+    _player.dispose();
+    super.dispose();
+  }
+
+  Future<void> _setBeatSync(bool value) async {
+    final beatService = ref.read(beatDetectorProvider);
+    if (value) {
+      final started = await beatService.start();
+      if (!started) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(beatService.lastError ?? 'Could not start the microphone')),
+          );
+        }
+        return;
+      }
+      beatService.sensitivity = _sensitivity;
+      _beatSub = beatService.beatEvents.listen((_) => _onTap());
+    } else {
+      await beatService.stop();
+      await _beatSub?.cancel();
+      _beatSub = null;
+    }
+    if (mounted) setState(() => _beatSync = value);
+  }
+
+  void _onTap() {
+    final now = DateTime.now();
+    if (_taps.isNotEmpty && now.difference(_taps.last) > const Duration(seconds: 2)) {
+      _taps.clear();
+    }
+    _taps.add(now);
+    if (_taps.length > 5) _taps.removeAt(0);
+
+    if (_taps.length >= 2) {
+      final intervals = <int>[];
+      for (var i = 1; i < _taps.length; i++) {
+        intervals.add(_taps[i].difference(_taps[i - 1]).inMilliseconds);
+      }
+      final avgMs = intervals.reduce((a, b) => a + b) / intervals.length;
+      if (avgMs > 0 && mounted) {
+        setState(() => _bpm = 60000 / avgMs);
+      }
+    }
+  }
+
+  List<_DashboardTrigger> _triggers() {
+    final refs = ref.watch(dashboardTriggersProvider);
+    final banks = ref.watch(banksProvider);
+    final chases = ref.watch(chasesProvider);
+    final result = <_DashboardTrigger>[];
+    for (final ref_ in refs) {
+      if (ref_.kind == TriggerKind.bank) {
+        final matches = banks.where((b) => b.id == ref_.id);
+        if (matches.isEmpty) continue;
+        final bank = matches.first;
+        result.add(
+          _DashboardTrigger(
+            id: bank.id,
+            kind: TriggerKind.bank,
+            name: bank.name,
+            sub: '${bank.sceneSlots.where((s) => s != null).length}/${bank.sceneSlots.length} scenes',
+          ),
+        );
+      } else {
+        final matches = chases.where((c) => c.id == ref_.id);
+        if (matches.isEmpty) continue;
+        final chase = matches.first;
+        result.add(
+          _DashboardTrigger(
+            id: chase.id,
+            kind: TriggerKind.chase,
+            name: chase.name,
+            sub: '${chase.steps.length} steps',
+          ),
+        );
+      }
+    }
+    return result;
+  }
+
+  Future<void> _manageTriggers() async {
+    final banks = ref.read(banksProvider);
+    final chases = ref.read(chasesProvider);
+    if (banks.isEmpty && chases.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Create a bank or chase first')),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.panel,
+      isScrollControlled: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+            child: Consumer(
+              builder: (context, sheetRef, _) {
+                final selected = sheetRef.watch(dashboardTriggersProvider);
+                bool isChecked(String id, TriggerKind kind) =>
+                    selected.any((t) => t.id == id && t.kind == kind);
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Customize Quick Triggers',
+                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    ),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'Pick which banks/chases show up on the Dashboard',
+                      style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                    ),
+                    const SizedBox(height: 12),
+                    Flexible(
+                      child: ListView(
+                        shrinkWrap: true,
+                        children: [
+                          if (banks.isNotEmpty) ...[
+                            const Text(
+                              'BANKS',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+                            ),
+                            for (final bank in banks)
+                              CheckboxListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                value: isChecked(bank.id, TriggerKind.bank),
+                                onChanged: (_) => sheetRef
+                                    .read(dashboardTriggersProvider.notifier)
+                                    .toggle(bank.id, TriggerKind.bank),
+                                title: Text(bank.name),
+                              ),
+                          ],
+                          if (chases.isNotEmpty) ...[
+                            const SizedBox(height: 8),
+                            const Text(
+                              'CHASES',
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+                            ),
+                            for (final chase in chases)
+                              CheckboxListTile(
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                value: isChecked(chase.id, TriggerKind.chase),
+                                onChanged: (_) => sheetRef
+                                    .read(dashboardTriggersProvider.notifier)
+                                    .toggle(chase.id, TriggerKind.chase),
+                                title: Text(chase.name),
+                              ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        onPressed: () => Navigator.of(sheetContext).pop(),
+                        child: const Text('Done'),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _fireTrigger(_DashboardTrigger trigger) async {
+    if (_activeTriggerId == trigger.id) {
+      _player.stop();
+      setState(() => _activeTriggerId = null);
+      return;
+    }
+    final service = ref.read(artNetServiceProvider);
+    if (!service.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not connected — check Settings')),
+      );
+      return;
+    }
+
+    Chase chase;
+    if (trigger.kind == TriggerKind.bank) {
+      chase = Chase(
+        id: 'dashboard-bank-${trigger.id}',
+        name: trigger.name,
+        steps: [
+          ChaseStep(
+            bankId: trigger.id,
+            hold: Duration(milliseconds: (_stepSeconds * 1000).round()),
+            fade: Duration(milliseconds: (_fadeSeconds * 1000).round()),
+          ),
+        ],
+      );
+    } else {
+      final matches = ref.read(chasesProvider).where((c) => c.id == trigger.id);
+      if (matches.isEmpty) return;
+      chase = matches.first;
+    }
+
+    Stream<DateTime>? beatStream;
+    if (chase.beatSync) {
+      final beatService = ref.read(beatDetectorProvider);
+      final started = await beatService.start();
+      if (started) beatStream = beatService.beatEvents;
+    }
+
+    _player.play(
+      chase: chase,
+      scenes: ref.read(scenesProvider),
+      banks: ref.read(banksProvider),
+      patchedFixtures: ref.read(patchedFixturesProvider),
+      universes: ref.read(universesProvider),
+      service: service,
+      beatStream: beatStream,
+      onStep: (_) {},
+    );
+    setState(() => _activeTriggerId = trigger.id);
+  }
+
+  Future<void> _blackout() async {
+    _player.stop();
+    final service = ref.read(artNetServiceProvider);
+    if (!service.isConnected) {
+      await service.connect(ref.read(artNetSettingsProvider));
+    }
+    service.blackoutAll(ref.read(universesProvider));
+    if (mounted) {
+      setState(() => _activeTriggerId = null);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Blackout sent to all universes')));
+    }
+  }
+
+  Color _kindColor(TriggerKind kind) => kind == TriggerKind.bank ? AppColors.accent2 : AppColors.accent;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = ref.watch(artNetSettingsProvider);
+    final universes = ref.watch(universesProvider);
+    final triggers = _triggers();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Chip(
+              backgroundColor: AppColors.panel2,
+              side: const BorderSide(color: AppColors.border),
+              avatar: const Icon(Icons.circle, size: 8, color: AppColors.success),
+              label: Text(
+                '${settings.deviceName} · ${universes.length}U',
+                style: const TextStyle(fontSize: 11, color: AppColors.textDim),
+              ),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Manual Control',
+            icon: const Icon(Icons.tune),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ManualControlScreen()),
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'QUICK TRIGGERS',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1,
+                      color: AppColors.textFaint,
+                    ),
+                  ),
+                  Row(
+                    children: [
+                      IconButton(
+                        tooltip: 'Add / remove triggers',
+                        icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textFaint),
+                        onPressed: _manageTriggers,
+                      ),
+                      if (_layout == _TriggerLayout.mosaic)
+                        PopupMenuButton<_TriggerBoxSize>(
+                          tooltip: 'Box size',
+                          initialValue: _boxSize,
+                          onSelected: (value) => setState(() => _boxSize = value),
+                          color: AppColors.panel2,
+                          itemBuilder: (context) => [
+                            for (final size in _TriggerBoxSize.values)
+                              PopupMenuItem(value: size, child: Text(size.label)),
+                          ],
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.photo_size_select_large_outlined, size: 16, color: AppColors.textFaint),
+                                const SizedBox(width: 3),
+                                Text(_boxSize.label, style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      IconButton(
+                        tooltip: 'Mosaic view',
+                        icon: Icon(
+                          Icons.grid_view,
+                          size: 18,
+                          color: _layout == _TriggerLayout.mosaic ? AppColors.accent : AppColors.textFaint,
+                        ),
+                        onPressed: () => setState(() => _layout = _TriggerLayout.mosaic),
+                      ),
+                      IconButton(
+                        tooltip: 'List view',
+                        icon: Icon(
+                          Icons.view_list,
+                          size: 18,
+                          color: _layout == _TriggerLayout.list ? AppColors.accent : AppColors.textFaint,
+                        ),
+                        onPressed: () => setState(() => _layout = _TriggerLayout.list),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              if (triggers.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: Text(
+                    ref.watch(banksProvider).isEmpty && ref.watch(chasesProvider).isEmpty
+                        ? 'No banks or chases yet — create some in the Bank/Chase tabs'
+                        : 'No triggers yet — tap the pencil to add some',
+                    style: const TextStyle(color: AppColors.textFaint),
+                  ),
+                )
+              else if (_layout == _TriggerLayout.mosaic)
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: triggers.length,
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: _boxSize.extent,
+                    mainAxisSpacing: 8,
+                    crossAxisSpacing: 8,
+                    childAspectRatio: 1.0,
+                  ),
+                  itemBuilder: (context, index) {
+                    final trigger = triggers[index];
+                    final active = _activeTriggerId == trigger.id;
+                    final color = _kindColor(trigger.kind);
+                    return InkWell(
+                      borderRadius: BorderRadius.circular(10),
+                      onTap: () => _fireTrigger(trigger),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 150),
+                        decoration: BoxDecoration(
+                          color: active ? color.withValues(alpha: 0.18) : AppColors.panel,
+                          border: Border.all(color: active ? color : AppColors.border, width: active ? 2 : 1.5),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: active
+                              ? [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 10)]
+                              : null,
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  trigger.kind == TriggerKind.bank ? 'BANK' : 'CHASE',
+                                  style: TextStyle(
+                                    fontSize: _boxSize.kindFontSize,
+                                    fontWeight: FontWeight.w800,
+                                    color: color,
+                                  ),
+                                ),
+                                if (active) ...[
+                                  const SizedBox(width: 4),
+                                  Icon(Icons.play_arrow, size: _boxSize.kindFontSize + 2, color: color),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              trigger.name,
+                              style: TextStyle(fontSize: _boxSize.nameFontSize, fontWeight: FontWeight.w700),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              trigger.sub,
+                              style: TextStyle(fontSize: _boxSize.subFontSize, color: AppColors.textFaint),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                )
+              else
+                Column(
+                  children: [
+                    for (final trigger in triggers)
+                      Builder(builder: (context) {
+                        final active = _activeTriggerId == trigger.id;
+                        final color = _kindColor(trigger.kind);
+                        return Card(
+                          margin: const EdgeInsets.only(bottom: 6),
+                          color: active ? color.withValues(alpha: 0.14) : null,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: active ? color : Colors.transparent, width: 1.5),
+                          ),
+                          child: ListTile(
+                            dense: true,
+                            leading: Icon(
+                              trigger.kind == TriggerKind.bank ? Icons.grid_view_outlined : Icons.fast_forward_outlined,
+                              color: color,
+                            ),
+                            title: Text(trigger.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                            subtitle: Text(trigger.sub, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+                            trailing: Icon(
+                              active ? Icons.stop_circle : Icons.play_circle_outline,
+                              color: active ? color : AppColors.textFaint,
+                            ),
+                            onTap: () => _fireTrigger(trigger),
+                          ),
+                        );
+                      }),
+                  ],
+                ),
+              const SizedBox(height: 22),
+              const Text(
+                'TEMPO & CHASE SPEED',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                  color: AppColors.textFaint,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          OutlinedButton(
+                            onPressed: _onTap,
+                            style: OutlinedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              side: const BorderSide(color: AppColors.accent, width: 1.5),
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                            ),
+                            child: Column(
+                              children: [
+                                const Text(
+                                  'TAP',
+                                  style: TextStyle(
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppColors.accent,
+                                    letterSpacing: 1,
+                                  ),
+                                ),
+                                Text(_bpm.round().toString(), style: appMonoStyle(fontWeight: FontWeight.w700)),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Step Speed (Bank triggers)',
+                                  style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                                ),
+                                Slider(
+                                  value: _stepSeconds,
+                                  min: 0.0,
+                                  max: 5,
+                                  onChanged: (value) => setState(() => _stepSeconds = value),
+                                ),
+                                Align(
+                                  alignment: Alignment.centerRight,
+                                  child: Text(
+                                    '${_stepSeconds.toStringAsFixed(2)}s / step',
+                                    style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Fade Time (Bank triggers)',
+                        style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                      ),
+                      Slider(
+                        value: _fadeSeconds,
+                        min: 0.0,
+                        max: 5,
+                        activeColor: AppColors.accent2,
+                        onChanged: (value) => setState(() => _fadeSeconds = value),
+                      ),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          '${_fadeSeconds.toStringAsFixed(2)}s fade',
+                          style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
+                        ),
+                      ),
+                      const Divider(height: 26),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.mic_none, size: 18, color: AppColors.textDim),
+                              SizedBox(width: 8),
+                              Text('Beat Sync (Mic)', style: TextStyle(fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                          Switch(
+                            value: _beatSync,
+                            onChanged: (value) => _setBeatSync(value),
+                          ),
+                        ],
+                      ),
+                      if (_beatSync) ...[
+                        const SizedBox(height: 10),
+                        BeatMeter(service: ref.read(beatDetectorProvider)),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Sensitivity',
+                          style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                        ),
+                        Slider(
+                          value: _sensitivity,
+                          activeColor: AppColors.accent2,
+                          onChanged: (value) {
+                            setState(() => _sensitivity = value);
+                            ref.read(beatDetectorProvider).sensitivity = value;
+                          },
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            right: 16,
+            bottom: 24,
+            child: FloatingActionButton(
+              backgroundColor: AppColors.danger,
+              onPressed: _blackout,
+              child: const Icon(Icons.power_settings_new, color: Colors.white),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
