@@ -25,14 +25,15 @@ class ScenesNotifier extends StateNotifier<List<Scene>> {
         : [...state, scene];
   }
 
-  void duplicate(String id) {
+  /// Returns the new copy, so callers can immediately do something with it
+  /// (e.g. file it into the same bank the original was duplicated from).
+  Scene? duplicate(String id) {
     final source = state.where((s) => s.id == id);
-    if (source.isEmpty) return;
+    if (source.isEmpty) return null;
     final copy = source.first;
-    state = [
-      ...state,
-      Scene(id: _uuid.v4(), name: '${copy.name} Copy', fixtureValues: copy.fixtureValues),
-    ];
+    final duplicated = Scene(id: _uuid.v4(), name: '${copy.name} Copy', fixtureValues: copy.fixtureValues);
+    state = [...state, duplicated];
+    return duplicated;
   }
 
   void rename(String id, String name) {

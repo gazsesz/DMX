@@ -51,7 +51,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   double _stepSeconds = 1.2;
   double _fadeSeconds = 0.3;
   bool _useBpm = false;
-  bool _beatSync = false;
   bool _tempoExpanded = true;
   double _sensitivity = 0.6;
   BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
@@ -75,11 +74,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final beatService = ref.read(beatDetectorProvider);
     _sensitivity = beatService.sensitivity;
     _frequencyBand = beatService.frequencyBand;
-    _beatSync = beatService.isListening;
-    if (_beatSync) {
-      _beatSub = beatService.beatEvents.listen((_) => _onTap());
-    }
+    // Always listening: the stream only produces anything while the mic is
+    // actually running, so there's no subscription to juggle when beat sync
+    // is toggled (from here or from the Banks tab).
+    _beatSub = beatService.beatEvents.listen((_) => _onTap());
   }
+
+  bool get _beatSync => ref.read(beatSyncEnabledProvider);
 
   @override
   void dispose() {
@@ -92,24 +93,16 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   Future<void> _setBeatSync(bool value) async {
     final beatService = ref.read(beatDetectorProvider);
     if (value) {
-      final started = await beatService.start();
-      if (!started) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(beatService.lastError ?? 'Could not start the microphone')),
-          );
-        }
-        return;
-      }
       beatService.sensitivity = _sensitivity;
       beatService.frequencyBand = _frequencyBand;
-      _beatSub = beatService.beatEvents.listen((_) => _onTap());
-    } else {
-      await beatService.stop();
-      await _beatSub?.cancel();
-      _beatSub = null;
     }
-    if (mounted) setState(() => _beatSync = value);
+    final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
+    if (error != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      }
+      return;
+    }
     await _restartActiveTriggerIfPlaying();
   }
 
@@ -582,6 +575,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final triggers = _triggers();
     final smartPrograms = ref.watch(smartProgramsProvider);
     final smartActive = _smartPlayer.isRunning;
+    final beatSync = ref.watch(beatSyncEnabledProvider);
     final nowPlaying = ref.watch(nowPlayingProvider);
     // Derived straight from the shared NowPlaying state — not a local flag —
     // so a trigger fired from the Banks or Chase tab shows as active here
@@ -860,13 +854,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       child: Text(
                                         smartActive
                                             ? 'Step Speed (Smart Program active)'
-                                            : _beatSync
+                                            : beatSync
                                                 ? 'Step Speed (synced to beat)'
                                                 : 'Step Speed (Bank triggers)',
                                         style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                                       ),
                                     ),
-                                    if (!_beatSync && !smartActive)
+                                    if (!beatSync && !smartActive)
                                       SegmentedButton<bool>(
                                         segments: const [
                                           ButtonSegment(value: false, label: Text('Sec')),
@@ -882,7 +876,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       ),
                                   ],
                                 ),
-                                if (_useBpm && !_beatSync && !smartActive) ...[
+                                if (_useBpm && !beatSync && !smartActive) ...[
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
@@ -917,10 +911,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     value: _stepSeconds,
                                     min: 0.0,
                                     max: 5,
-                                    onChanged: (_beatSync || smartActive)
+                                    onChanged: (beatSync || smartActive)
                                         ? null
                                         : (value) => setState(() => _stepSeconds = value),
-                                    onChangeEnd: (_beatSync || smartActive) ? null : (_) => _restartActiveTriggerIfPlaying(),
+                                    onChangeEnd: (beatSync || smartActive) ? null : (_) => _restartActiveTriggerIfPlaying(),
                                   ),
                                 ],
                                 Align(
@@ -967,12 +961,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ],
                           ),
                           Switch(
-                            value: _beatSync,
+                            value: beatSync,
                             onChanged: (value) => _setBeatSync(value),
                           ),
                         ],
                       ),
-                      if (_beatSync) ...[
+                      if (beatSync) ...[
                         const SizedBox(height: 10),
                         BeatMeter(service: ref.read(beatDetectorProvider)),
                         const SizedBox(height: 10),

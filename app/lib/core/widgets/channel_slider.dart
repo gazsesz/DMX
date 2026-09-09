@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
@@ -67,35 +68,58 @@ class _VerticalFader extends StatefulWidget {
   State<_VerticalFader> createState() => _VerticalFaderState();
 }
 
+/// A vertical drag recognizer that claims the gesture the moment a finger
+/// lands on the fader, instead of waiting for it to travel past touch-slop.
+///
+/// The fader lives inside a vertically-scrolling page, so it competes with
+/// the ancestor ListView for the exact same drag. Winning the arena up front
+/// both guarantees the fader responds immediately *and* locks the page in
+/// place while a level is being set — with a plain [Listener] the fader
+/// tracked the finger but the whole screen scrolled along with it.
+class _FaderDragRecognizer extends VerticalDragGestureRecognizer {
+  @override
+  void addAllowedPointer(PointerDownEvent event) {
+    super.addAllowedPointer(event);
+    resolve(GestureDisposition.accepted);
+  }
+
+  @override
+  String get debugDescription => 'fader drag';
+}
+
 class _VerticalFaderState extends State<_VerticalFader> {
   double? _dragStartValue;
   double _dragAccum = 0;
 
-  void _onPointerDown(PointerDownEvent event) {
+  void _onDragStart(DragStartDetails details) {
     _dragStartValue = widget.value.toDouble();
     _dragAccum = 0;
   }
 
-  void _onPointerMove(PointerMoveEvent event) {
+  void _onDragUpdate(DragUpdateDetails details) {
     if (_dragStartValue == null) return;
     // Dragging the full track height covers the full 0-255 range; up = more.
-    _dragAccum -= event.delta.dy * (255 / (widget.height - 24));
+    _dragAccum -= details.delta.dy * (255 / (widget.height - 24));
     final next = (_dragStartValue! + _dragAccum).clamp(0.0, 255.0);
     widget.onChanged(next.round());
   }
 
+  void _endDrag() => _dragStartValue = null;
+
   @override
   Widget build(BuildContext context) {
-    // Raw pointer events instead of GestureDetector.onPan*: this widget
-    // lives inside a vertically-scrolling page, and a same-axis drag
-    // recognizer there noticeably fights the ancestor ListView for the
-    // gesture on touch screens (the fader would barely respond). Listener
-    // always receives the full pointer stream regardless of what else is
-    // in the same gesture arena.
-    return Listener(
-      onPointerDown: _onPointerDown,
-      onPointerMove: _onPointerMove,
+    return RawGestureDetector(
       behavior: HitTestBehavior.opaque,
+      gestures: <Type, GestureRecognizerFactory>{
+        _FaderDragRecognizer: GestureRecognizerFactoryWithHandlers<_FaderDragRecognizer>(
+          _FaderDragRecognizer.new,
+          (recognizer) => recognizer
+            ..onStart = _onDragStart
+            ..onUpdate = _onDragUpdate
+            ..onEnd = ((_) => _endDrag())
+            ..onCancel = _endDrag,
+        ),
+      },
       child: SizedBox(
         width: widget.width,
         height: widget.height,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/bank_picker_dialog.dart';
 import '../../core/widgets/channel_slider.dart';
 import '../../models/builtin_fixtures.dart';
 import '../../models/channel_function.dart';
@@ -9,7 +10,6 @@ import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
-import '../../state/bank_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
 
@@ -276,36 +276,11 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
       );
       return;
     }
-    final banks = ref.read(banksProvider);
-    if (banks.isEmpty) return;
-    final selectedBank = await showDialog<String>(
-      context: context,
-      builder: (context) => SimpleDialog(
-        backgroundColor: AppColors.panel,
-        title: const Text('Assign to Bank'),
-        children: [
-          for (final bank in banks)
-            SimpleDialogOption(
-              onPressed: () => Navigator.pop(context, bank.id),
-              child: Text(bank.name),
-            ),
-        ],
-      ),
-    );
-    if (selectedBank == null || !mounted) return;
-    final bank = banks.firstWhere((b) => b.id == selectedBank);
-    final emptyIndex = bank.sceneSlots.indexWhere((slot) => slot == null);
-    if (emptyIndex == -1) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('That bank is full')));
-      }
-      return;
-    }
-    ref.read(banksProvider.notifier).setSlot(bank.id, emptyIndex, widget.existing!.id);
+    final bankId = await showBankPicker(context);
+    if (bankId == null || !mounted) return;
+    final message = assignSceneToBank(ref, bankId: bankId, sceneId: widget.existing!.id);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Added to ${bank.name}, slot ${emptyIndex + 1}')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }
   }
 

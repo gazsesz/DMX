@@ -22,7 +22,6 @@ class ManualControlScreen extends ConsumerStatefulWidget {
 
 class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   final Map<String, List<int>> _values = {};
-  final Set<String> _expanded = {};
   String? _universeFilter;
 
   List<int> _valuesFor(PatchedFixture fixture) {
@@ -133,6 +132,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     }
   }
 
+  /// Laid out to match the Scene editor's group card: colour presets on the
+  /// left, pan/tilt + gobo shortcuts on the right, and a fader per channel
+  /// underneath — every channel the fixture has, always visible (strobe,
+  /// autofade and friends used to hide behind a "show all channels" toggle).
   Widget _buildFixtureCard(PatchedFixture fixture) {
     final values = _valuesFor(fixture);
     final channels = fixture.profile.channels;
@@ -140,14 +143,18 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     final hasRgb = channels.any((c) => c.function.isColorMix);
     final hasPanTilt = channels.any((c) => c.function.isPanTilt);
     final hasGobo = channels.any((c) => c.function.isGobo);
-    final expanded = _expanded.contains(fixture.id);
     final universeMatches = ref.watch(universesProvider).where((u) => u.id == fixture.universeId);
     final universeName = universeMatches.isEmpty ? '?' : universeMatches.first.name;
+
+    void setFunction(ChannelFunction function, int value) {
+      final idx = channels.indexWhere((c) => c.function == function);
+      if (idx != -1) _setChannel(fixture, idx, value);
+    }
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -170,128 +177,97 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                     value: values[dimmerIdx] > 0,
                     onChanged: (_) => _togglePower(fixture),
                   ),
-                IconButton(
-                  icon: Icon(expanded ? Icons.expand_less : Icons.expand_more, size: 20),
-                  tooltip: expanded ? 'Show less' : 'Show all channels',
-                  onPressed: () => setState(() {
-                    if (expanded) {
-                      _expanded.remove(fixture.id);
-                    } else {
-                      _expanded.add(fixture.id);
-                    }
-                  }),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (hasRgb)
+                  SizedBox(
+                    width: 216,
+                    child: Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        for (final entry in colorPresets.entries)
+                          InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () => _applyColor(fixture, entry.value),
+                            child: Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: AppColors.border, width: 1.5),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                if (hasRgb) const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (hasPanTilt)
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (channels.any((c) => c.function == ChannelFunction.pan))
+                              ChannelSliderTile(
+                                label: 'Pan',
+                                value: _valueForFunction(fixture, ChannelFunction.pan) ?? 0,
+                                color: AppColors.accent2,
+                                onChanged: (v) => setFunction(ChannelFunction.pan, v),
+                              ),
+                            if (channels.any((c) => c.function == ChannelFunction.tilt))
+                              ChannelSliderTile(
+                                label: 'Tilt',
+                                value: _valueForFunction(fixture, ChannelFunction.tilt) ?? 0,
+                                color: AppColors.accent2,
+                                onChanged: (v) => setFunction(ChannelFunction.tilt, v),
+                              ),
+                          ],
+                        ),
+                      if (hasGobo) ...[
+                        if (hasPanTilt) const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (var i = 0; i < goboPresets.length; i++)
+                              ChoiceChip(
+                                label: Text(goboPresets[i], style: const TextStyle(fontSize: 11)),
+                                selected: (_valueForFunction(fixture, ChannelFunction.gobo) ?? 0) ~/ 32 == i,
+                                onSelected: (_) => setFunction(ChannelFunction.gobo, i * 32),
+                              ),
+                          ],
+                        ),
+                      ],
+                      if (channels.isNotEmpty) ...[
+                        if (hasPanTilt || hasGobo) const SizedBox(height: 8),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 10,
+                          children: [
+                            for (var i = 0; i < channels.length; i++)
+                              ChannelSliderTile(
+                                label: channels[i].label,
+                                value: values[i],
+                                color: _colorForFunction(channels[i].function),
+                                onChanged: (v) => _setChannel(fixture, i, v),
+                              ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
                 ),
               ],
             ),
-            if (dimmerIdx != -1)
-              ChannelSliderTile(
-                label: 'Dimmer',
-                value: values[dimmerIdx],
-                color: AppColors.accent,
-                onChanged: (v) => _setChannel(fixture, dimmerIdx, v),
-              ),
-            if (hasRgb || hasPanTilt || hasGobo) ...[
-              const SizedBox(height: 10),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (hasRgb)
-                    SizedBox(
-                      width: 200,
-                      child: Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          for (final entry in colorPresets.entries)
-                            InkWell(
-                              borderRadius: BorderRadius.circular(10),
-                              onTap: () => _applyColor(fixture, entry.value),
-                              child: Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: AppColors.border, width: 1.5),
-                                ),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  if (hasRgb && (hasPanTilt || hasGobo)) const SizedBox(width: 16),
-                  if (hasPanTilt || hasGobo)
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (hasPanTilt)
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                if (fixture.profile.channels.any((c) => c.function == ChannelFunction.pan))
-                                  ChannelSliderTile(
-                                    label: 'Pan',
-                                    value: _valueForFunction(fixture, ChannelFunction.pan) ?? 0,
-                                    color: AppColors.accent2,
-                                    onChanged: (v) {
-                                      final idx = channels.indexWhere((c) => c.function == ChannelFunction.pan);
-                                      if (idx != -1) _setChannel(fixture, idx, v);
-                                    },
-                                  ),
-                                if (fixture.profile.channels.any((c) => c.function == ChannelFunction.tilt))
-                                  ChannelSliderTile(
-                                    label: 'Tilt',
-                                    value: _valueForFunction(fixture, ChannelFunction.tilt) ?? 0,
-                                    color: AppColors.accent2,
-                                    onChanged: (v) {
-                                      final idx = channels.indexWhere((c) => c.function == ChannelFunction.tilt);
-                                      if (idx != -1) _setChannel(fixture, idx, v);
-                                    },
-                                  ),
-                              ],
-                            ),
-                          if (hasGobo) ...[
-                            if (hasPanTilt) const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 6,
-                              runSpacing: 6,
-                              children: [
-                                for (var i = 0; i < goboPresets.length; i++)
-                                  ChoiceChip(
-                                    label: Text(goboPresets[i], style: const TextStyle(fontSize: 11)),
-                                    selected: (_valueForFunction(fixture, ChannelFunction.gobo) ?? 0) ~/ 32 == i,
-                                    onSelected: (_) {
-                                      final idx = channels.indexWhere((c) => c.function == ChannelFunction.gobo);
-                                      if (idx != -1) _setChannel(fixture, idx, i * 32);
-                                    },
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                ],
-              ),
-            ],
-            if (expanded) ...[
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 10,
-                children: [
-                  for (var i = 0; i < channels.length; i++)
-                    if (i != dimmerIdx)
-                      ChannelSliderTile(
-                        label: channels[i].label,
-                        value: values[i],
-                        color: _colorForFunction(channels[i].function),
-                        onChanged: (v) => _setChannel(fixture, i, v),
-                      ),
-                ],
-              ),
-            ],
           ],
         ),
       ),

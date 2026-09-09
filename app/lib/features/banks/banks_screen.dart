@@ -10,6 +10,7 @@ import '../../models/bank.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
@@ -30,6 +31,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   double _runHoldSeconds = 0.8;
   double _runFadeSeconds = 0.3;
   int? _runningSlot;
+
+  /// The slot the user last fired by hand — so tapping a scene shows which
+  /// one is live even when the bank isn't running as a chase.
+  int? _manualSlot;
 
   @override
   void initState() {
@@ -57,6 +62,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       return;
     }
     ref.read(smartProgramPlayerProvider).stop();
+    final beatSync = ref.read(beatSyncEnabledProvider);
     final chase = Chase(
       id: 'bank-run-${bank.id}',
       name: bank.name,
@@ -68,6 +74,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         ),
       ],
       direction: ChaseDirection.forward,
+      beatSync: beatSync,
     );
     _player.play(
       chase: chase,
@@ -76,6 +83,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       patchedFixtures: ref.read(patchedFixturesProvider),
       universes: ref.read(universesProvider),
       service: service,
+      beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
       onStep: (index) {
         if (mounted) setState(() => _runningSlot = index);
       },
@@ -85,7 +93,24 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       kind: PlaybackKind.bank,
       name: bank.name,
     );
-    setState(() {});
+    setState(() => _manualSlot = null);
+  }
+
+  Future<void> _setBeatSync(bool value) async {
+    final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
+    if (error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    // Re-arm whatever is running so it picks up (or drops) beat stepping
+    // right away instead of only on the next run.
+    final banks = ref.read(banksProvider);
+    final running = banks.where(_isThisBankRunning);
+    if (running.isNotEmpty) {
+      final bank = running.first;
+      _player.stop();
+      _toggleRun(bank);
+    }
   }
 
   void _restartRunIfPlaying(Bank bank) {
@@ -139,6 +164,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       patchedFixtures: ref.read(patchedFixturesProvider),
       universes: ref.read(universesProvider),
     );
+    setState(() => _manualSlot = slotIndex);
   }
 
   Future<void> _renameBank(Bank bank) async {
@@ -201,6 +227,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final nowPlaying = ref.watch(nowPlayingProvider);
     final isRunningThisBank =
         _player.isPlaying && nowPlaying?.kind == PlaybackKind.bank && nowPlaying?.id == selected.id;
+    final beatSync = ref.watch(beatSyncEnabledProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -270,6 +297,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         setState(() {
                           _selectedBankId = bank.id;
                           _runningSlot = null;
+                          _manualSlot = null;
                         });
                       },
                     ),
@@ -307,7 +335,25 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   icon: Icon(isRunningThisBank ? Icons.stop : Icons.play_arrow),
                   label: Text(isRunningThisBank ? 'Stop' : 'Run Bank'),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 8),
+                Tooltip(
+                  message: beatSync ? 'Beat Sync on — steps wait for the beat' : 'Beat Sync off — steps on the timer',
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.mic_none,
+                        size: 16,
+                        color: beatSync ? AppColors.accent : AppColors.textFaint,
+                      ),
+                      Switch(
+                        value: beatSync,
+                        onChanged: _setBeatSync,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,7 +416,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 final scene = sceneId == null
                     ? null
                     : scenes.where((s) => s.id == sceneId).firstOrNull;
-                final isRunning = index == highlightIndex;
+                // Highlight the step the chase is on while the bank runs, and
+                // otherwise the slot the user last fired by hand.
+                final isRunning = isRunningThisBank
+                    ? index == highlightIndex
+                    : scene != null && index == _manualSlot;
                 return Stack(
                   children: [
                     InkWell(
@@ -379,7 +429,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   onLongPress: () => _pickScene(selected, index),
                   child: Container(
                     decoration: BoxDecoration(
-                      color: AppColors.panel,
+                      color: isRunning ? AppColors.accent.withValues(alpha: 0.14) : AppColors.panel,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: isRunning ? AppColors.accent : AppColors.border,

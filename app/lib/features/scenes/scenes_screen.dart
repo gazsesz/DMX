@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/bank_picker_dialog.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/scene.dart';
@@ -15,6 +16,24 @@ import 'scene_editor_screen.dart';
 enum _SortMode { manual, name }
 
 enum _GroupMode { none, bank }
+
+/// One bank's worth of scenes on the grouped view — [bankId] is null for the
+/// catch-all "Ungrouped" section.
+class _SceneGroup {
+  final String? bankId;
+  final String name;
+  final List<Scene> scenes;
+
+  const _SceneGroup({required this.bankId, required this.name, required this.scenes});
+}
+
+/// What travels with a scene tile while it's being dragged between banks.
+class _SceneDrag {
+  final Scene scene;
+  final String? fromBankId;
+
+  const _SceneDrag(this.scene, this.fromBankId);
+}
 
 class ScenesScreen extends ConsumerStatefulWidget {
   const ScenesScreen({super.key});
@@ -123,15 +142,24 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
     setState(_selectedIds.clear);
   }
 
+  /// Duplicates [sceneId], filing the copy into [bankId] so a scene
+  /// duplicated from inside a bank's section lands in that same bank.
+  void _duplicateScene(String sceneId, {String? bankId}) {
+    final copy = ref.read(scenesProvider.notifier).duplicate(sceneId);
+    if (copy == null || bankId == null) return;
+    assignSceneToBank(ref, bankId: bankId, sceneId: copy.id);
+  }
+
   void _duplicateSelected() {
-    final notifier = ref.read(scenesProvider.notifier);
+    final banks = ref.read(banksProvider);
     for (final id in _selectedIds) {
-      notifier.duplicate(id);
+      final owner = banks.where((b) => b.sceneSlots.contains(id));
+      _duplicateScene(id, bankId: owner.isEmpty ? null : owner.first.id);
     }
     setState(_selectedIds.clear);
   }
 
-  Future<void> _showActions(Scene scene) async {
+  Future<void> _showActions(Scene scene, {String? bankId}) async {
     final action = await showDialog<String>(
       context: context,
       builder: (context) => SimpleDialog(
@@ -147,6 +175,10 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
             child: const Text('Duplicate'),
           ),
           SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, 'assign'),
+            child: const Text('Assign to Bank…'),
+          ),
+          SimpleDialogOption(
             onPressed: () => Navigator.pop(context, 'delete'),
             child: const Text('Delete', style: TextStyle(color: AppColors.danger)),
           ),
@@ -154,7 +186,8 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
       ),
     );
     if (action == 'select') _toggleSelected(scene.id);
-    if (action == 'duplicate') ref.read(scenesProvider.notifier).duplicate(scene.id);
+    if (action == 'duplicate') _duplicateScene(scene.id, bankId: bankId);
+    if (action == 'assign' && mounted) await _assignToBank(scene);
     if (action == 'delete') {
       ref.read(scenesProvider.notifier).remove(scene.id);
       if (_activeSceneId == scene.id) setState(() => _activeSceneId = null);
@@ -168,30 +201,76 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
     return copy;
   }
 
-  /// Bank name (or "Ungrouped") each scene should be filed under — a scene
-  /// in more than one bank is filed under the first bank that contains it.
-  List<MapEntry<String, List<Scene>>> _groupedByBank(List<Scene> scenes, List<Bank> banks) {
-    final groups = <String, List<Scene>>{};
-    for (final bank in banks) {
-      groups[bank.name] = [];
+  /// One section per bank, in the Banks tab's own order, plus a trailing
+  /// "Ungrouped" catch-all.
+  ///
+  /// A scene shows up under *every* bank that holds it, not just the first —
+  /// otherwise duplicating a bank produced a section that looked empty (all
+  /// of its scenes were already claimed by the original) and got hidden.
+  /// Empty banks are kept visible too, so they can be dragged into.
+  List<_SceneGroup> _groupedByBank(List<Scene> scenes, List<Bank> banks) {
+    final groups = [
+      for (final bank in banks)
+        _SceneGroup(
+          bankId: bank.id,
+          name: bank.name,
+          scenes: scenes.where((s) => bank.sceneSlots.contains(s.id)).toList(),
+        ),
+    ];
+    final ungrouped = scenes.where((s) => !banks.any((b) => b.sceneSlots.contains(s.id))).toList();
+    if (ungrouped.isNotEmpty) {
+      groups.add(_SceneGroup(bankId: null, name: 'Ungrouped', scenes: ungrouped));
     }
-    const ungrouped = 'Ungrouped';
-    groups[ungrouped] = [];
-    for (final scene in scenes) {
-      final owner = banks.where((b) => b.sceneSlots.contains(scene.id));
-      final key = owner.isEmpty ? ungrouped : owner.first.name;
-      groups[key]!.add(scene);
-    }
-    final entries = groups.entries.where((e) => e.value.isNotEmpty).toList();
-    entries.sort((a, b) {
-      if (a.key == ungrouped) return 1;
-      if (b.key == ungrouped) return -1;
-      return a.key.compareTo(b.key);
-    });
-    return entries;
+    return groups;
   }
 
-  Widget _sceneGrid(List<Scene> scenes) {
+  /// Moves a dragged scene out of its source bank and into [targetBankId]
+  /// (or out of every bank, when dropped on "Ungrouped").
+  void _moveSceneToBank(_SceneDrag drag, String? targetBankId) {
+    if (drag.fromBankId == targetBankId) return;
+    final notifier = ref.read(banksProvider.notifier);
+    final banks = ref.read(banksProvider);
+    var message = 'Removed from bank';
+
+    if (targetBankId != null) {
+      final matches = banks.where((b) => b.id == targetBankId);
+      if (matches.isEmpty) return;
+      final target = matches.first;
+      if (target.sceneSlots.contains(drag.scene.id)) {
+        message = 'Already in ${target.name}';
+      } else {
+        final emptyIndex = target.sceneSlots.indexWhere((slot) => slot == null);
+        if (emptyIndex == -1) {
+          _showSnack('${target.name} is full');
+          return; // Leave the scene where it was rather than losing it.
+        }
+        notifier.setSlot(targetBankId, emptyIndex, drag.scene.id);
+        message = 'Moved to ${target.name}';
+      }
+    }
+
+    final sourceId = drag.fromBankId;
+    if (sourceId != null) {
+      final matches = banks.where((b) => b.id == sourceId);
+      if (matches.isNotEmpty) {
+        final slot = matches.first.sceneSlots.indexOf(drag.scene.id);
+        if (slot != -1) notifier.setSlot(sourceId, slot, null);
+      }
+    }
+    _showSnack(message);
+  }
+
+  void _showSnack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _assignToBank(Scene scene) async {
+    final bankId = await showBankPicker(context);
+    if (bankId == null || !mounted) return;
+    _showSnack(assignSceneToBank(ref, bankId: bankId, sceneId: scene.id));
+  }
+
+  Widget _sceneGrid(List<Scene> scenes, {String? bankId, bool draggable = false}) {
     return GridView.builder(
       padding: EdgeInsets.zero,
       shrinkWrap: true,
@@ -203,15 +282,18 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
         crossAxisSpacing: 8,
         childAspectRatio: 0.9,
       ),
-      itemBuilder: (context, index) => _sceneTile(scenes[index]),
+      itemBuilder: (context, index) => _sceneTile(scenes[index], bankId: bankId, draggable: draggable),
     );
   }
 
-  Widget _sceneTile(Scene scene) {
+  Widget _sceneTile(Scene scene, {String? bankId, bool draggable = false}) {
     final color = _swatchFor(scene);
     final active = scene.id == _activeSceneId;
     final selected = _selectedIds.contains(scene.id);
-    return Stack(
+    // While a tile is draggable, long-press belongs to the drag recognizer —
+    // multi-select stays reachable through the tile's ⋮ menu.
+    final canDrag = draggable && !_selecting;
+    final tile = Stack(
       children: [
         AnimatedContainer(
           duration: const Duration(milliseconds: 150),
@@ -238,7 +320,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
                 Expanded(
                   child: InkWell(
                     onTap: () => _handleTap(scene),
-                    onLongPress: () => _toggleSelected(scene.id),
+                    onLongPress: canDrag ? null : () => _toggleSelected(scene.id),
                     child: Padding(
                       padding: const EdgeInsets.all(8),
                       child: Column(
@@ -300,7 +382,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
               ? const Icon(Icons.check_circle, size: 18, color: AppColors.accent2)
               : InkWell(
                   borderRadius: BorderRadius.circular(12),
-                  onTap: () => _showActions(scene),
+                  onTap: () => _showActions(scene, bankId: bankId),
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
@@ -312,6 +394,71 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
                 ),
         ),
       ],
+    );
+
+    if (!canDrag) return tile;
+    return LongPressDraggable<_SceneDrag>(
+      data: _SceneDrag(scene, bankId),
+      feedback: Material(
+        type: MaterialType.transparency,
+        child: Opacity(
+          opacity: 0.9,
+          child: SizedBox(width: 104, height: 116, child: tile),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: tile),
+      child: tile,
+    );
+  }
+
+  /// One bank's section on the grouped view — also the drop target that
+  /// files a dragged scene into this bank.
+  Widget _buildBankGroup(_SceneGroup group) {
+    return DragTarget<_SceneDrag>(
+      onWillAcceptWithDetails: (details) => details.data.fromBankId != group.bankId,
+      onAcceptWithDetails: (details) => _moveSceneToBank(details.data, group.bankId),
+      builder: (context, candidate, rejected) {
+        final hovering = candidate.isNotEmpty;
+        return Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.fromLTRB(8, 6, 8, 8),
+          decoration: BoxDecoration(
+            color: hovering ? AppColors.accent.withValues(alpha: 0.08) : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: hovering ? AppColors.accent : Colors.transparent, width: 1.5),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+                child: Text(
+                  '${group.name.toUpperCase()} (${group.scenes.length})',
+                  style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1,
+                    color: AppColors.textFaint,
+                  ),
+                ),
+              ),
+              if (group.scenes.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  child: Text(
+                    hovering ? 'Drop to add here' : 'Empty — drop a scene here',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: hovering ? AppColors.accent : AppColors.textFaint,
+                    ),
+                  ),
+                )
+              else
+                _sceneGrid(group.scenes, bankId: group.bankId, draggable: true),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -368,21 +515,15 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
                   children: [
-                    for (final group in _groupedByBank(allScenes, banks)) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(4, 12, 4, 8),
-                        child: Text(
-                          '${group.key.toUpperCase()} (${group.value.length})',
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1,
-                            color: AppColors.textFaint,
-                          ),
-                        ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(4, 0, 4, 4),
+                      child: Text(
+                        'Long-press a scene to drag it into another bank',
+                        style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                       ),
-                      _sceneGrid(group.value),
-                    ],
+                    ),
+                    for (final group in _groupedByBank(allScenes, banks))
+                      _buildBankGroup(group),
                   ],
                 ),
       floatingActionButton: _selecting
