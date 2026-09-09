@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/audio/beat_detector.dart';
 import '../../core/widgets/beat_meter.dart';
+import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_prefs.dart';
@@ -171,6 +172,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _stepSeconds = (60 / clamped).clamp(0.0, 5.0);
     });
     if (updateController) _bpmController.text = clamped.round().toString();
+    // While beat sync is armed the steps are driven by the beats themselves,
+    // so a new BPM reading changes nothing about playback — restarting here
+    // would kick a running chase back to step 1 on *every single beat*,
+    // which is exactly what made a Dashboard-fired bank stutter against the
+    // music while the same bank run from the Banks tab kept perfect time.
+    if (_beatSync) return;
     _restartActiveTriggerIfPlaying();
   }
 
@@ -350,7 +357,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       );
       return;
     }
-    if (program.baseChaseId == null) {
+    if (!program.hasBaseTarget) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Set a base chase for this program first — edit it on the Chase tab')),
       );
@@ -397,6 +404,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       universes: ref.read(universesProvider),
       service: service,
       beatStream: beatStream,
+      beatRate: beatRateOf(ref),
       onStep: (_) {},
     );
   }
@@ -431,14 +439,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _blackout() async {
-    _player.stop();
-    ref.read(smartProgramPlayerProvider).stop();
-    final service = ref.read(artNetServiceProvider);
-    if (!service.isConnected) {
-      await service.connect(ref.read(artNetSettingsProvider));
-    }
-    service.blackoutAll(ref.read(universesProvider));
-    ref.read(nowPlayingProvider.notifier).state = null;
+    await blackoutEverything(ref);
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -618,7 +619,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               MaterialPageRoute(builder: (_) => const ManualControlScreen()),
             ),
           ),
-          const SaveProjectAction(),
+          const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: Stack(
@@ -1016,6 +1017,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ),
                         ],
                       ),
+                      if (beatSync)
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Expanded(
+                              child: Text(
+                                'Beat Rate — steps per beat',
+                                style: TextStyle(fontSize: 12, color: AppColors.textDim),
+                              ),
+                            ),
+                            SegmentedButton<BeatRate>(
+                              segments: [
+                                for (final rate in BeatRate.values)
+                                  ButtonSegment(value: rate, label: Text(rate.label)),
+                              ],
+                              selected: {ref.watch(beatRateProvider)},
+                              showSelectedIcon: false,
+                              style: const ButtonStyle(
+                                visualDensity: VisualDensity.compact,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                              onSelectionChanged: (selection) {
+                                ref.read(beatRateProvider.notifier).state = selection.first;
+                                _restartActiveTriggerIfPlaying();
+                              },
+                            ),
+                          ],
+                        ),
                       if (beatSync) ...[
                         const SizedBox(height: 10),
                         BeatMeter(service: ref.read(beatDetectorProvider)),

@@ -223,6 +223,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       universes: ref.read(universesProvider),
       service: service,
       beatStream: beatStream,
+      beatRate: beatRateOf(ref),
       onStep: (index) {
         if (mounted) setState(() => _playingIndex = index);
       },

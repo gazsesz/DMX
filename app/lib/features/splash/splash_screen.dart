@@ -7,6 +7,7 @@ import '../../core/storage/project_snapshot.dart';
 import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../shell/app_shell.dart';
 
@@ -37,6 +38,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   Future<void> _boot() async {
     final minimumSplash = Future<void>.delayed(const Duration(milliseconds: 1300));
     await _loadLastProject();
+    await _connectToNode();
     await minimumSplash;
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -58,6 +60,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     } catch (_) {
       // A missing/corrupt last project shouldn't block startup — the app
       // just opens with an empty/default show, same as a fresh install.
+    }
+  }
+
+  /// Opens the Art-Net socket with whatever host the loaded project/settings
+  /// ended up with, so triggers work straight away instead of greeting the
+  /// user with "Not connected — check Settings" on the first tap.
+  Future<void> _connectToNode() async {
+    try {
+      await ref.read(artNetServiceProvider).connect(ref.read(artNetSettingsProvider));
+    } catch (_) {
+      // Node not on the network yet (or Wi-Fi still coming up) — the
+      // Settings screen's Test button is there for a manual retry.
     }
   }
 

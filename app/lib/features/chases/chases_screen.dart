@@ -7,6 +7,7 @@ import '../../core/playback/chase_player.dart';
 import '../../core/playback/smart_program_player.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
@@ -103,9 +104,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       );
       return;
     }
-    if (program.baseChaseId == null) {
+    if (!program.hasBaseTarget) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Set a base chase for this program first')),
+        const SnackBar(content: Text('Set a base chase or bank for this program first')),
       );
       return;
     }
@@ -140,9 +141,14 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     );
   }
 
-  String _chaseName(String? id, List<Chase> chases) {
-    if (id == null) return '—';
-    final matches = chases.where((c) => c.id == id);
+  /// Display name for whatever a Smart Program zone points at — chase or bank.
+  String _targetName(ProgramTarget? target) {
+    if (target == null) return '—';
+    if (target.isBank) {
+      final matches = ref.read(banksProvider).where((b) => b.id == target.id);
+      return matches.isEmpty ? 'Missing bank' : matches.first.name;
+    }
+    final matches = ref.read(chasesProvider).where((c) => c.id == target.id);
     return matches.isEmpty ? 'Missing chase' : matches.first.name;
   }
 
@@ -154,7 +160,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     final isPlaying = _player.isPlaying;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chases'), actions: const [SaveProjectAction()]),
+      appBar: AppBar(title: const Text('Chases'), actions: const [ControlDockAction(), SaveProjectAction()]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
@@ -228,9 +234,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                               style: const TextStyle(fontSize: 11, color: AppColors.accent2, fontWeight: FontWeight.w700),
                             )
                           : Text(
-                              'Base ${_chaseName(program.baseChaseId, chases)}'
-                              '${program.fasterChaseId != null ? ' · Faster ${_chaseName(program.fasterChaseId, chases)}' : ''}'
-                              '${program.slowerChaseId != null ? ' · Slower ${_chaseName(program.slowerChaseId, chases)}' : ''}',
+                              'Base ${_targetName(program.baseTarget)}'
+                              '${program.fasterTarget != null ? ' · Faster ${_targetName(program.fasterTarget)}' : ''}'
+                              '${program.slowerTarget != null ? ' · Slower ${_targetName(program.slowerTarget)}' : ''}',
                               style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,

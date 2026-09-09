@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/audio/beat_detector.dart';
+import '../core/playback/chase_player.dart';
 
 /// One shared beat detector for the whole app, so a chase started from any
 /// screen reacts to the same microphone listener the Dashboard toggles.
@@ -18,6 +19,12 @@ final beatDetectorProvider = Provider<BeatDetectorService>((ref) {
 final beatSyncEnabledProvider = StateNotifierProvider<BeatSyncNotifier, bool>((ref) {
   return BeatSyncNotifier(ref.watch(beatDetectorProvider));
 });
+
+/// Half time / on the beat / double time — shared app-wide like
+/// [beatSyncEnabledProvider], so a chase reads the same however it's fired.
+final beatRateProvider = StateProvider<BeatRate>((ref) => BeatRate.normal);
+
+BeatRate beatRateOf(WidgetRef ref) => ref.read(beatRateProvider);
 
 class BeatSyncNotifier extends StateNotifier<bool> {
   final BeatDetectorService _service;

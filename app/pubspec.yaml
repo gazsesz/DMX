@@ -16,7 +16,10 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
 # In Windows, build-name is used as the major, minor, and patch parts
 # of the product and file versions while build-number is used as the build suffix.
-version: 1.0.0+1
+# Bump this on every release you build for the tablet — the Setup screen
+# reads it straight from here, so it's the single source of truth for
+# "which build is on the device?".
+version: 1.1.0+2
 
 environment:
   sdk: ^3.13.2
@@ -44,6 +47,7 @@ dependencies:
   shared_preferences: ^2.5.5
   fftea: ^1.5.0+1
   wakelock_plus: ^1.2.10
+  package_info_plus: ^10.2.1
 
 dev_dependencies:
   flutter_test:

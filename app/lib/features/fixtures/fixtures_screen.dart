@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/fixture_category_style.dart';
+import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/fixture_profile.dart';
 import '../../models/patched_fixture.dart';
@@ -167,7 +168,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
               MaterialPageRoute(builder: (_) => const FixtureLayoutScreen()),
             ),
           ),
-          const SaveProjectAction(),
+          const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: Column(

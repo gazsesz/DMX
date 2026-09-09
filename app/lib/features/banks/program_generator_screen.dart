@@ -30,6 +30,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
   String? _destinationBankId;
   int _sceneCount = 6;
   bool _alsoCreateChase = true;
+  double _size = 1.0;
+  double _fan = 0.0;
+  double _shift = 0.0;
 
   void _toggleColor(int index) {
     setState(() {
@@ -70,6 +73,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
       idGenerator: () => _uuid.v4(),
       namePrefix: _effect.label,
       pattern: _pattern,
+      size: _size,
+      fan: _fan,
+      shift: _shift,
     );
     if (scenes.isEmpty) return;
 
@@ -109,6 +115,28 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Generated ${scenes.length} scenes into a bank${_alsoCreateChase ? ' + chase' : ''}')),
+    );
+  }
+
+  Widget _shapeSlider({
+    required String label,
+    required String hint,
+    required double value,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            Text('${(value * 100).round()}%', style: const TextStyle(fontSize: 11, color: AppColors.textDim)),
+          ],
+        ),
+        Text(hint, style: const TextStyle(fontSize: 10, color: AppColors.textFaint)),
+        Slider(value: value, onChanged: onChanged),
+      ],
     );
   }
 
@@ -160,7 +188,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
           ),
           const SizedBox(height: 20),
           const Text(
-            'EFFECT STYLE',
+            'COLOR FX',
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
@@ -168,13 +196,72 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final effect in GeneratorEffect.values)
+              for (final effect in GeneratorEffect.values.where((e) => !e.isMove))
                 ChoiceChip(
                   label: Text(effect.label),
                   selected: _effect == effect,
                   onSelected: (_) => setState(() => _effect = effect),
                 ),
             ],
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'MOVE FX',
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          ),
+          const Text(
+            'Beam movement — needs moving heads to show its shape',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final effect in GeneratorEffect.values.where((e) => e.isMove))
+                ChoiceChip(
+                  label: Text(effect.label),
+                  selected: _effect == effect,
+                  onSelected: (_) => setState(() => _effect = effect),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Text(
+            _effect.isMove ? 'SHAPE' : 'SHAPE (Shift staggers the palette)',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+              child: Column(
+                children: [
+                  if (_effect.isMove) ...[
+                    _shapeSlider(
+                      label: 'Size',
+                      hint: 'How far the beams travel from centre',
+                      value: _size,
+                      onChanged: (v) => setState(() => _size = v),
+                    ),
+                    _shapeSlider(
+                      label: 'Fan',
+                      hint: 'Spreads the rig outward, left to right',
+                      value: _fan,
+                      onChanged: (v) => setState(() => _fan = v),
+                    ),
+                  ],
+                  _shapeSlider(
+                    label: 'Shift',
+                    hint: _effect.isMove
+                        ? 'Delays each fixture so the move ripples across the rig'
+                        : 'Staggers the palette across the fixtures',
+                    value: _shift,
+                    onChanged: (v) => setState(() => _shift = v),
+                  ),
+                ],
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           const Text(

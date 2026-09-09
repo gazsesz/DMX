@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/bank_picker_dialog.dart';
+import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/scene.dart';
@@ -209,13 +210,22 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
   /// of its scenes were already claimed by the original) and got hidden.
   /// Empty banks are kept visible too, so they can be dragged into.
   List<_SceneGroup> _groupedByBank(List<Scene> scenes, List<Bank> banks) {
+    // In manual mode a bank's section lists its scenes in *slot* order, so
+    // what you see is the order it actually plays in — and dragging tiles
+    // around is what changes it. Name sorting overrides that on request.
+    List<Scene> inBank(Bank bank) {
+      if (_sortMode != _SortMode.manual) {
+        return scenes.where((s) => bank.sceneSlots.contains(s.id)).toList();
+      }
+      return [
+        for (final slotSceneId in bank.sceneSlots)
+          if (slotSceneId != null)
+            ...scenes.where((s) => s.id == slotSceneId),
+      ];
+    }
+
     final groups = [
-      for (final bank in banks)
-        _SceneGroup(
-          bankId: bank.id,
-          name: bank.name,
-          scenes: scenes.where((s) => bank.sceneSlots.contains(s.id)).toList(),
-        ),
+      for (final bank in banks) _SceneGroup(bankId: bank.id, name: bank.name, scenes: inBank(bank)),
     ];
     final ungrouped = scenes.where((s) => !banks.any((b) => b.sceneSlots.contains(s.id))).toList();
     if (ungrouped.isNotEmpty) {
@@ -270,7 +280,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
     _showSnack(assignSceneToBank(ref, bankId: bankId, sceneId: scene.id));
   }
 
-  Widget _sceneGrid(List<Scene> scenes, {String? bankId, bool draggable = false}) {
+  Widget _sceneGrid(List<Scene> scenes, {String? bankId, bool draggable = false, bool reorderable = false}) {
     return GridView.builder(
       padding: EdgeInsets.zero,
       shrinkWrap: true,
@@ -282,11 +292,12 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
         crossAxisSpacing: 8,
         childAspectRatio: 0.9,
       ),
-      itemBuilder: (context, index) => _sceneTile(scenes[index], bankId: bankId, draggable: draggable),
+      itemBuilder: (context, index) =>
+          _sceneTile(scenes[index], bankId: bankId, draggable: draggable, reorderable: reorderable),
     );
   }
 
-  Widget _sceneTile(Scene scene, {String? bankId, bool draggable = false}) {
+  Widget _sceneTile(Scene scene, {String? bankId, bool draggable = false, bool reorderable = false}) {
     final color = _swatchFor(scene);
     final active = scene.id == _activeSceneId;
     final selected = _selectedIds.contains(scene.id);
@@ -397,7 +408,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
     );
 
     if (!canDrag) return tile;
-    return LongPressDraggable<_SceneDrag>(
+    final draggableTile = LongPressDraggable<_SceneDrag>(
       data: _SceneDrag(scene, bankId),
       feedback: Material(
         type: MaterialType.transparency,
@@ -409,6 +420,36 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
       childWhenDragging: Opacity(opacity: 0.3, child: tile),
       child: tile,
     );
+    if (bankId == null || !reorderable) return draggableTile;
+
+    // Dropping one scene onto another *within the same bank* reorders them;
+    // the surrounding group target still handles drops from another bank.
+    return DragTarget<_SceneDrag>(
+      onWillAcceptWithDetails: (details) =>
+          details.data.fromBankId == bankId && details.data.scene.id != scene.id,
+      onAcceptWithDetails: (details) => _reorderWithinBank(bankId, details.data.scene.id, scene.id),
+      builder: (context, candidate, rejected) {
+        if (candidate.isEmpty) return draggableTile;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.accent2, width: 2),
+          ),
+          child: draggableTile,
+        );
+      },
+    );
+  }
+
+  /// Reorders [movedSceneId] to sit where [targetSceneId] currently is.
+  void _reorderWithinBank(String bankId, String movedSceneId, String targetSceneId) {
+    final matches = ref.read(banksProvider).where((b) => b.id == bankId);
+    if (matches.isEmpty) return;
+    final slots = matches.first.sceneSlots;
+    final from = slots.indexOf(movedSceneId);
+    final to = slots.indexOf(targetSceneId);
+    if (from == -1 || to == -1) return;
+    ref.read(banksProvider.notifier).moveSlot(bankId, from, to);
   }
 
   /// One bank's section on the grouped view — also the drop target that
@@ -454,7 +495,14 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
                   ),
                 )
               else
-                _sceneGrid(group.scenes, bankId: group.bankId, draggable: true),
+                _sceneGrid(
+                  group.scenes,
+                  bankId: group.bankId,
+                  draggable: true,
+                  // Reordering only makes sense against the bank's own play
+                  // order — an A-Z view would just snap back.
+                  reorderable: _sortMode == _SortMode.manual,
+                ),
             ],
           ),
         );
@@ -500,7 +548,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
                     PopupMenuItem(value: _GroupMode.bank, child: Text('Group by Bank')),
                   ],
                 ),
-                const SaveProjectAction(),
+                const ControlDockAction(), const SaveProjectAction(),
               ],
             ),
       body: allScenes.isEmpty

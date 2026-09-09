@@ -10,6 +10,7 @@ import '../../core/storage/project_snapshot.dart';
 import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/artnet_settings.dart';
 import '../../models/project_data.dart';
@@ -147,7 +148,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         title: const Text('Files'),
         actions: [
           IconButton(icon: const Icon(Icons.add), tooltip: 'New Project', onPressed: _newProject),
-          const SaveProjectAction(),
+          const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: ListView(

@@ -5,7 +5,29 @@ import '../../models/chase.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 
-enum GeneratorEffect { staticColors, fadeTransition, colorChase, runningLight, strobe, rainbow, circle }
+enum GeneratorEffect {
+  // Colour effects.
+  staticColors,
+  fadeTransition,
+  colorChase,
+  runningLight,
+  strobe,
+  rainbow,
+  circle,
+  disco,
+  carousel,
+  sparkle,
+  randomColors,
+  // Beam-movement effects (need pan/tilt fixtures to show their shape;
+  // colour still applies so RGB fixtures aren't left dark).
+  panSweep,
+  tiltSweep,
+  sweep,
+  swim,
+  float,
+  center,
+  lightRider,
+}
 
 extension GeneratorEffectLabel on GeneratorEffect {
   String get label {
@@ -22,8 +44,48 @@ extension GeneratorEffectLabel on GeneratorEffect {
         return 'Strobe / Pulse';
       case GeneratorEffect.rainbow:
         return 'Rainbow Sweep';
+      case GeneratorEffect.disco:
+        return 'Disco';
+      case GeneratorEffect.carousel:
+        return 'Carousel';
+      case GeneratorEffect.sparkle:
+        return 'Sparkle';
+      case GeneratorEffect.randomColors:
+        return 'Random';
       case GeneratorEffect.circle:
-        return 'Circle (Pan/Tilt)';
+        return 'Circle';
+      case GeneratorEffect.panSweep:
+        return 'Pan';
+      case GeneratorEffect.tiltSweep:
+        return 'Tilt';
+      case GeneratorEffect.sweep:
+        return 'Sweep';
+      case GeneratorEffect.swim:
+        return 'Swim';
+      case GeneratorEffect.float:
+        return 'Float';
+      case GeneratorEffect.center:
+        return 'Center';
+      case GeneratorEffect.lightRider:
+        return 'Light Rider';
+    }
+  }
+
+  /// Beam-movement effects — the ones Size/Fan/Shift shape, and the ones
+  /// that need pan/tilt fixtures to look like anything.
+  bool get isMove {
+    switch (this) {
+      case GeneratorEffect.circle:
+      case GeneratorEffect.panSweep:
+      case GeneratorEffect.tiltSweep:
+      case GeneratorEffect.sweep:
+      case GeneratorEffect.swim:
+      case GeneratorEffect.float:
+      case GeneratorEffect.center:
+      case GeneratorEffect.lightRider:
+        return true;
+      default:
+        return false;
     }
   }
 
@@ -43,8 +105,28 @@ extension GeneratorEffectLabel on GeneratorEffect {
         return (0.08, 0.0);
       case GeneratorEffect.rainbow:
         return (0.5, 0.5);
+      case GeneratorEffect.disco:
+        return (0.25, 0.05);
+      case GeneratorEffect.carousel:
+        return (0.4, 0.3);
+      case GeneratorEffect.sparkle:
+        return (0.12, 0.05);
+      case GeneratorEffect.randomColors:
+        return (0.5, 0.25);
       case GeneratorEffect.circle:
         return (0.15, 0.15);
+      case GeneratorEffect.panSweep:
+      case GeneratorEffect.tiltSweep:
+      case GeneratorEffect.sweep:
+        return (0.15, 0.15);
+      case GeneratorEffect.swim:
+        return (0.2, 0.2);
+      case GeneratorEffect.float:
+        return (0.6, 0.6);
+      case GeneratorEffect.center:
+        return (1.0, 0.8);
+      case GeneratorEffect.lightRider:
+        return (0.12, 0.08);
     }
   }
 }
@@ -148,42 +230,98 @@ List<int> _hsvToRgb(double hue, double saturation, double value) {
   ];
 }
 
+/// One fixture's channel values: colour (scaled by [brightness]) plus an
+/// optional beam position. Channels the effect says nothing about stay at 0.
+List<int> _channelValues(
+  PatchedFixture fixture, {
+  List<int>? rgb,
+  int? pan,
+  int? tilt,
+  double brightness = 1.0,
+}) {
+  final channels = fixture.profile.channels;
+  final values = List<int>.filled(channels.length, 0);
+  int scaled(int component) => (component * brightness).round().clamp(0, 255);
+  for (var i = 0; i < channels.length; i++) {
+    switch (channels[i].function) {
+      case ChannelFunction.red:
+        if (rgb != null) values[i] = scaled(rgb[0]);
+        break;
+      case ChannelFunction.green:
+        if (rgb != null) values[i] = scaled(rgb[1]);
+        break;
+      case ChannelFunction.blue:
+        if (rgb != null) values[i] = scaled(rgb[2]);
+        break;
+      case ChannelFunction.dimmer:
+        values[i] = scaled(255);
+        break;
+      case ChannelFunction.pan:
+        if (pan != null) values[i] = pan;
+        break;
+      case ChannelFunction.tilt:
+        if (tilt != null) values[i] = tilt;
+        break;
+      default:
+        break;
+    }
+  }
+  return values;
+}
+
 Map<String, List<int>> _colorValuesFor(
   List<PatchedFixture> fixtures,
   List<int> Function(PatchedFixture fixture) colorPicker,
 ) {
   final result = <String, List<int>>{};
   for (final fixture in fixtures) {
-    final channels = fixture.profile.channels;
-    final values = List<int>.filled(channels.length, 0);
-    final rgb = colorPicker(fixture);
-    for (var i = 0; i < channels.length; i++) {
-      switch (channels[i].function) {
-        case ChannelFunction.red:
-          values[i] = rgb[0];
-          break;
-        case ChannelFunction.green:
-          values[i] = rgb[1];
-          break;
-        case ChannelFunction.blue:
-          values[i] = rgb[2];
-          break;
-        case ChannelFunction.dimmer:
-          values[i] = 255;
-          break;
-        default:
-          break;
-      }
-    }
-    result[fixture.id] = values;
+    result[fixture.id] = _channelValues(fixture, rgb: colorPicker(fixture));
   }
   return result;
+}
+
+/// -1 → 1 → -1 at a constant rate, unlike a sine's slow turnarounds.
+double _triangle(double phase) => 4 * (phase - (phase + 0.5).floorToDouble()).abs() - 1;
+
+/// Normalised beam position (-1..1 per axis) at [phase] (0..1 of one full
+/// cycle) — the raw shape, before Size/Fan are applied.
+(double pan, double tilt) _moveShape(GeneratorEffect effect, double phase) {
+  final t = 2 * pi * phase;
+  switch (effect) {
+    case GeneratorEffect.circle:
+      return (cos(t), sin(t));
+    case GeneratorEffect.panSweep:
+      return (sin(t), 0);
+    case GeneratorEffect.tiltSweep:
+      return (0, sin(t));
+    case GeneratorEffect.sweep:
+    case GeneratorEffect.lightRider:
+      return (_triangle(phase), 0);
+    case GeneratorEffect.swim:
+      // Figure-eight: tilt runs at double rate against the pan swing.
+      return (sin(t), sin(2 * t) * 0.6);
+    case GeneratorEffect.float:
+      // Two detuned sines per axis, so it wanders instead of repeating an
+      // obvious geometric path.
+      return (sin(t) * 0.6 + sin(3 * t) * 0.25, cos(2 * t) * 0.45);
+    case GeneratorEffect.center:
+      return (0, 0);
+    default:
+      return (0, 0);
+  }
 }
 
 /// Builds [count] scenes for [fixtures] according to [effect], cycling
 /// through [colors] where relevant. [pattern] decides which fixtures
 /// actually light up in each scene (default: all of them at once). Pass
 /// [idGenerator] to mint each scene's id (e.g. a uuid generator).
+///
+/// [size], [fan] and [shift] are the live FX shape controls, mirroring what
+/// a busking app gives you on a fader: [size] scales how far the beams
+/// travel from centre, [fan] spreads the rig outward in pan (first fixture
+/// left, last one right), and [shift] walks each fixture along the cycle so
+/// the effect ripples across the rig instead of every head moving as one.
+/// [shift] also staggers the palette on colour effects.
 List<Scene> generateScenes({
   required GeneratorEffect effect,
   required List<List<int>> colors,
@@ -192,6 +330,9 @@ List<Scene> generateScenes({
   required String Function() idGenerator,
   required String namePrefix,
   FixturePattern pattern = FixturePattern.all,
+  double size = 1.0,
+  double fan = 0.0,
+  double shift = 0.0,
 }) {
   if (fixtures.isEmpty || count <= 0) return [];
   final palette = colors.isEmpty ? const [
@@ -205,6 +346,40 @@ List<Scene> generateScenes({
       _applyPatternMask(fixtureValues, fixtures, _activeMaskFor(pattern, fixtures.length, index, random));
     }
     scenes.add(Scene(id: idGenerator(), name: '$namePrefix ${index + 1}', fixtureValues: fixtureValues));
+  }
+
+  if (effect.isMove) {
+    for (var i = 0; i < count; i++) {
+      final map = <String, List<int>>{};
+      for (var f = 0; f < fixtures.length; f++) {
+        final fixture = fixtures[f];
+        final phase = (i / count + shift * f / fixtures.length) % 1.0;
+        final (rawPan, rawTilt) = _moveShape(effect, phase);
+        // Fan spreads the rig outward around its middle fixture.
+        final spread = fixtures.length <= 1 ? 0.0 : (f / (fixtures.length - 1)) * 2 - 1;
+        final panNorm = (rawPan * size + spread * fan).clamp(-1.0, 1.0);
+        final tiltNorm = (rawTilt * size).clamp(-1.0, 1.0);
+
+        var brightness = 1.0;
+        if (effect == GeneratorEffect.lightRider) {
+          // The namesake scanner: only the beam the sweep is currently
+          // passing over stays lit, the ones behind it fade out.
+          final head = (_triangle(i / count) + 1) / 2 * (fixtures.length - 1);
+          final tail = max(1.0, fixtures.length / 3);
+          brightness = (1 - (f - head).abs() / tail).clamp(0.0, 1.0);
+        }
+
+        map[fixture.id] = _channelValues(
+          fixture,
+          rgb: palette[(i + (shift * f).round()) % palette.length],
+          pan: (128 + 127 * panNorm).round().clamp(0, 255),
+          tilt: (128 + 127 * tiltNorm).round().clamp(0, 255),
+          brightness: brightness,
+        );
+      }
+      addScene(i, map);
+    }
+    return scenes;
   }
 
   switch (effect) {
@@ -243,27 +418,7 @@ List<Scene> generateScenes({
           final distance = (headIndex - f) % fixtures.length;
           final behind = distance < 0 ? distance + fixtures.length : distance;
           final brightness = behind >= tailLength ? 0.0 : 1.0 - (behind / tailLength);
-          final channels = fixture.profile.channels;
-          final values = List<int>.filled(channels.length, 0);
-          for (var c = 0; c < channels.length; c++) {
-            switch (channels[c].function) {
-              case ChannelFunction.red:
-                values[c] = (color[0] * brightness).round();
-                break;
-              case ChannelFunction.green:
-                values[c] = (color[1] * brightness).round();
-                break;
-              case ChannelFunction.blue:
-                values[c] = (color[2] * brightness).round();
-                break;
-              case ChannelFunction.dimmer:
-                values[c] = (255 * brightness).round();
-                break;
-              default:
-                break;
-            }
-          }
-          map[fixture.id] = values;
+          map[fixture.id] = _channelValues(fixture, rgb: color, brightness: brightness);
         }
         addScene(i, map);
       }
@@ -285,34 +440,62 @@ List<Scene> generateScenes({
       }
       break;
 
-    case GeneratorEffect.circle:
+    case GeneratorEffect.disco:
+      // Every fixture its own colour, re-rolled each scene — the busy
+      // multi-colour party look.
       for (var i = 0; i < count; i++) {
-        final theta = 2 * pi * i / count;
-        final pan = (128 + 100 * cos(theta)).round().clamp(0, 255);
-        final tilt = (128 + 100 * sin(theta)).round().clamp(0, 255);
+        addScene(i, _colorValuesFor(fixtures, (_) => palette[random.nextInt(palette.length)]));
+      }
+      break;
+
+    case GeneratorEffect.carousel:
+      // The palette rotates around the rig: each fixture hands its colour
+      // to its neighbour every scene.
+      for (var i = 0; i < count; i++) {
+        addScene(
+          i,
+          _colorValuesFor(fixtures, (f) => palette[(fixtures.indexOf(f) + i) % palette.length]),
+        );
+      }
+      break;
+
+    case GeneratorEffect.sparkle:
+      // A dark rig with a few fixtures popping at full — glitter, not chase.
+      for (var i = 0; i < count; i++) {
+        final lit = max(1, (fixtures.length / 4).round());
+        final chosen = <int>{};
+        while (chosen.length < lit) {
+          chosen.add(random.nextInt(fixtures.length));
+        }
         final map = <String, List<int>>{};
-        for (final fixture in fixtures) {
-          final channels = fixture.profile.channels;
-          final values = List<int>.filled(channels.length, 0);
-          for (var c = 0; c < channels.length; c++) {
-            switch (channels[c].function) {
-              case ChannelFunction.pan:
-                values[c] = pan;
-                break;
-              case ChannelFunction.tilt:
-                values[c] = tilt;
-                break;
-              case ChannelFunction.dimmer:
-                values[c] = 255;
-                break;
-              default:
-                break;
-            }
-          }
-          map[fixture.id] = values;
+        for (var f = 0; f < fixtures.length; f++) {
+          map[fixtures[f].id] = _channelValues(
+            fixtures[f],
+            rgb: palette[random.nextInt(palette.length)],
+            brightness: chosen.contains(f) ? 1.0 : 0.0,
+          );
         }
         addScene(i, map);
       }
+      break;
+
+    case GeneratorEffect.randomColors:
+      // One random colour at a time, whole rig together.
+      for (var i = 0; i < count; i++) {
+        final color = palette[random.nextInt(palette.length)];
+        addScene(i, _colorValuesFor(fixtures, (_) => color));
+      }
+      break;
+
+    // Movement effects are handled above, before this switch.
+    case GeneratorEffect.circle:
+    case GeneratorEffect.panSweep:
+    case GeneratorEffect.tiltSweep:
+    case GeneratorEffect.sweep:
+    case GeneratorEffect.swim:
+    case GeneratorEffect.float:
+    case GeneratorEffect.center:
+    case GeneratorEffect.lightRider:
       break;
   }
   return scenes;

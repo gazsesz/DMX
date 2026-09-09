@@ -21,6 +21,7 @@ const _prefDeviceName = 'artnet.deviceName';
 const _prefHost = 'artnet.host';
 const _prefPort = 'artnet.port';
 const _prefBroadcast = 'artnet.broadcast';
+const _prefDemoMode = 'artnet.demoMode';
 
 /// Connection settings the user configures once for their venue's node —
 /// unlike scenes/banks/chases (deliberately saved/loaded as named show
@@ -46,6 +47,7 @@ class ArtNetSettingsNotifier extends StateNotifier<ArtNetSettings> {
     await prefs.setString(_prefHost, settings.host);
     await prefs.setInt(_prefPort, settings.port);
     await prefs.setBool(_prefBroadcast, settings.broadcast);
+    await prefs.setBool(_prefDemoMode, settings.demoMode);
   }
 }
 

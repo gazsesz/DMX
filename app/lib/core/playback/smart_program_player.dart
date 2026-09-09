@@ -111,11 +111,14 @@ class SmartProgramPlayer {
   /// looping the base chase forever with nothing real driving it; a fresh
   /// beat later restarts cleanly from the base zone.
   void _enterSilence({required ArtNetService service, required List<UniverseConfig> universes}) {
-    if (_program == null || _isSilent) return;
+    final program = _program;
+    if (program == null || _isSilent) return;
     _isSilent = true;
     _confirmTimer?.cancel();
-    chasePlayer.stop();
-    service.blackoutAll(universes);
+    // Let the rig die out gently over the program's blackout fade instead of
+    // cutting to black — `fadeToBlack` stops playback itself and yields to
+    // anything fired mid-fade.
+    chasePlayer.fadeToBlack(over: program.blackoutFade, service: service, universes: universes);
     _statusController.add(SmartProgramStatus(zone: _confirmedZone, isSilent: true));
   }
 
@@ -133,14 +136,16 @@ class SmartProgramPlayer {
 
     _resetSilenceTimer(service: service, universes: universes);
     if (_isSilent) {
-      // Music is back after a silent stretch — start clean from the base
-      // zone rather than resuming mid-classification on stale beat history.
+      // Music is back after a silent stretch. Come up on the *slower* zone
+      // rather than the base one: a single beat says nothing about tempo
+      // yet, and easing back in reads far better than slamming into a fast
+      // look. The next few beats reclassify it properly anyway.
       _isSilent = false;
       _beatTimes.clear();
-      _pendingZone = SmartProgramZone.base;
-      _confirmedZone = SmartProgramZone.base;
+      _pendingZone = SmartProgramZone.slower;
+      _confirmedZone = SmartProgramZone.slower;
       _playZone(
-        SmartProgramZone.base,
+        SmartProgramZone.slower,
         chases: chases,
         scenes: scenes,
         banks: banks,
@@ -148,7 +153,7 @@ class SmartProgramPlayer {
         universes: universes,
         service: service,
       );
-      _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.base));
+      _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.slower));
       return;
     }
 
@@ -198,8 +203,8 @@ class SmartProgramPlayer {
   }
 
   SmartProgramZone _classify(SmartProgram program, double bpm) {
-    if (bpm >= program.fasterTriggerBpm && program.fasterChaseId != null) return SmartProgramZone.faster;
-    if (bpm <= program.slowerTriggerBpm && program.slowerChaseId != null) return SmartProgramZone.slower;
+    if (bpm >= program.fasterTriggerBpm && program.fasterTarget != null) return SmartProgramZone.faster;
+    if (bpm <= program.slowerTriggerBpm && program.slowerTarget != null) return SmartProgramZone.slower;
     return SmartProgramZone.base;
   }
 
@@ -214,31 +219,46 @@ class SmartProgramPlayer {
   }) {
     final program = _program;
     if (program == null) return;
-    final chaseId = switch (zone) {
-      SmartProgramZone.base => program.baseChaseId,
-      SmartProgramZone.faster => program.fasterChaseId ?? program.baseChaseId,
-      SmartProgramZone.slower => program.slowerChaseId ?? program.baseChaseId,
+    final target = switch (zone) {
+      SmartProgramZone.base => program.baseTarget,
+      SmartProgramZone.faster => program.fasterTarget ?? program.baseTarget,
+      SmartProgramZone.slower => program.slowerTarget ?? program.baseTarget,
     };
-    if (chaseId == null) return;
-    final matches = chases.where((c) => c.id == chaseId);
-    if (matches.isEmpty) return;
-    final source = matches.first;
+    if (target == null) return;
     final fade = switch (zone) {
       SmartProgramZone.base => program.baseFade,
       SmartProgramZone.faster => program.fasterFade,
       SmartProgramZone.slower => program.slowerFade,
     };
+
     // The program's own per-zone fade always wins over whatever the
     // chase/bank was configured with — that's the whole point of setting it
     // here.
-    final withFade = source.copyWith(
-      steps: [
-        for (final step in source.steps)
-          ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: step.hold, fade: fade),
-      ],
-    );
+    final Chase toPlay;
+    if (target.isBank) {
+      final matches = banks.where((b) => b.id == target.id);
+      if (matches.isEmpty) return;
+      // A bank has no timing of its own, so it becomes a one-step chase
+      // stepping through its slots at this zone's pace.
+      toPlay = Chase(
+        id: 'smart-bank-${target.id}',
+        name: matches.first.name,
+        steps: [ChaseStep(bankId: target.id, hold: _zoneHold(program, zone), fade: fade)],
+      );
+    } else {
+      final matches = chases.where((c) => c.id == target.id);
+      if (matches.isEmpty) return;
+      final source = matches.first;
+      toPlay = source.copyWith(
+        steps: [
+          for (final step in source.steps)
+            ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: step.hold, fade: fade),
+        ],
+      );
+    }
+
     chasePlayer.play(
-      chase: withFade,
+      chase: toPlay,
       scenes: scenes,
       banks: banks,
       patchedFixtures: patchedFixtures,
@@ -246,6 +266,19 @@ class SmartProgramPlayer {
       service: service,
       onStep: (_) {},
     );
+  }
+
+  /// Step time for a bank target, derived from the zone's own tempo: the
+  /// faster zone should visibly step faster than the base one even though a
+  /// bank carries no timing of its own.
+  Duration _zoneHold(SmartProgram program, SmartProgramZone zone) {
+    final bpm = switch (zone) {
+      SmartProgramZone.base => program.baseBpm,
+      SmartProgramZone.faster => program.fasterTriggerBpm,
+      SmartProgramZone.slower => program.slowerTriggerBpm,
+    };
+    final beatMs = 60000 / bpm.clamp(20, 300);
+    return Duration(milliseconds: beatMs.round());
   }
 
   void stop() {

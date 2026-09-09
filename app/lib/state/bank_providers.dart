@@ -60,6 +60,30 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     ];
   }
 
+  /// Moves the scene in [fromSlot] to sit at [toSlot], shuffling the slots
+  /// in between along — the bank keeps its size, so playback order changes
+  /// without any slot being lost or created.
+  void moveSlot(String bankId, int fromSlot, int toSlot) {
+    if (fromSlot == toSlot) return;
+    state = [
+      for (final b in state)
+        if (b.id == bankId)
+          b.copyWith(
+            sceneSlots: () {
+              final slots = [...b.sceneSlots];
+              if (fromSlot < 0 || fromSlot >= slots.length || toSlot < 0 || toSlot >= slots.length) {
+                return slots;
+              }
+              final moved = slots.removeAt(fromSlot);
+              slots.insert(toSlot, moved);
+              return slots;
+            }(),
+          )
+        else
+          b,
+    ];
+  }
+
   void remove(String id) {
     state = state.where((b) => b.id != id).toList();
   }

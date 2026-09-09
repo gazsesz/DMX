@@ -5,6 +5,7 @@ import '../../core/playback/chase_player.dart';
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/chase.dart';
@@ -84,6 +85,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       universes: ref.read(universesProvider),
       service: service,
       beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
+      beatRate: beatRateOf(ref),
       onStep: (index) {
         if (mounted) setState(() => _runningSlot = index);
       },
@@ -216,7 +218,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final scenes = ref.watch(scenesProvider);
     if (banks.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Banks'), actions: const [SaveProjectAction()]),
+        appBar: AppBar(title: const Text('Banks'), actions: const [ControlDockAction(), SaveProjectAction()]),
         body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
       );
     }
@@ -272,7 +274,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
             tooltip: 'Rename bank',
             onPressed: () => _renameBank(selected),
           ),
-          const SaveProjectAction(),
+          const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: Column(
@@ -353,6 +355,27 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     ],
                   ),
                 ),
+                if (beatSync) ...[
+                  const SizedBox(width: 6),
+                  Tooltip(
+                    message: 'Steps per beat',
+                    child: SegmentedButton<BeatRate>(
+                      segments: [
+                        for (final rate in BeatRate.values) ButtonSegment(value: rate, label: Text(rate.label)),
+                      ],
+                      selected: {ref.watch(beatRateProvider)},
+                      showSelectedIcon: false,
+                      style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onSelectionChanged: (selection) {
+                        ref.read(beatRateProvider.notifier).state = selection.first;
+                        _restartRunIfPlaying(selected);
+                      },
+                    ),
+                  ),
+                ],
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(

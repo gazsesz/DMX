@@ -9,6 +9,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import 'app.dart';
 import 'models/artnet_settings.dart';
 import 'state/artnet_providers.dart';
+import 'state/control_dock_providers.dart';
 import 'state/dashboard_prefs_providers.dart';
 
 Future<void> main() async {
@@ -35,6 +36,7 @@ Future<void> main() async {
     host: prefs.getString('artnet.host') ?? fallback.host,
     port: prefs.getInt('artnet.port') ?? fallback.port,
     broadcast: prefs.getBool('artnet.broadcast') ?? fallback.broadcast,
+    demoMode: prefs.getBool('artnet.demoMode') ?? fallback.demoMode,
   );
 
   final initialDashboardPrefs = dashboardPrefsFromStrings(
@@ -42,11 +44,18 @@ Future<void> main() async {
     boxSize: prefs.getString(prefDashboardBoxSize),
   );
 
+  final initialDock = controlDockFromPrefs(
+    visible: prefs.getBool(prefDockVisible),
+    position: prefs.getString(prefDockPosition),
+    stageVisible: prefs.getBool(prefStageVisible),
+  );
+
   runApp(
     ProviderScope(
       overrides: [
         artNetSettingsProvider.overrideWith((ref) => ArtNetSettingsNotifier(initialSettings)),
         dashboardPrefsProvider.overrideWith((ref) => DashboardPrefsNotifier(initialDashboardPrefs)),
+        controlDockProvider.overrideWith((ref) => ControlDockNotifier(initialDock)),
       ],
       child: const DmxControllerApp(),
     ),

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/artnet_settings.dart';
+import '../../models/control_dock_prefs.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/control_dock_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -20,6 +24,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _hostController;
   late final TextEditingController _portController;
   bool _testing = false;
+  String? _version;
 
   @override
   void initState() {
@@ -28,6 +33,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _deviceNameController = TextEditingController(text: settings.deviceName);
     _hostController = TextEditingController(text: settings.host);
     _portController = TextEditingController(text: settings.port.toString());
+    // Read straight from the built package rather than a hardcoded string,
+    // so bumping pubspec's `version:` is all a release needs.
+    PackageInfo.fromPlatform().then((info) {
+      if (mounted) setState(() => _version = '${info.version} (build ${info.buildNumber})');
+    });
   }
 
   @override
@@ -156,7 +166,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final status = ref.watch(connectionStatusProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), actions: const [SaveProjectAction()]),
+      appBar: AppBar(title: const Text('Settings'), actions: const [ControlDockAction(), SaveProjectAction()]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
@@ -215,6 +225,38 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   const Divider(height: 28),
                   Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Demo Mode (no node)', style: TextStyle(fontWeight: FontWeight.w600)),
+                            Text(
+                              settings.demoMode
+                                  ? 'Nothing is transmitted — program offline and watch the Live Stage view'
+                                  : 'Turn on to write shows with no node on the network',
+                              style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch(
+                        value: settings.demoMode,
+                        onChanged: (value) async {
+                          ref
+                              .read(artNetSettingsProvider.notifier)
+                              .update((current) => current.copyWith(demoMode: value));
+                          // Re-open the connection either way: leaving demo
+                          // mode has to actually bind a socket, entering it
+                          // has to drop one.
+                          await ref.read(artNetServiceProvider).connect(ref.read(artNetSettingsProvider));
+                          if (context.mounted) setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 28),
+                  Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(child: _ConnectionStatusLine(status: status, testing: _testing)),
@@ -229,6 +271,52 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             : const Text('Test'),
                       ),
                     ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _SectionTitle('Control Dock'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'A strip of live controls (now playing, stop, beat sync, blackout) '
+                    'pinned outside the tabs, so it stays reachable from every screen. '
+                    'Show or hide it with the icon in any screen\'s top bar.',
+                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  ),
+                  const SizedBox(height: 12),
+                  SegmentedButton<ControlDockPosition>(
+                    segments: [
+                      for (final position in ControlDockPosition.values)
+                        ButtonSegment(value: position, label: Text(position.label)),
+                    ],
+                    selected: {ref.watch(controlDockProvider).position},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (selection) =>
+                        ref.read(controlDockProvider.notifier).setPosition(selection.first),
+                  ),
+                  const SizedBox(height: 10),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show the dock'),
+                    value: ref.watch(controlDockProvider).visible,
+                    onChanged: (_) => ref.read(controlDockProvider.notifier).toggleVisible(),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show the Live Stage strip'),
+                    subtitle: const Text(
+                      'The 2D rig along the bottom of every screen — pairs well with Demo Mode',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
+                    value: ref.watch(controlDockProvider).stageVisible,
+                    onChanged: (_) => ref.read(controlDockProvider.notifier).toggleStageVisible(),
                   ),
                 ],
               ),
@@ -276,7 +364,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text('App Version', style: TextStyle(color: AppColors.textFaint)),
-                      Text('1.0.0 (build 1)', style: appMonoStyle()),
+                      Text(_version ?? '…', style: appMonoStyle()),
                     ],
                   ),
                   const SizedBox(height: 14),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/control_dock.dart';
+import '../../models/control_dock_prefs.dart';
+import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
 import '../banks/banks_screen.dart';
 import '../chases/chases_screen.dart';
@@ -101,6 +104,24 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
+  /// The tab content with the docks around it — outside the IndexedStack, so
+  /// they stay put across tabs. The Live Stage strip always sits along the
+  /// bottom of the content; the control dock then takes the outermost edge
+  /// the user picked for it.
+  Widget _withDocks(Widget content) {
+    final dock = ref.watch(controlDockProvider);
+    var body = content;
+    if (dock.stageVisible) {
+      body = Column(children: [Expanded(child: body), const LiveStageDock()]);
+    }
+    if (!dock.visible) return body;
+    final bar = ControlDock(position: dock.position);
+    return switch (dock.position) {
+      ControlDockPosition.bottom => Column(children: [Expanded(child: body), bar]),
+      ControlDockPosition.right => Row(children: [Expanded(child: body), bar]),
+    };
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
@@ -128,9 +149,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                     children: [
                       _buildNowPlayingBanner(),
                       Expanded(
-                        child: IndexedStack(
-                          index: _index,
-                          children: [for (final section in _sections) section.screen],
+                        child: _withDocks(
+                          IndexedStack(
+                            index: _index,
+                            children: [for (final section in _sections) section.screen],
+                          ),
                         ),
                       ),
                     ],
@@ -146,9 +169,11 @@ class _AppShellState extends ConsumerState<AppShell> {
             children: [
               _buildNowPlayingBanner(),
               Expanded(
-                child: IndexedStack(
-                  index: _index,
-                  children: [for (final section in _sections) section.screen],
+                child: _withDocks(
+                  IndexedStack(
+                    index: _index,
+                    children: [for (final section in _sections) section.screen],
+                  ),
                 ),
               ),
             ],

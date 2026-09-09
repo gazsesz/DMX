@@ -29,14 +29,23 @@ class ArtNetService {
   final Map<String, UniverseConfig> _knownUniverses = {};
 
   Timer? _keepAliveTimer;
+  bool _demoMode = false;
 
-  bool get isConnected => _socket != null;
+  /// Demo mode counts as connected on purpose: every screen gates triggers
+  /// on this, and the whole point is to let a show be written with no node
+  /// on the network. Nothing is transmitted — [_send] has no socket to use —
+  /// but the channel buffers still update, which is what the 2D stage view
+  /// draws from.
+  bool get isConnected => _socket != null || _demoMode;
+  bool get isDemoMode => _demoMode;
   ArtNetSettings get settings => _settings;
 
   /// Opens the sending socket. Call once, e.g. from the Settings screen.
   Future<void> connect(ArtNetSettings settings) async {
     await disconnect();
     _settings = settings;
+    _demoMode = settings.demoMode;
+    if (_demoMode) return;
     final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, 0);
     socket.broadcastEnabled = settings.broadcast;
     _socket = socket;
@@ -52,6 +61,7 @@ class ArtNetService {
     _keepAliveTimer = null;
     _socket?.close();
     _socket = null;
+    _demoMode = false;
   }
 
   void updateSettings(ArtNetSettings settings) {

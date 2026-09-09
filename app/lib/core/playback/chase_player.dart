@@ -37,6 +37,25 @@ class _FadeTarget {
 /// packets as fast as the CPU can issue them.
 const _minStepDuration = Duration(milliseconds: 15);
 
+/// How a beat-synced chase maps beats to steps.
+enum BeatRate {
+  /// One step every second beat — for looks that read better half speed.
+  half,
+
+  /// One step per beat.
+  normal,
+
+  /// Two steps per beat: one on the beat, one halfway to the next, timed
+  /// off the last measured interval.
+  doubled;
+
+  String get label => switch (this) {
+    BeatRate.half => '½×',
+    BeatRate.normal => '1×',
+    BeatRate.doubled => '2×',
+  };
+}
+
 /// Drives a [Chase] (or a single [Bank] treated as one) in real time.
 ///
 /// A bank step is expanded into one instant per filled slot — playing a
@@ -95,6 +114,7 @@ class ChasePlayer {
     required List<UniverseConfig> universes,
     required ArtNetService service,
     Stream<DateTime>? beatStream,
+    BeatRate beatRate = BeatRate.normal,
     void Function(int instantIndex)? onStep,
   }) async {
     stop();
@@ -106,6 +126,13 @@ class ChasePlayer {
     _running = true;
     _index = chase.direction == ChaseDirection.random ? _random.nextInt(instants.length) : 0;
     _forward = true;
+
+    // Beat bookkeeping for BeatRate.doubled: the off-beat step is timed off
+    // however long the last two beats were apart, since the detector only
+    // reports beats themselves.
+    DateTime? previousBeatAt;
+    var beatInterval = const Duration(milliseconds: 500);
+    var stepIsOffBeat = false;
 
     while (_isCurrent(myGeneration)) {
       onStep?.call(_index);
@@ -119,7 +146,22 @@ class ChasePlayer {
       );
       if (!_isCurrent(myGeneration)) break;
       if (useBeat) {
-        await _waitForBeat(beatStream, myGeneration);
+        if (stepIsOffBeat) {
+          await _holdFor(beatInterval ~/ 2, myGeneration);
+          stepIsOffBeat = false;
+        } else {
+          final beatAt = await _waitForBeat(beatStream, myGeneration, beatRate == BeatRate.half ? 2 : 1);
+          if (beatAt != null) {
+            final measured = previousBeatAt == null ? null : beatAt.difference(previousBeatAt);
+            // Ignore a gap that means the music stopped rather than a tempo
+            // this slow, so the off-beat step never strands mid-fade.
+            if (measured != null && measured > Duration.zero && measured <= const Duration(seconds: 2)) {
+              beatInterval = measured;
+            }
+            previousBeatAt = beatAt;
+          }
+          stepIsOffBeat = beatRate == BeatRate.doubled;
+        }
       } else {
         await _holdFor(instants[_index].hold, myGeneration);
       }
@@ -128,17 +170,23 @@ class ChasePlayer {
     }
   }
 
-  Future<void> _waitForBeat(Stream<DateTime> beatStream, int generation) async {
-    final completer = Completer<void>();
-    final subscription = beatStream.listen((_) {
-      if (!completer.isCompleted) completer.complete();
+  /// Waits for the next beat to step on, returning when it landed — or null
+  /// if playback was superseded first. [skip] > 1 waits out that many beats
+  /// (2 for half time).
+  Future<DateTime?> _waitForBeat(Stream<DateTime> beatStream, int generation, int skip) async {
+    final completer = Completer<DateTime?>();
+    var beatsSeen = 0;
+    final subscription = beatStream.listen((beatAt) {
+      if (++beatsSeen < skip) return;
+      if (!completer.isCompleted) completer.complete(beatAt);
     });
     final safetyCheck = Timer.periodic(const Duration(milliseconds: 100), (_) {
-      if (!_isCurrent(generation) && !completer.isCompleted) completer.complete();
+      if (!_isCurrent(generation) && !completer.isCompleted) completer.complete(null);
     });
-    await completer.future;
+    final beatAt = await completer.future;
     safetyCheck.cancel();
     await subscription.cancel();
+    return beatAt;
   }
 
   Future<void> _crossfadeTo(
@@ -226,6 +274,50 @@ class ChasePlayer {
         _index = _random.nextInt(total);
         break;
     }
+  }
+
+  /// Ramps every channel on [universes] down to zero over [over] instead of
+  /// snapping to black — so a show fades out gently rather than cutting.
+  ///
+  /// Runs under the same generation token as playback, so firing anything
+  /// new mid-fade cleanly takes over instead of the two fighting.
+  Future<void> fadeToBlack({
+    required Duration over,
+    required ArtNetService service,
+    required List<UniverseConfig> universes,
+  }) async {
+    stop();
+    if (over <= Duration.zero) {
+      service.blackoutAll(universes);
+      return;
+    }
+    final myGeneration = ++_generation;
+    _running = true;
+    const tickMs = 40;
+    final tickCount = (over.inMilliseconds / tickMs).ceil().clamp(1, 2000);
+    final startLevels = {
+      for (final universe in universes)
+        universe: [for (var channel = 0; channel < 512; channel++) service.getChannelValue(universe, channel)],
+    };
+
+    for (var tick = 1; tick <= tickCount && _isCurrent(myGeneration); tick++) {
+      final remaining = 1 - tick / tickCount;
+      for (final entry in startLevels.entries) {
+        var touched = false;
+        for (var channel = 0; channel < 512; channel++) {
+          final from = entry.value[channel];
+          if (from == 0) continue;
+          service.setChannel(entry.key, channel, (from * remaining).round().clamp(0, 255), send: false);
+          touched = true;
+        }
+        if (touched) service.flush(entry.key);
+      }
+      await Future<void>.delayed(const Duration(milliseconds: tickMs));
+    }
+
+    if (!_isCurrent(myGeneration)) return;
+    service.blackoutAll(universes);
+    _running = false;
   }
 
   /// Stops playback immediately and invalidates any in-flight loop's
