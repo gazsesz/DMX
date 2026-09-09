@@ -8,6 +8,7 @@ import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
+import '../../state/smart_program_providers.dart';
 
 /// Gathers the whole show's current state into one [ProjectData] snapshot —
 /// shared by the Files screen and the quick "Save Project" action available
@@ -24,5 +25,6 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     banks: ref.read(banksProvider),
     chases: ref.read(chasesProvider),
     dashboardTriggers: ref.read(dashboardTriggersProvider),
+    smartPrograms: ref.read(smartProgramsProvider),
   );
 }

@@ -5,6 +5,7 @@ import 'dashboard_trigger.dart';
 import 'fixture_profile.dart';
 import 'patched_fixture.dart';
 import 'scene.dart';
+import 'smart_program.dart';
 import 'universe_config.dart';
 
 /// Everything that makes up one show file.
@@ -18,6 +19,7 @@ class ProjectData {
   final List<Bank> banks;
   final List<Chase> chases;
   final List<DashboardTriggerRef> dashboardTriggers;
+  final List<SmartProgram> smartPrograms;
 
   const ProjectData({
     required this.name,
@@ -29,6 +31,7 @@ class ProjectData {
     required this.banks,
     required this.chases,
     this.dashboardTriggers = const [],
+    this.smartPrograms = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -42,6 +45,7 @@ class ProjectData {
     'banks': banks.map((b) => b.toJson()).toList(),
     'chases': chases.map((c) => c.toJson()).toList(),
     'dashboardTriggers': dashboardTriggers.map((t) => t.toJson()).toList(),
+    'smartPrograms': smartPrograms.map((p) => p.toJson()).toList(),
   };
 
   factory ProjectData.fromJson(Map<String, dynamic> json, {required List<FixtureProfile> builtIns}) {
@@ -64,6 +68,9 @@ class ProjectData {
       chases: (json['chases'] as List? ?? []).map((c) => Chase.fromJson(c as Map<String, dynamic>)).toList(),
       dashboardTriggers: (json['dashboardTriggers'] as List? ?? [])
           .map((t) => DashboardTriggerRef.fromJson(t as Map<String, dynamic>))
+          .toList(),
+      smartPrograms: (json['smartPrograms'] as List? ?? [])
+          .map((p) => SmartProgram.fromJson(p as Map<String, dynamic>))
           .toList(),
     );
   }

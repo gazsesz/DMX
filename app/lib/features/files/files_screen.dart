@@ -20,6 +20,7 @@ import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
+import '../../state/smart_program_providers.dart';
 
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key});
@@ -61,6 +62,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     ref.read(banksProvider.notifier).loadAll(data.banks);
     ref.read(chasesProvider.notifier).loadAll(data.chases);
     ref.read(dashboardTriggersProvider.notifier).loadAll(data.dashboardTriggers);
+    ref.read(smartProgramsProvider.notifier).loadAll(data.smartPrograms);
   }
 
   Future<void> _save({bool saveAs = false}) async {
@@ -114,6 +116,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     ref.read(banksProvider.notifier).reset();
     ref.read(chasesProvider.notifier).loadAll(const []);
     ref.read(dashboardTriggersProvider.notifier).loadAll(const []);
+    ref.read(smartProgramsProvider.notifier).loadAll(const []);
   }
 
   Future<void> _exportToFile() async {

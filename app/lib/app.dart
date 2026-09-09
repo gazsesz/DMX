@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
-import 'features/shell/app_shell.dart';
+import 'features/splash/splash_screen.dart';
 
 class DmxControllerApp extends StatelessWidget {
   const DmxControllerApp({super.key});
@@ -14,7 +14,7 @@ class DmxControllerApp extends StatelessWidget {
       theme: buildAppTheme(),
       darkTheme: buildAppTheme(),
       themeMode: ThemeMode.dark,
-      home: const AppShell(),
+      home: const SplashScreen(),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/playback/chase_player.dart';
+import '../../core/playback/smart_program_player.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/audio/beat_detector.dart';
@@ -12,6 +13,7 @@ import '../../core/widgets/save_project_action.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_prefs.dart';
 import '../../models/dashboard_trigger.dart';
+import '../../models/smart_program.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
@@ -21,6 +23,8 @@ import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
+import '../../state/smart_program_providers.dart';
+import '../chases/smart_program_editor_screen.dart';
 import '../fixtures/fixture_layout_screen.dart';
 import '../manual_control/manual_control_screen.dart';
 import 'live_stage_view.dart';
@@ -46,18 +50,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   double _bpm = 120;
   double _stepSeconds = 1.2;
   double _fadeSeconds = 0.3;
+  bool _useBpm = false;
   bool _beatSync = false;
+  bool _tempoExpanded = true;
   double _sensitivity = 0.6;
   BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
   StreamSubscription<DateTime>? _beatSub;
+  late final TextEditingController _bpmController;
 
   late final ChasePlayer _player;
+  late final SmartProgramPlayer _smartPlayer;
   String? _activeTriggerId;
+  SmartProgramStatus? _smartStatus;
+  StreamSubscription<SmartProgramStatus>? _smartStatusSub;
 
   @override
   void initState() {
     super.initState();
     _player = ref.read(playbackControllerProvider);
+    _smartPlayer = ref.read(smartProgramPlayerProvider);
+    _smartStatusSub = _smartPlayer.statusStream.listen((status) {
+      if (mounted) setState(() => _smartStatus = status);
+    });
+    _bpmController = TextEditingController(text: _bpm.round().toString());
     final beatService = ref.read(beatDetectorProvider);
     _sensitivity = beatService.sensitivity;
     _frequencyBand = beatService.frequencyBand;
@@ -69,7 +84,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   @override
   void dispose() {
+    _smartStatusSub?.cancel();
     _beatSub?.cancel();
+    _bpmController.dispose();
     super.dispose();
   }
 
@@ -112,9 +129,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       }
       final avgMs = intervals.reduce((a, b) => a + b) / intervals.length;
       if (avgMs > 0 && mounted) {
-        setState(() => _bpm = 60000 / avgMs);
+        _setBpm(60000 / avgMs, updateController: true);
       }
     }
+  }
+
+  /// Sets tempo from a BPM value, keeping [_stepSeconds] (what actually
+  /// drives bank playback) and the BPM text field in sync with each other
+  /// regardless of which one the user is interacting with.
+  void _setBpm(double bpm, {required bool updateController}) {
+    final clamped = bpm.clamp(20.0, 300.0);
+    setState(() {
+      _bpm = clamped;
+      _stepSeconds = (60 / clamped).clamp(0.0, 5.0);
+    });
+    if (updateController) _bpmController.text = clamped.round().toString();
+    _restartActiveTriggerIfPlaying();
   }
 
   List<_DashboardTrigger> _triggers() {
@@ -294,7 +324,48 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  Future<void> _toggleSmartProgram(SmartProgram program) async {
+    if (_smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id) {
+      _smartPlayer.stop();
+      setState(() => _smartStatus = null);
+      ref.read(nowPlayingProvider.notifier).state = null;
+      return;
+    }
+    final service = ref.read(artNetServiceProvider);
+    if (!service.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not connected — check Settings')),
+      );
+      return;
+    }
+    if (program.baseChaseId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Set a base chase for this program first — edit it on the Chase tab')),
+      );
+      return;
+    }
+    _player.stop();
+    setState(() => _activeTriggerId = null);
+    final started = await _smartPlayer.start(
+      program: program,
+      chases: ref.read(chasesProvider),
+      scenes: ref.read(scenesProvider),
+      banks: ref.read(banksProvider),
+      patchedFixtures: ref.read(patchedFixturesProvider),
+      universes: ref.read(universesProvider),
+      service: service,
+    );
+    if (started) {
+      ref.read(nowPlayingProvider.notifier).state = NowPlaying(name: 'Smart: ${program.name}', isBank: false);
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Could not start the microphone for tempo tracking')),
+      );
+    }
+  }
+
   Future<void> _startChase(Chase chase) async {
+    ref.read(smartProgramPlayerProvider).stop();
     final service = ref.read(artNetServiceProvider);
     Stream<DateTime>? beatStream;
     if (chase.beatSync) {
@@ -352,6 +423,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   Future<void> _blackout() async {
     _player.stop();
+    ref.read(smartProgramPlayerProvider).stop();
     final service = ref.read(artNetServiceProvider);
     if (!service.isConnected) {
       await service.connect(ref.read(artNetSettingsProvider));
@@ -367,6 +439,118 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Color _kindColor(TriggerKind kind) => kind == TriggerKind.bank ? AppColors.accent2 : AppColors.accent;
+
+  /// A single mosaic tile — used for both Quick Triggers and Smart Programs
+  /// so they look and resize identically.
+  Widget _buildMosaicTile({
+    required DashboardBoxSize boxSize,
+    required String kindLabel,
+    required String name,
+    required String sub,
+    required Color color,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: active ? color.withValues(alpha: 0.18) : AppColors.panel,
+          border: Border.all(color: active ? color : AppColors.border, width: active ? 2 : 1.5),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: active ? [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 10)] : null,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  kindLabel,
+                  style: TextStyle(fontSize: boxSize.kindFontSize, fontWeight: FontWeight.w800, color: color),
+                ),
+                if (active) ...[
+                  const SizedBox(width: 4),
+                  Icon(Icons.play_arrow, size: boxSize.kindFontSize + 2, color: color),
+                ],
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              name,
+              style: TextStyle(fontSize: boxSize.nameFontSize, fontWeight: FontWeight.w700),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            Text(
+              sub,
+              style: TextStyle(fontSize: boxSize.subFontSize, color: AppColors.textFaint),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// A single list row — the list-layout equivalent of [_buildMosaicTile].
+  Widget _buildListRow({
+    required IconData icon,
+    required String name,
+    required String sub,
+    required Color color,
+    required bool active,
+    required VoidCallback onTap,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      color: active ? color.withValues(alpha: 0.14) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: active ? color : Colors.transparent, width: 1.5),
+      ),
+      child: ListTile(
+        dense: true,
+        leading: Icon(icon, color: color),
+        title: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+        subtitle: Text(sub, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+        trailing: Icon(
+          active ? Icons.stop_circle : Icons.play_circle_outline,
+          color: active ? color : AppColors.textFaint,
+        ),
+        onTap: onTap,
+      ),
+    );
+  }
+
+  /// Renders a list of tiles in either mosaic or list layout, per the shared
+  /// Dashboard tile-size/layout preference.
+  Widget _buildTileGroup({
+    required TriggerLayout layout,
+    required DashboardBoxSize boxSize,
+    required List<Widget Function(bool mosaic)> tileBuilders,
+  }) {
+    if (layout == TriggerLayout.mosaic) {
+      return GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        itemCount: tileBuilders.length,
+        gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: boxSize.extent,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 1.0,
+        ),
+        itemBuilder: (context, index) => tileBuilders[index](true),
+      );
+    }
+    return Column(children: [for (final builder in tileBuilders) builder(false)]);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -384,6 +568,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     final triggers = _triggers();
+    final smartPrograms = ref.watch(smartProgramsProvider);
+    final smartActive = _smartPlayer.isRunning;
     // The shared player may have been stopped or handed to a different
     // screen (e.g. Banks' Run Bank) since we last set this, so only trust
     // it while the player confirms something is actually still playing.
@@ -494,109 +680,42 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     style: const TextStyle(color: AppColors.textFaint),
                   ),
                 )
-              else if (layout == TriggerLayout.mosaic)
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: triggers.length,
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: boxSize.extent,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 1.0,
-                  ),
-                  itemBuilder: (context, index) {
-                    final trigger = triggers[index];
-                    final active = activeTriggerId == trigger.id;
-                    final color = _kindColor(trigger.kind);
-                    return InkWell(
-                      borderRadius: BorderRadius.circular(10),
-                      onTap: () => _fireTrigger(trigger),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 150),
-                        decoration: BoxDecoration(
-                          color: active ? color.withValues(alpha: 0.18) : AppColors.panel,
-                          border: Border.all(color: active ? color : AppColors.border, width: active ? 2 : 1.5),
-                          borderRadius: BorderRadius.circular(10),
-                          boxShadow: active
-                              ? [BoxShadow(color: color.withValues(alpha: 0.35), blurRadius: 10)]
-                              : null,
-                        ),
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text(
-                                  trigger.kind == TriggerKind.bank ? 'BANK' : 'CHASE',
-                                  style: TextStyle(
-                                    fontSize: boxSize.kindFontSize,
-                                    fontWeight: FontWeight.w800,
-                                    color: color,
-                                  ),
-                                ),
-                                if (active) ...[
-                                  const SizedBox(width: 4),
-                                  Icon(Icons.play_arrow, size: boxSize.kindFontSize + 2, color: color),
-                                ],
-                              ],
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              trigger.name,
-                              style: TextStyle(fontSize: boxSize.nameFontSize, fontWeight: FontWeight.w700),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              trigger.sub,
-                              style: TextStyle(fontSize: boxSize.subFontSize, color: AppColors.textFaint),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                )
               else
-                Column(
-                  children: [
+                _buildTileGroup(
+                  layout: layout,
+                  boxSize: boxSize,
+                  tileBuilders: [
                     for (final trigger in triggers)
-                      Builder(builder: (context) {
+                      (mosaic) {
                         final active = activeTriggerId == trigger.id;
                         final color = _kindColor(trigger.kind);
-                        return Card(
-                          margin: const EdgeInsets.only(bottom: 6),
-                          color: active ? color.withValues(alpha: 0.14) : null,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            side: BorderSide(color: active ? color : Colors.transparent, width: 1.5),
-                          ),
-                          child: ListTile(
-                            dense: true,
-                            leading: Icon(
-                              trigger.kind == TriggerKind.bank ? Icons.grid_view_outlined : Icons.fast_forward_outlined,
-                              color: color,
-                            ),
-                            title: Text(trigger.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                            subtitle: Text(trigger.sub, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
-                            trailing: Icon(
-                              active ? Icons.stop_circle : Icons.play_circle_outline,
-                              color: active ? color : AppColors.textFaint,
-                            ),
-                            onTap: () => _fireTrigger(trigger),
-                          ),
-                        );
-                      }),
+                        final name = trigger.kind == TriggerKind.bank ? 'BANK' : 'CHASE';
+                        return mosaic
+                            ? _buildMosaicTile(
+                                boxSize: boxSize,
+                                kindLabel: name,
+                                name: trigger.name,
+                                sub: trigger.sub,
+                                color: color,
+                                active: active,
+                                onTap: () => _fireTrigger(trigger),
+                              )
+                            : _buildListRow(
+                                icon: trigger.kind == TriggerKind.bank
+                                    ? Icons.grid_view_outlined
+                                    : Icons.fast_forward_outlined,
+                                name: trigger.name,
+                                sub: trigger.sub,
+                                color: color,
+                                active: active,
+                                onTap: () => _fireTrigger(trigger),
+                              );
+                      },
                   ],
                 ),
               const SizedBox(height: 22),
               const Text(
-                'TEMPO & CHASE SPEED',
+                'SMART PROGRAMS',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
@@ -604,7 +723,82 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   color: AppColors.textFaint,
                 ),
               ),
+              const Text(
+                'Switches chases automatically as the live music tempo changes',
+                style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              ),
+              const SizedBox(height: 8),
+              if (smartPrograms.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'None yet — create one from the Chase tab',
+                    style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+                  ),
+                )
+              else
+                _buildTileGroup(
+                  layout: layout,
+                  boxSize: boxSize,
+                  tileBuilders: [
+                    for (final program in smartPrograms)
+                      (mosaic) {
+                        final active = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
+                        final status = active ? _smartStatus : null;
+                        final zoneLabel = switch (status?.zone) {
+                          SmartProgramZone.faster => 'Faster',
+                          SmartProgramZone.slower => 'Slower',
+                          _ => 'Base',
+                        };
+                        final sub = active
+                            ? '$zoneLabel${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM' : ''}'
+                            : '${program.baseBpm.round()} BPM base';
+                        return mosaic
+                            ? _buildMosaicTile(
+                                boxSize: boxSize,
+                                kindLabel: 'SMART',
+                                name: program.name,
+                                sub: sub,
+                                color: AppColors.accent2,
+                                active: active,
+                                onTap: () => _toggleSmartProgram(program),
+                              )
+                            : _buildListRow(
+                                icon: Icons.auto_graph,
+                                name: program.name,
+                                sub: sub,
+                                color: AppColors.accent2,
+                                active: active,
+                                onTap: () => _toggleSmartProgram(program),
+                              );
+                      },
+                  ],
+                ),
+              const SizedBox(height: 22),
+              InkWell(
+                onTap: () => setState(() => _tempoExpanded = !_tempoExpanded),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'TEMPO & CHASE SPEED',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                        color: AppColors.textFaint,
+                      ),
+                    ),
+                    Icon(
+                      _tempoExpanded ? Icons.expand_less : Icons.expand_more,
+                      size: 20,
+                      color: AppColors.textFaint,
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 10),
+              if (_tempoExpanded)
               Card(
                 child: Padding(
                   padding: const EdgeInsets.all(14),
@@ -642,23 +836,80 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  _beatSync ? 'Step Speed (synced to beat)' : 'Step Speed (Bank triggers)',
-                                  style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        smartActive
+                                            ? 'Step Speed (Smart Program active)'
+                                            : _beatSync
+                                                ? 'Step Speed (synced to beat)'
+                                                : 'Step Speed (Bank triggers)',
+                                        style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
+                                      ),
+                                    ),
+                                    if (!_beatSync && !smartActive)
+                                      SegmentedButton<bool>(
+                                        segments: const [
+                                          ButtonSegment(value: false, label: Text('Sec')),
+                                          ButtonSegment(value: true, label: Text('BPM')),
+                                        ],
+                                        selected: {_useBpm},
+                                        showSelectedIcon: false,
+                                        style: const ButtonStyle(
+                                          visualDensity: VisualDensity.compact,
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        onSelectionChanged: (s) => setState(() => _useBpm = s.first),
+                                      ),
+                                  ],
                                 ),
-                                Slider(
-                                  value: _stepSeconds,
-                                  min: 0.0,
-                                  max: 5,
-                                  onChanged: _beatSync
-                                      ? null
-                                      : (value) => setState(() => _stepSeconds = value),
-                                  onChangeEnd: _beatSync ? null : (_) => _restartActiveTriggerIfPlaying(),
-                                ),
+                                if (_useBpm && !_beatSync && !smartActive) ...[
+                                  const SizedBox(height: 6),
+                                  Row(
+                                    children: [
+                                      IconButton(
+                                        icon: const Icon(Icons.remove_circle_outline, size: 20),
+                                        onPressed: () => _setBpm(_bpm - 1, updateController: true),
+                                      ),
+                                      Expanded(
+                                        child: TextField(
+                                          controller: _bpmController,
+                                          textAlign: TextAlign.center,
+                                          keyboardType: TextInputType.number,
+                                          style: appMonoStyle(fontWeight: FontWeight.w700),
+                                          decoration: const InputDecoration(
+                                            isDense: true,
+                                            suffixText: 'BPM',
+                                          ),
+                                          onChanged: (text) {
+                                            final value = double.tryParse(text);
+                                            if (value != null) _setBpm(value, updateController: false);
+                                          },
+                                        ),
+                                      ),
+                                      IconButton(
+                                        icon: const Icon(Icons.add_circle_outline, size: 20),
+                                        onPressed: () => _setBpm(_bpm + 1, updateController: true),
+                                      ),
+                                    ],
+                                  ),
+                                ] else ...[
+                                  Slider(
+                                    value: _stepSeconds,
+                                    min: 0.0,
+                                    max: 5,
+                                    onChanged: (_beatSync || smartActive)
+                                        ? null
+                                        : (value) => setState(() => _stepSeconds = value),
+                                    onChangeEnd: (_beatSync || smartActive) ? null : (_) => _restartActiveTriggerIfPlaying(),
+                                  ),
+                                ],
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: Text(
-                                    '${_stepSeconds.toStringAsFixed(2)}s / step',
+                                    '${_stepSeconds.toStringAsFixed(2)}s / step · ${(60 / _stepSeconds).clamp(0, 999).toStringAsFixed(0)} BPM',
                                     style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
                                   ),
                                 ),
@@ -668,17 +919,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         ],
                       ),
                       const SizedBox(height: 4),
-                      const Text(
-                        'Fade Time (Bank/Chase triggers)',
-                        style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                      Text(
+                        smartActive ? 'Fade Time (set on the Smart Program)' : 'Fade Time (Bank/Chase triggers)',
+                        style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                       ),
                       Slider(
                         value: _fadeSeconds,
                         min: 0.0,
                         max: 5,
                         activeColor: AppColors.accent2,
-                        onChanged: (value) => setState(() => _fadeSeconds = value),
-                        onChangeEnd: (_) => _restartActiveTriggerIfPlaying(),
+                        onChanged: smartActive ? null : (value) => setState(() => _fadeSeconds = value),
+                        onChangeEnd: smartActive ? null : (_) => _restartActiveTriggerIfPlaying(),
                       ),
                       Align(
                         alignment: Alignment.centerRight,

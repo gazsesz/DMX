@@ -16,6 +16,7 @@ import '../settings/settings_screen.dart';
 const _tabletBreakpoint = 700.0;
 
 const _bankSectionIndex = 4;
+const _chaseSectionIndex = 5;
 const _dashboardSectionIndex = 0;
 
 class _NavSection {
@@ -32,7 +33,7 @@ final _sections = [
   const _NavSection(label: 'Fixture', icon: Icons.lightbulb_outline, screen: FixturesScreen()),
   const _NavSection(label: 'Scene', icon: Icons.auto_awesome_mosaic_outlined, screen: ScenesScreen()),
   const _NavSection(label: 'Bank', icon: Icons.grid_view_outlined, screen: BanksScreen(sectionIndex: _bankSectionIndex)),
-  const _NavSection(label: 'Chase', icon: Icons.fast_forward_outlined, screen: ChasesScreen()),
+  const _NavSection(label: 'Chase', icon: Icons.fast_forward_outlined, screen: ChasesScreen(sectionIndex: _chaseSectionIndex)),
   const _NavSection(label: 'Setup', icon: Icons.settings_outlined, screen: SettingsScreen()),
 ];
 

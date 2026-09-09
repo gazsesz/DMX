@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/playback/chase_player.dart';
+import '../core/playback/smart_program_player.dart';
+import 'audio_providers.dart';
 
 /// A single player shared by every screen that can start a bank/chase
 /// (Dashboard triggers, the Banks "Run Bank" preview, the Chase editor's
@@ -9,6 +11,21 @@ import '../core/playback/chase_player.dart';
 /// loops racing over the same universes.
 final playbackControllerProvider = Provider<ChasePlayer>((ref) {
   final player = ChasePlayer();
+  ref.onDispose(player.dispose);
+  return player;
+});
+
+/// The single Smart Program runner, sharing the same [ChasePlayer] above —
+/// so a Smart Program's tempo-driven chase switches use the exact same
+/// "only one thing plays" machinery as a plain bank/chase trigger. Anything
+/// that starts a *plain* trigger directly on [playbackControllerProvider]
+/// must call `stop()` on this first, since this player's own beat listener
+/// would otherwise try to reassert its chase on the next beat.
+final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
+  final player = SmartProgramPlayer(
+    chasePlayer: ref.watch(playbackControllerProvider),
+    beatService: ref.watch(beatDetectorProvider),
+  );
   ref.onDispose(player.dispose);
   return player;
 });

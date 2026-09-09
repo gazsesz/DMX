@@ -57,6 +57,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       );
       return;
     }
+    ref.read(smartProgramPlayerProvider).stop();
     final chase = Chase(
       id: 'bank-run-${bank.id}',
       name: bank.name,

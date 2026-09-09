@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/save_project_action.dart';
+import '../../models/artnet_settings.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
 
@@ -140,6 +141,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Keep the text fields in sync when settings change from *outside* this
+    // screen's own typing (e.g. importing a project) — otherwise these
+    // one-time-initialized controllers keep showing whatever was here
+    // before, even though the underlying settings did update.
+    ref.listen<ArtNetSettings>(artNetSettingsProvider, (previous, next) {
+      if (_deviceNameController.text != next.deviceName) _deviceNameController.text = next.deviceName;
+      if (_hostController.text != next.host) _hostController.text = next.host;
+      final portText = next.port.toString();
+      if (_portController.text != portText) _portController.text = portText;
+    });
     final settings = ref.watch(artNetSettingsProvider);
     final universes = ref.watch(universesProvider);
     final status = ref.watch(connectionStatusProvider);
