@@ -486,13 +486,21 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             const SizedBox(height: 2),
             Text(
               name,
-              style: TextStyle(fontSize: boxSize.nameFontSize, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                fontSize: boxSize.nameFontSize,
+                fontWeight: FontWeight.w700,
+                color: active ? color : null,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
             Text(
               sub,
-              style: TextStyle(fontSize: boxSize.subFontSize, color: AppColors.textFaint),
+              style: TextStyle(
+                fontSize: boxSize.subFontSize,
+                color: active ? color : AppColors.textFaint,
+                fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+              ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
@@ -752,11 +760,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       (mosaic) {
                         final active = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
                         final status = active ? _smartStatus : null;
-                        final zoneLabel = switch (status?.zone) {
-                          SmartProgramZone.faster => 'Faster',
-                          SmartProgramZone.slower => 'Slower',
-                          _ => 'Base',
-                        };
+                        final zoneLabel = status?.isSilent == true
+                            ? 'No music'
+                            : switch (status?.zone) {
+                                SmartProgramZone.faster => 'Faster',
+                                SmartProgramZone.slower => 'Slower',
+                                _ => 'Base',
+                              };
                         final sub = active
                             ? '$zoneLabel${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM' : ''}'
                             : '${program.baseBpm.round()} BPM base';

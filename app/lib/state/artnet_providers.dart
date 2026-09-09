@@ -55,12 +55,7 @@ final universesProvider =
     });
 
 class UniversesNotifier extends StateNotifier<List<UniverseConfig>> {
-  UniversesNotifier()
-    : super(const [
-        UniverseConfig(id: 'u1', name: 'Front Wash', universe: 0),
-        UniverseConfig(id: 'u2', name: 'Moving Heads', universe: 1),
-        UniverseConfig(id: 'u3', name: 'FX / Strobes', universe: 2),
-      ]);
+  UniversesNotifier() : super(const [UniverseConfig(id: 'u1', name: 'Universe 1', universe: 0)]);
 
   void addUniverse() {
     final nextIndex = state.length;
@@ -90,11 +85,7 @@ class UniversesNotifier extends StateNotifier<List<UniverseConfig>> {
   }
 
   void reset() {
-    state = const [
-      UniverseConfig(id: 'u1', name: 'Front Wash', universe: 0),
-      UniverseConfig(id: 'u2', name: 'Moving Heads', universe: 1),
-      UniverseConfig(id: 'u3', name: 'FX / Strobes', universe: 2),
-    ];
+    state = const [UniverseConfig(id: 'u1', name: 'Universe 1', universe: 0)];
   }
 }
 

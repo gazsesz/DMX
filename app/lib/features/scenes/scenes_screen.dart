@@ -361,7 +361,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
               child: Text('No scenes yet — tap + to create one', style: TextStyle(color: AppColors.textFaint)),
             )
           : _groupMode == _GroupMode.none
-              ? Padding(
+              ? SingleChildScrollView(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
                   child: _sceneGrid(allScenes),
                 )

@@ -43,6 +43,7 @@ dependencies:
   record: ^6.0.0
   shared_preferences: ^2.5.5
   fftea: ^1.5.0+1
+  wakelock_plus: ^1.2.10
 
 dev_dependencies:
   flutter_test:

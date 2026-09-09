@@ -188,11 +188,13 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                 builder: (context) {
                   final active = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
                   final status = active ? _smartStatus : null;
-                  final zoneLabel = switch (status?.zone) {
-                    SmartProgramZone.faster => 'FASTER',
-                    SmartProgramZone.slower => 'SLOWER',
-                    _ => 'BASE',
-                  };
+                  final zoneLabel = status?.isSilent == true
+                      ? 'NO MUSIC'
+                      : switch (status?.zone) {
+                          SmartProgramZone.faster => 'FASTER',
+                          SmartProgramZone.slower => 'SLOWER',
+                          _ => 'BASE',
+                        };
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     color: active ? AppColors.accent2.withValues(alpha: 0.1) : null,

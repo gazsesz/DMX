@@ -69,10 +69,13 @@ class BeatDetectorService {
   static const _bassHighHz = 250.0;
   static const _midHighHz = 2000.0;
 
-  // Rolling-average window/warmup, expressed in real time and converted to a
-  // sample count for this hop rate (so the "ambient average" chases the
-  // music about as fast as the previous ~30ms-tick version did).
-  static const _rollingWindowMs = 2700.0;
+  // The rolling mean/variance are tracked as an exponential moving average
+  // rather than a plain sliding-window average — a window average visibly
+  // "jitters" as individual old samples drop out and new ones enter (each
+  // one swings the average by its own full weight); an EMA blends every new
+  // frame in by a small amount instead, so the displayed sensitivity/
+  // threshold reading moves smoothly rather than jumping every ~12ms.
+  static const _emaTauMs = 1200.0;
   static const _warmupMs = 600.0;
 
   static final FFT _fft = FFT(_fftSize);
@@ -82,7 +85,9 @@ class BeatDetectorService {
   StreamSubscription<Uint8List>? _pcmSub;
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
-  final List<double> _recentFlux = [];
+  double? _emaMean;
+  double _emaVariance = 0;
+  int _frameCount = 0;
   DateTime? _lastBeat;
 
   Float64List _ring = Float64List(_fftSize);
@@ -125,7 +130,9 @@ class BeatDetectorService {
       final stream = await _recorder.startStream(
         const RecordConfig(encoder: AudioEncoder.pcm16bits, numChannels: 1, sampleRate: 44100),
       );
-      _recentFlux.clear();
+      _emaMean = null;
+      _emaVariance = 0;
+      _frameCount = 0;
       _lastBeat = null;
       _ring = Float64List(_fftSize);
       _ringWrite = 0;
@@ -227,17 +234,27 @@ class BeatDetectorService {
   static double _toDb(double linear) => linear > 1e-9 ? 20 * math.log(linear) / math.ln10 : -200.0;
 
   void _handleFluxSample(double flux) {
-    _recentFlux.add(flux);
-    final windowSize = (_rollingWindowMs / _hopMs).round();
-    // A window this size lets the rolling stats chase the music's own loud
-    // passages almost in real time, so genuine beats never sit far enough
-    // above it to be filtered out — a longer, steadier baseline is what
-    // actually makes the sensitivity threshold mean something during
-    // continuously loud music.
-    if (_recentFlux.length > windowSize) _recentFlux.removeAt(0);
+    _frameCount++;
+    final mean = _emaMean;
+    if (mean == null) {
+      _emaMean = flux;
+      _emaVariance = 0;
+    } else {
+      // Exponential moving average/variance: each new frame nudges the
+      // running mean by `alpha`, rather than a sample dropping out of a
+      // window and yanking the average by its own full weight — this is
+      // what keeps the meter's avg/threshold display smooth instead of
+      // visibly stepping every ~12ms.
+      final alpha = 1 - math.exp(-_hopMs / _emaTauMs);
+      final delta = flux - mean;
+      final newMean = mean + alpha * delta;
+      _emaMean = newMean;
+      final delta2 = flux - newMean;
+      _emaVariance = (1 - alpha) * (_emaVariance + alpha * delta * delta2);
+    }
 
-    final warmupSamples = (_warmupMs / _hopMs).round();
-    if (_recentFlux.length < warmupSamples) {
+    final warmupFrames = (_warmupMs / _hopMs).round();
+    if (_frameCount < warmupFrames) {
       // Rolling stats still warming up — show the raw level, no beats yet.
       final db = _toDb(flux);
       _meterController.add(BeatMeterSample(db: db, avg: db, threshold: db, requiredRise: 0, isBeat: false));
@@ -251,14 +268,7 @@ class BeatDetectorService {
     // almost any residual noise would count as a huge relative rise. A
     // statistical outlier test (mean + k·standard deviation) stays correctly
     // calibrated to how noisy/eventful the recent audio has actually been.
-    final mean = _recentFlux.reduce((a, b) => a + b) / _recentFlux.length;
-    var variance = 0.0;
-    for (final v in _recentFlux) {
-      final d = v - mean;
-      variance += d * d;
-    }
-    variance /= _recentFlux.length;
-    final stddev = math.sqrt(variance);
+    final stddev = math.sqrt(_emaVariance);
 
     // Higher sensitivity -> fewer standard deviations above the mean are
     // enough to count as a beat. Range picked from calibration against
@@ -266,7 +276,7 @@ class BeatDetectorService {
     // even at moderate sensitivity, 2.5 still reliably catches real onsets
     // at max sensitivity.
     final k = 6.0 - sensitivity * 3.5;
-    final thresholdFlux = mean + k * stddev;
+    final thresholdFlux = _emaMean! + k * stddev;
 
     final now = DateTime.now();
     final pastRefractoryPeriod =
@@ -277,7 +287,7 @@ class BeatDetectorService {
       _beatController.add(now);
     }
 
-    final avgDb = _toDb(mean);
+    final avgDb = _toDb(_emaMean!);
     final thresholdDb = _toDb(thresholdFlux);
     _meterController.add(
       BeatMeterSample(

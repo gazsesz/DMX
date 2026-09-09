@@ -55,36 +55,46 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (nowPlaying == null || _index == _dashboardSectionIndex) return const SizedBox.shrink();
     return Material(
       color: AppColors.panel2,
-      child: InkWell(
-        onTap: () => _select(_dashboardSectionIndex),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-          decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: AppColors.border)),
-          ),
-          child: Row(
-            children: [
-              const _PulsingDot(),
-              const SizedBox(width: 8),
-              Icon(
-                switch (nowPlaying.kind) {
-                  PlaybackKind.bank => Icons.grid_view_outlined,
-                  PlaybackKind.chase => Icons.fast_forward_outlined,
-                  PlaybackKind.smartProgram => Icons.auto_graph,
-                },
-                size: 15,
-                color: AppColors.accent,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Running: ${nowPlaying.name} — tap to return to Dashboard',
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
-                  overflow: TextOverflow.ellipsis,
+      // The OS status bar (clock/battery/notification icons) can sit right
+      // on top of this banner on phones without a safe-area inset — SafeArea
+      // pushes it below that, and centering the row keeps the readable text
+      // away from the corners where those icons live either way.
+      child: SafeArea(
+        bottom: false,
+        child: InkWell(
+          onTap: () => _select(_dashboardSectionIndex),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: AppColors.border)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const _PulsingDot(),
+                const SizedBox(width: 8),
+                Icon(
+                  switch (nowPlaying.kind) {
+                    PlaybackKind.bank => Icons.grid_view_outlined,
+                    PlaybackKind.chase => Icons.fast_forward_outlined,
+                    PlaybackKind.smartProgram => Icons.auto_graph,
+                  },
+                  size: 15,
+                  color: AppColors.accent,
                 ),
-              ),
-              const Icon(Icons.chevron_right, size: 16, color: AppColors.textFaint),
-            ],
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Running: ${nowPlaying.name} — tap to return to Dashboard',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                const Icon(Icons.chevron_right, size: 16, color: AppColors.textFaint),
+              ],
+            ),
           ),
         ),
       ),

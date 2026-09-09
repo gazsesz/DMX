@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'app.dart';
 import 'models/artnet_settings.dart';
@@ -14,6 +17,11 @@ Future<void> main() async {
   // no internet — never let google_fonts try to fetch a font over the
   // network; just fall back to the platform default instead of throwing.
   GoogleFonts.config.allowRuntimeFetching = false;
+
+  // This is a live lighting console, not something you glance at — the
+  // screen must never sleep mid-show. No-op on platforms without a real
+  // wakelock concept (desktop just ignores it).
+  unawaited(WakelockPlus.enable());
 
   // Load the persisted connection settings *before* the first frame, not
   // asynchronously after — every tab (Settings included) is built up front
