@@ -51,6 +51,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   double _stepSeconds = 1.2;
   double _fadeSeconds = 0.3;
   bool _useBpm = false;
+  bool _overrideTiming = true;
   bool _tempoExpanded = true;
   double _sensitivity = 0.6;
   BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
@@ -74,13 +75,47 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final beatService = ref.read(beatDetectorProvider);
     _sensitivity = beatService.sensitivity;
     _frequencyBand = beatService.frequencyBand;
-    // Always listening: the stream only produces anything while the mic is
-    // actually running, so there's no subscription to juggle when beat sync
-    // is toggled (from here or from the Banks tab).
-    _beatSub = beatService.beatEvents.listen((_) => _onTap());
+    // Always subscribed, but only *acted on* while beat sync is armed: the
+    // mic also runs for Smart Programs and for beat-synced chases started
+    // elsewhere, and those beats must not quietly drag the tap-tempo (and
+    // with it the Step Speed) around behind the user's back.
+    _beatSub = beatService.beatEvents.listen((_) {
+      if (ref.read(beatSyncEnabledProvider)) _onTap();
+    });
   }
 
   bool get _beatSync => ref.read(beatSyncEnabledProvider);
+
+  /// A bank is just scene slots with no timing of its own, so a bank trigger
+  /// always runs at the Dashboard's Hold/Fade — override switch or not.
+  Chase _bankChase(_DashboardTrigger trigger) => Chase(
+    id: 'dashboard-bank-${trigger.id}',
+    name: trigger.name,
+    steps: [
+      ChaseStep(
+        bankId: trigger.id,
+        hold: Duration(milliseconds: (_stepSeconds * 1000).round()),
+        fade: Duration(milliseconds: (_fadeSeconds * 1000).round()),
+      ),
+    ],
+    beatSync: _beatSync,
+  );
+
+  /// A saved chase as the Dashboard should play it: beat sync always follows
+  /// the app-wide switch, while the per-step Hold/Fade is replaced by the
+  /// Dashboard's own only while "Override saved timing" is on.
+  Chase _chaseAsDashboardPlaysIt(Chase saved) {
+    if (!_overrideTiming) return saved.copyWith(beatSync: _beatSync);
+    final hold = Duration(milliseconds: (_stepSeconds * 1000).round());
+    final fade = Duration(milliseconds: (_fadeSeconds * 1000).round());
+    return saved.copyWith(
+      beatSync: _beatSync,
+      steps: [
+        for (final step in saved.steps)
+          ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: hold, fade: fade),
+      ],
+    );
+  }
 
   @override
   void dispose() {
@@ -286,27 +321,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     Chase chase;
     if (trigger.kind == TriggerKind.bank) {
-      chase = Chase(
-        id: 'dashboard-bank-${trigger.id}',
-        name: trigger.name,
-        steps: [
-          ChaseStep(
-            bankId: trigger.id,
-            hold: Duration(milliseconds: (_stepSeconds * 1000).round()),
-            fade: Duration(milliseconds: (_fadeSeconds * 1000).round()),
-          ),
-        ],
-        beatSync: _beatSync,
-      );
+      chase = _bankChase(trigger);
     } else {
-      // Play the chase with its own configured timing the first time it's
-      // fired — Dashboard's Fade/Hold sliders only take over live if the
-      // user actually touches them while it's running (see
-      // `_restartActiveTriggerIfPlaying`), so a saved chase's own per-step
-      // timing isn't silently clobbered by Dashboard's defaults.
       final matches = ref.read(chasesProvider).where((c) => c.id == trigger.id);
       if (matches.isEmpty) return;
-      chase = matches.first;
+      chase = _chaseAsDashboardPlaysIt(matches.first);
     }
 
     await _startChase(chase);
@@ -386,7 +405,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// something is actively playing from the Dashboard — live-applies the new
   /// timing to whatever's running (bank or chase) instead of only affecting
   /// the *next* time it's fired.
-  Future<void> _restartActiveTriggerIfPlaying() async {
+  ///
+  /// [timingOnly] marks the Hold/Fade sliders as the caller: those don't
+  /// touch a chase at all while "Override saved timing" is off, so there's
+  /// nothing to re-apply and restarting it from step 1 mid-show would be
+  /// pure harm.
+  Future<void> _restartActiveTriggerIfPlaying({bool timingOnly = false}) async {
     final current = ref.read(nowPlayingProvider);
     if (!_player.isPlaying || current == null || current.kind == PlaybackKind.smartProgram) return;
     final id = current.id;
@@ -394,27 +418,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (matches.isEmpty) return;
     final trigger = matches.first;
 
-    final hold = Duration(milliseconds: (_stepSeconds * 1000).round());
-    final fade = Duration(milliseconds: (_fadeSeconds * 1000).round());
     Chase chase;
     if (trigger.kind == TriggerKind.bank) {
-      chase = Chase(
-        id: 'dashboard-bank-${trigger.id}',
-        name: trigger.name,
-        steps: [ChaseStep(bankId: trigger.id, hold: hold, fade: fade)],
-        beatSync: _beatSync,
-      );
+      chase = _bankChase(trigger);
     } else {
-      final matches = ref.read(chasesProvider).where((c) => c.id == trigger.id);
-      if (matches.isEmpty) return;
-      final saved = matches.first;
-      chase = saved.copyWith(
-        beatSync: _beatSync,
-        steps: [
-          for (final step in saved.steps)
-            ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: hold, fade: fade),
-        ],
-      );
+      if (timingOnly && !_overrideTiming) return;
+      final saved = ref.read(chasesProvider).where((c) => c.id == trigger.id);
+      if (saved.isEmpty) return;
+      chase = _chaseAsDashboardPlaysIt(saved.first);
     }
     await _startChase(chase);
   }
@@ -856,7 +867,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                             ? 'Step Speed (Smart Program active)'
                                             : beatSync
                                                 ? 'Step Speed (synced to beat)'
-                                                : 'Step Speed (Bank triggers)',
+                                                : _overrideTiming
+                                                    ? 'Step Speed (Bank + Chase triggers)'
+                                                    : 'Step Speed (Bank triggers)',
                                         style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                                       ),
                                     ),
@@ -914,7 +927,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     onChanged: (beatSync || smartActive)
                                         ? null
                                         : (value) => setState(() => _stepSeconds = value),
-                                    onChangeEnd: (beatSync || smartActive) ? null : (_) => _restartActiveTriggerIfPlaying(),
+                                    onChangeEnd: (beatSync || smartActive)
+                                        ? null
+                                        : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
                                   ),
                                 ],
                                 Align(
@@ -931,7 +946,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        smartActive ? 'Fade Time (set on the Smart Program)' : 'Fade Time (Bank/Chase triggers)',
+                        smartActive
+                            ? 'Fade Time (set on the Smart Program)'
+                            : _overrideTiming
+                                ? 'Fade Time (Bank + Chase triggers)'
+                                : 'Fade Time (Bank triggers)',
                         style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                       ),
                       Slider(
@@ -940,7 +959,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         max: 5,
                         activeColor: AppColors.accent2,
                         onChanged: smartActive ? null : (value) => setState(() => _fadeSeconds = value),
-                        onChangeEnd: smartActive ? null : (_) => _restartActiveTriggerIfPlaying(),
+                        onChangeEnd: smartActive ? null : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
                       ),
                       Align(
                         alignment: Alignment.centerRight,
@@ -948,6 +967,37 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           '${_fadeSeconds.toStringAsFixed(2)}s fade',
                           style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
                         ),
+                      ),
+                      const Divider(height: 26),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Override saved timing',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                                Text(
+                                  _overrideTiming
+                                      ? 'Chases run at the Hold/Fade set here, not their own'
+                                      : 'Chases keep their own per-step timing (banks always follow this)',
+                                  style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch(
+                            value: _overrideTiming,
+                            onChanged: smartActive
+                                ? null
+                                : (value) {
+                                    setState(() => _overrideTiming = value);
+                                    _restartActiveTriggerIfPlaying();
+                                  },
+                          ),
+                        ],
                       ),
                       const Divider(height: 26),
                       Row(
