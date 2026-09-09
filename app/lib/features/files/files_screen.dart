@@ -52,18 +52,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
   ProjectData _snapshot() => buildProjectSnapshot(ref);
 
-  void _applyProject(ProjectData data) {
-    ref.read(currentProjectNameProvider.notifier).state = data.name;
-    ref.read(artNetSettingsProvider.notifier).update((_) => data.settings);
-    ref.read(universesProvider.notifier).loadAll(data.universes);
-    ref.read(fixtureLibraryProvider.notifier).loadAll(data.customFixtureProfiles);
-    ref.read(patchedFixturesProvider.notifier).loadAll(data.patchedFixtures);
-    ref.read(scenesProvider.notifier).loadAll(data.scenes);
-    ref.read(banksProvider.notifier).loadAll(data.banks);
-    ref.read(chasesProvider.notifier).loadAll(data.chases);
-    ref.read(dashboardTriggersProvider.notifier).loadAll(data.dashboardTriggers);
-    ref.read(smartProgramsProvider.notifier).loadAll(data.smartPrograms);
-  }
+  void _applyProject(ProjectData data) => applyProjectData(ref, data);
 
   Future<void> _save({bool saveAs = false}) async {
     var name = ref.read(currentProjectNameProvider);

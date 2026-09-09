@@ -60,7 +60,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   late final ChasePlayer _player;
   late final SmartProgramPlayer _smartPlayer;
-  String? _activeTriggerId;
   SmartProgramStatus? _smartStatus;
   StreamSubscription<SmartProgramStatus>? _smartStatusSub;
 
@@ -277,9 +276,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   Future<void> _fireTrigger(_DashboardTrigger trigger) async {
-    if (_player.isPlaying && _activeTriggerId == trigger.id) {
+    final current = ref.read(nowPlayingProvider);
+    final isThisActive = _player.isPlaying && current?.id == trigger.id && current?.kind != PlaybackKind.smartProgram;
+    if (isThisActive) {
       _player.stop();
-      setState(() => _activeTriggerId = null);
       ref.read(nowPlayingProvider.notifier).state = null;
       return;
     }
@@ -317,10 +317,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     await _startChase(chase);
-    setState(() => _activeTriggerId = trigger.id);
     ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+      id: trigger.id,
+      kind: trigger.kind == TriggerKind.bank ? PlaybackKind.bank : PlaybackKind.chase,
       name: trigger.name,
-      isBank: trigger.kind == TriggerKind.bank,
     );
   }
 
@@ -345,7 +345,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       return;
     }
     _player.stop();
-    setState(() => _activeTriggerId = null);
+    ref.read(nowPlayingProvider.notifier).state = null;
     final started = await _smartPlayer.start(
       program: program,
       chases: ref.read(chasesProvider),
@@ -356,7 +356,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       service: service,
     );
     if (started) {
-      ref.read(nowPlayingProvider.notifier).state = NowPlaying(name: 'Smart: ${program.name}', isBank: false);
+      ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+        id: program.id,
+        kind: PlaybackKind.smartProgram,
+        name: program.name,
+      );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not start the microphone for tempo tracking')),
@@ -390,8 +394,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// timing to whatever's running (bank or chase) instead of only affecting
   /// the *next* time it's fired.
   Future<void> _restartActiveTriggerIfPlaying() async {
-    if (!_player.isPlaying || _activeTriggerId == null) return;
-    final id = _activeTriggerId!;
+    final current = ref.read(nowPlayingProvider);
+    if (!_player.isPlaying || current == null || current.kind == PlaybackKind.smartProgram) return;
+    final id = current.id;
     final matches = _triggers().where((t) => t.id == id);
     if (matches.isEmpty) return;
     final trigger = matches.first;
@@ -431,7 +436,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     service.blackoutAll(ref.read(universesProvider));
     ref.read(nowPlayingProvider.notifier).state = null;
     if (mounted) {
-      setState(() => _activeTriggerId = null);
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Blackout sent to all universes')));
@@ -570,10 +574,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final triggers = _triggers();
     final smartPrograms = ref.watch(smartProgramsProvider);
     final smartActive = _smartPlayer.isRunning;
-    // The shared player may have been stopped or handed to a different
-    // screen (e.g. Banks' Run Bank) since we last set this, so only trust
-    // it while the player confirms something is actually still playing.
-    final activeTriggerId = _player.isPlaying ? _activeTriggerId : null;
+    final nowPlaying = ref.watch(nowPlayingProvider);
+    // Derived straight from the shared NowPlaying state — not a local flag —
+    // so a trigger fired from the Banks or Chase tab shows as active here
+    // too, and vice versa.
+    final activeTriggerId = (_player.isPlaying && nowPlaying?.kind != PlaybackKind.smartProgram)
+        ? nowPlaying?.id
+        : null;
 
     return Scaffold(
       appBar: AppBar(

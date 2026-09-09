@@ -28,3 +28,20 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     smartPrograms: ref.read(smartProgramsProvider),
   );
 }
+
+/// The inverse of [buildProjectSnapshot] — pushes a loaded [ProjectData] into
+/// every provider that holds a piece of it. Shared by the Files screen's
+/// Load/Import actions and the startup auto-load of the most recently saved
+/// project.
+void applyProjectData(WidgetRef ref, ProjectData data) {
+  ref.read(currentProjectNameProvider.notifier).state = data.name;
+  ref.read(artNetSettingsProvider.notifier).update((_) => data.settings);
+  ref.read(universesProvider.notifier).loadAll(data.universes);
+  ref.read(fixtureLibraryProvider.notifier).loadAll(data.customFixtureProfiles);
+  ref.read(patchedFixturesProvider.notifier).loadAll(data.patchedFixtures);
+  ref.read(scenesProvider.notifier).loadAll(data.scenes);
+  ref.read(banksProvider.notifier).loadAll(data.banks);
+  ref.read(chasesProvider.notifier).loadAll(data.chases);
+  ref.read(dashboardTriggersProvider.notifier).loadAll(data.dashboardTriggers);
+  ref.read(smartProgramsProvider.notifier).loadAll(data.smartPrograms);
+}

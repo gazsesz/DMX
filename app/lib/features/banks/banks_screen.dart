@@ -18,14 +18,7 @@ import '../../state/scene_providers.dart';
 import 'program_generator_screen.dart';
 
 class BanksScreen extends ConsumerStatefulWidget {
-  /// This section's index in AppShell's nav — used to notice when the user
-  /// has switched to a different tab, so a running "Run Bank" preview stops
-  /// instead of lingering forever in the background (AppShell keeps every
-  /// tab mounted for state preservation, so `dispose()` never fires on a
-  /// plain tab switch).
-  final int sectionIndex;
-
-  const BanksScreen({super.key, required this.sectionIndex});
+  const BanksScreen({super.key});
 
   @override
   ConsumerState<BanksScreen> createState() => _BanksScreenState();
@@ -44,9 +37,15 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     _player = ref.read(playbackControllerProvider);
   }
 
+  bool _isThisBankRunning(Bank bank) {
+    final current = ref.read(nowPlayingProvider);
+    return _player.isPlaying && current?.kind == PlaybackKind.bank && current?.id == bank.id;
+  }
+
   void _toggleRun(Bank bank) {
-    if (_player.isPlaying) {
+    if (_isThisBankRunning(bank)) {
       _player.stop();
+      ref.read(nowPlayingProvider.notifier).state = null;
       setState(() => _runningSlot = null);
       return;
     }
@@ -81,11 +80,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         if (mounted) setState(() => _runningSlot = index);
       },
     );
+    ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+      id: bank.id,
+      kind: PlaybackKind.bank,
+      name: bank.name,
+    );
     setState(() {});
   }
 
   void _restartRunIfPlaying(Bank bank) {
-    if (!_player.isPlaying) return;
+    if (!_isThisBankRunning(bank)) return;
     _player.stop();
     _toggleRun(bank);
   }
@@ -182,12 +186,6 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<int>(activeSectionIndexProvider, (previous, next) {
-      if (next != widget.sectionIndex && _player.isPlaying) {
-        _player.stop();
-        setState(() => _runningSlot = null);
-      }
-    });
     final banks = ref.watch(banksProvider);
     final scenes = ref.watch(scenesProvider);
     if (banks.isEmpty) {
@@ -200,6 +198,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       (b) => b.id == _selectedBankId,
       orElse: () => banks.first,
     );
+    final nowPlaying = ref.watch(nowPlayingProvider);
+    final isRunningThisBank =
+        _player.isPlaying && nowPlaying?.kind == PlaybackKind.bank && nowPlaying?.id == selected.id;
 
     return Scaffold(
       appBar: AppBar(
@@ -262,7 +263,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       label: Text(bank.name),
                       selected: bank.id == selected.id,
                       onSelected: (_) {
-                        _player.stop();
+                        if (_isThisBankRunning(selected)) {
+                          _player.stop();
+                          ref.read(nowPlayingProvider.notifier).state = null;
+                        }
                         setState(() {
                           _selectedBankId = bank.id;
                           _runningSlot = null;
@@ -300,8 +304,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               children: [
                 OutlinedButton.icon(
                   onPressed: () => _toggleRun(selected),
-                  icon: Icon(_player.isPlaying ? Icons.stop : Icons.play_arrow),
-                  label: Text(_player.isPlaying ? 'Stop' : 'Run Bank'),
+                  icon: Icon(isRunningThisBank ? Icons.stop : Icons.play_arrow),
+                  label: Text(isRunningThisBank ? 'Stop' : 'Run Bank'),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -349,7 +353,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   if (selected.sceneSlots[i] != null) i,
               ];
               final highlightIndex =
-                  (_runningSlot != null && _runningSlot! < filledIndices.length)
+                  (isRunningThisBank && _runningSlot != null && _runningSlot! < filledIndices.length)
                       ? filledIndices[_runningSlot!]
                       : null;
               return GridView.builder(

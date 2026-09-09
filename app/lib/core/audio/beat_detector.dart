@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
+import 'package:fftea/fftea.dart';
 import 'package:record/record.dart';
 
 /// Which part of the audio spectrum the detector reacts to — lets a kick
@@ -25,7 +26,7 @@ enum BeatFrequencyBand {
 
 /// One live audio-level reading, for driving a VU meter / LED indicator.
 class BeatMeterSample {
-  final double db; // current level, dBFS (roughly -160 silent .. 0 max)
+  final double db; // current onset-strength level, dB-like scale
   final double avg; // rolling ambient average, same units
   final double threshold; // level a beat needs to cross right now
   final double requiredRise; // threshold - avg, i.e. how sensitive we are
@@ -40,49 +41,55 @@ class BeatMeterSample {
   });
 }
 
-/// A one-pole IIR low-pass filter — cheap, stable, and enough to split raw
-/// PCM into bass/mid/high energy without pulling in a full FFT.
-class _LowPassFilter {
-  double _y = 0;
-  final double _alpha;
-
-  _LowPassFilter(double cutoffHz, double sampleRate)
-    : _alpha = (1 / sampleRate) / ((1 / (2 * math.pi * cutoffHz)) + (1 / sampleRate));
-
-  double process(double x) {
-    _y += _alpha * (x - _y);
-    return _y;
-  }
-}
-
-/// Simple energy-based beat/onset detector: watches the microphone's dBFS
-/// amplitude (optionally restricted to a bass/mid/high band) and fires an
-/// event whenever it spikes well above its own recent rolling average — a
-/// lightweight stand-in for real beat tracking, good enough to nudge a
-/// chase or the tap-tempo display in time with music.
+/// Spectral-flux onset/beat detector: runs a windowed FFT over the
+/// microphone's raw PCM at a steady hop rate, measures how much energy rose
+/// (frame-over-frame, restricted to the chosen band) at every frequency bin,
+/// and fires an event whenever that "onset strength" spikes well above its
+/// own recent rolling average. This is the same general approach real beat
+/// trackers (aubio, essentia) use internally — a real per-frequency-bin
+/// analysis instead of a handful of overlapping IIR low-pass filters — while
+/// staying pure Dart (no native/FFI dependency, so it runs identically on
+/// Android, Windows, and any future iOS build).
 class BeatDetectorService {
   static const _sampleRate = 44100.0;
-  // Kick drums live mostly in a narrow ~40-150Hz pocket; "Bass" is the
-  // wider, more general low end (bassline notes, sub content, etc).
-  static const _kickLowCutoffHz = 40.0;
-  static const _kickHighCutoffHz = 150.0;
-  static const _bassCutoffHz = 250.0;
-  static const _midCutoffHz = 2000.0;
-  static const _samplesPerTick = 1323; // ~30ms at 44.1kHz
+  // A size-2048 FFT at 44.1kHz gives ~21.5Hz/bin — enough to separate a kick
+  // drum's narrow ~40-150Hz pocket from the wider "bass" band below.
+  static const _fftSize = 2048;
+  // 512-sample hop (~11.6ms, 75% overlap) — frequent enough for tight onset
+  // timing without needing a bigger FFT (which would blur that timing).
+  static const _hopSize = 512;
+  static const _hopMs = _hopSize / _sampleRate * 1000;
+
+  // Band edges in Hz — same split points the old IIR-filter version used, now
+  // applied as precise FFT bin ranges instead of an approximate time-domain
+  // filter cascade.
+  static const _subBassHz = 20.0; // skip the DC/near-DC bin
+  static const _kickLowHz = 40.0;
+  static const _kickHighHz = 150.0;
+  static const _bassHighHz = 250.0;
+  static const _midHighHz = 2000.0;
+
+  // Rolling-average window/warmup, expressed in real time and converted to a
+  // sample count for this hop rate (so the "ambient average" chases the
+  // music about as fast as the previous ~30ms-tick version did).
+  static const _rollingWindowMs = 2700.0;
+  static const _warmupMs = 600.0;
+
+  static final FFT _fft = FFT(_fftSize);
+  static final Float64List _hannWindow = Window.hanning(_fftSize);
 
   final AudioRecorder _recorder = AudioRecorder();
   StreamSubscription<Uint8List>? _pcmSub;
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
-  final List<double> _recentDb = [];
+  final List<double> _recentFlux = [];
   DateTime? _lastBeat;
 
-  _LowPassFilter? _kickLowFilter;
-  _LowPassFilter? _kickHighFilter;
-  _LowPassFilter? _bassFilter;
-  _LowPassFilter? _midHighFilter;
-  double _sumSquares = 0;
-  int _sampleCount = 0;
+  Float64List _ring = Float64List(_fftSize);
+  int _ringWrite = 0;
+  int _samplesBuffered = 0;
+  int _samplesSinceFrame = 0;
+  Float64List? _prevMagnitude;
 
   /// 0 (least sensitive, needs a big spike) .. 1 (most sensitive).
   double sensitivity = 0.6;
@@ -118,14 +125,13 @@ class BeatDetectorService {
       final stream = await _recorder.startStream(
         const RecordConfig(encoder: AudioEncoder.pcm16bits, numChannels: 1, sampleRate: 44100),
       );
-      _recentDb.clear();
+      _recentFlux.clear();
       _lastBeat = null;
-      _sumSquares = 0;
-      _sampleCount = 0;
-      _kickLowFilter = _LowPassFilter(_kickLowCutoffHz, _sampleRate);
-      _kickHighFilter = _LowPassFilter(_kickHighCutoffHz, _sampleRate);
-      _bassFilter = _LowPassFilter(_bassCutoffHz, _sampleRate);
-      _midHighFilter = _LowPassFilter(_midCutoffHz, _sampleRate);
+      _ring = Float64List(_fftSize);
+      _ringWrite = 0;
+      _samplesBuffered = 0;
+      _samplesSinceFrame = 0;
+      _prevMagnitude = null;
       _pcmSub = stream.listen(_onPcmChunk);
       return true;
     } catch (e) {
@@ -150,85 +156,137 @@ class BeatDetectorService {
   }
 
   void _onPcmChunk(Uint8List chunk) {
-    final kickLowFilter = _kickLowFilter;
-    final kickHighFilter = _kickHighFilter;
-    final bassFilter = _bassFilter;
-    final midHighFilter = _midHighFilter;
-    if (kickLowFilter == null || kickHighFilter == null || bassFilter == null || midHighFilter == null) {
-      return;
-    }
     final byteData = ByteData.sublistView(chunk);
     for (var i = 0; i + 1 < chunk.length; i += 2) {
       final sample = byteData.getInt16(i, Endian.little) / 32768.0;
-      final kickLow = kickLowFilter.process(sample);
-      final kickHigh = kickHighFilter.process(sample);
-      final bass = bassFilter.process(sample);
-      final midHigh = midHighFilter.process(sample);
-      final double bandValue;
-      switch (frequencyBand) {
-        case BeatFrequencyBand.kick:
-          bandValue = kickHigh - kickLow;
-          break;
-        case BeatFrequencyBand.bass:
-          bandValue = bass;
-          break;
-        case BeatFrequencyBand.mid:
-          bandValue = midHigh - bass;
-          break;
-        case BeatFrequencyBand.high:
-          bandValue = sample - midHigh;
-          break;
-        case BeatFrequencyBand.overall:
-          bandValue = sample;
-          break;
-      }
-      _sumSquares += bandValue * bandValue;
-      _sampleCount++;
-      if (_sampleCount >= _samplesPerTick) {
-        final rms = math.sqrt(_sumSquares / _sampleCount);
-        final db = rms > 0 ? (20 * math.log(rms) / math.ln10).clamp(-160.0, 0.0) : -160.0;
-        _sumSquares = 0;
-        _sampleCount = 0;
-        _handleDbSample(db);
+      _ring[_ringWrite] = sample;
+      _ringWrite = (_ringWrite + 1) % _fftSize;
+      if (_samplesBuffered < _fftSize) _samplesBuffered++;
+      _samplesSinceFrame++;
+      if (_samplesBuffered == _fftSize && _samplesSinceFrame >= _hopSize) {
+        _samplesSinceFrame = 0;
+        _processFrame();
       }
     }
   }
 
-  void _handleDbSample(double db) {
-    _recentDb.add(db);
-    // ~2.7s window (90 samples @ ~30ms). A short window lets the "ambient
-    // average" chase the music's own loud passages almost in real time, so
-    // genuine beats never sit far enough above it to be filtered out — a
-    // longer, steadier baseline is what actually makes the sensitivity
-    // threshold mean something during continuously loud music.
-    if (_recentDb.length > 90) _recentDb.removeAt(0);
-    // Higher sensitivity -> a smaller dB rise is enough to count as a beat.
-    // Wide range (2..26dB) so low sensitivity stays quiet even against loud,
-    // steady music instead of triggering on every small fluctuation.
-    // Computed even during warm-up so the UI reflects the slider right away.
-    final requiredRise = 26 - sensitivity * 24;
+  /// The [loBin, hiBin] FFT bin range covering the currently selected band.
+  (int, int) _bandBinRange() {
+    final nyquistBin = _fftSize ~/ 2;
+    double loHz;
+    double hiHz;
+    switch (frequencyBand) {
+      case BeatFrequencyBand.kick:
+        loHz = _kickLowHz;
+        hiHz = _kickHighHz;
+        break;
+      case BeatFrequencyBand.bass:
+        loHz = _subBassHz;
+        hiHz = _bassHighHz;
+        break;
+      case BeatFrequencyBand.mid:
+        loHz = _bassHighHz;
+        hiHz = _midHighHz;
+        break;
+      case BeatFrequencyBand.high:
+        loHz = _midHighHz;
+        hiHz = _sampleRate / 2;
+        break;
+      case BeatFrequencyBand.overall:
+        loHz = _subBassHz;
+        hiHz = _sampleRate / 2;
+        break;
+    }
+    final loBin = _fft.indexOfFrequency(loHz, _sampleRate).floor().clamp(1, nyquistBin);
+    final hiBin = _fft.indexOfFrequency(hiHz, _sampleRate).ceil().clamp(loBin, nyquistBin);
+    return (loBin, hiBin);
+  }
 
-    if (_recentDb.length < 20) {
-      // Rolling average still warming up — show the raw level, no beats yet.
-      _meterController.add(
-        BeatMeterSample(db: db, avg: db, threshold: db + requiredRise, requiredRise: requiredRise, isBeat: false),
-      );
+  void _processFrame() {
+    final windowed = Float64List(_fftSize);
+    for (var i = 0; i < _fftSize; i++) {
+      windowed[i] = _ring[(_ringWrite + i) % _fftSize] * _hannWindow[i];
+    }
+    final magnitude = _fft.realFft(windowed).magnitudes();
+
+    final prev = _prevMagnitude;
+    var flux = 0.0;
+    if (prev != null) {
+      final (loBin, hiBin) = _bandBinRange();
+      for (var k = loBin; k <= hiBin; k++) {
+        // Spectral flux: only positive (energy-rising) changes count as
+        // onset evidence — a bin fading out shouldn't cancel one growing.
+        final diff = magnitude[k] - prev[k];
+        if (diff > 0) flux += diff;
+      }
+    }
+    _prevMagnitude = magnitude;
+    _handleFluxSample(flux);
+  }
+
+  static double _toDb(double linear) => linear > 1e-9 ? 20 * math.log(linear) / math.ln10 : -200.0;
+
+  void _handleFluxSample(double flux) {
+    _recentFlux.add(flux);
+    final windowSize = (_rollingWindowMs / _hopMs).round();
+    // A window this size lets the rolling stats chase the music's own loud
+    // passages almost in real time, so genuine beats never sit far enough
+    // above it to be filtered out — a longer, steadier baseline is what
+    // actually makes the sensitivity threshold mean something during
+    // continuously loud music.
+    if (_recentFlux.length > windowSize) _recentFlux.removeAt(0);
+
+    final warmupSamples = (_warmupMs / _hopMs).round();
+    if (_recentFlux.length < warmupSamples) {
+      // Rolling stats still warming up — show the raw level, no beats yet.
+      final db = _toDb(flux);
+      _meterController.add(BeatMeterSample(db: db, avg: db, threshold: db, requiredRise: 0, isBeat: false));
       return;
     }
 
-    final avg = _recentDb.reduce((a, b) => a + b) / _recentDb.length;
-    final threshold = avg + requiredRise;
+    // Spectral flux is near-zero on most frames (silence, or audio whose
+    // spectrum simply isn't changing) and spikes hard on genuine onsets —
+    // unlike a raw loudness reading, a fixed "rise in dB above the mean"
+    // doesn't work here, since the mean itself sits so close to zero that
+    // almost any residual noise would count as a huge relative rise. A
+    // statistical outlier test (mean + k·standard deviation) stays correctly
+    // calibrated to how noisy/eventful the recent audio has actually been.
+    final mean = _recentFlux.reduce((a, b) => a + b) / _recentFlux.length;
+    var variance = 0.0;
+    for (final v in _recentFlux) {
+      final d = v - mean;
+      variance += d * d;
+    }
+    variance /= _recentFlux.length;
+    final stddev = math.sqrt(variance);
+
+    // Higher sensitivity -> fewer standard deviations above the mean are
+    // enough to count as a beat. Range picked from calibration against
+    // synthetic click tracks: 6.0 stays silent on pure noise/steady tones
+    // even at moderate sensitivity, 2.5 still reliably catches real onsets
+    // at max sensitivity.
+    final k = 6.0 - sensitivity * 3.5;
+    final thresholdFlux = mean + k * stddev;
+
     final now = DateTime.now();
     final pastRefractoryPeriod =
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
-
-    final isBeat = db > threshold && db > -50 && pastRefractoryPeriod;
+    final isBeat = flux > thresholdFlux && pastRefractoryPeriod;
     if (isBeat) {
       _lastBeat = now;
       _beatController.add(now);
     }
+
+    final avgDb = _toDb(mean);
+    final thresholdDb = _toDb(thresholdFlux);
     _meterController.add(
-      BeatMeterSample(db: db, avg: avg, threshold: threshold, requiredRise: requiredRise, isBeat: isBeat),
+      BeatMeterSample(
+        db: _toDb(flux),
+        avg: avgDb,
+        threshold: thresholdDb,
+        requiredRise: thresholdDb - avgDb,
+        isBeat: isBeat,
+      ),
     );
   }
 

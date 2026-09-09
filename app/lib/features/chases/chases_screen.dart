@@ -23,14 +23,7 @@ import 'chase_editor_screen.dart';
 import 'smart_program_editor_screen.dart';
 
 class ChasesScreen extends ConsumerStatefulWidget {
-  /// This section's index in AppShell's nav — used the same way as Banks'
-  /// "Run Bank" preview, so playing a chase inline from this list stops
-  /// itself when the user switches to a different tab instead of lingering
-  /// in the background (AppShell keeps every tab mounted, so a plain
-  /// `dispose()` never fires on a tab switch).
-  final int sectionIndex;
-
-  const ChasesScreen({super.key, required this.sectionIndex});
+  const ChasesScreen({super.key});
 
   @override
   ConsumerState<ChasesScreen> createState() => _ChasesScreenState();
@@ -39,7 +32,6 @@ class ChasesScreen extends ConsumerStatefulWidget {
 class _ChasesScreenState extends ConsumerState<ChasesScreen> {
   late final ChasePlayer _player;
   late final SmartProgramPlayer _smartPlayer;
-  String? _activeChaseId;
   SmartProgramStatus? _smartStatus;
   StreamSubscription<SmartProgramStatus>? _smartStatusSub;
 
@@ -66,9 +58,11 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
   }
 
   Future<void> _togglePlay(Chase chase) async {
-    if (_player.isPlaying && _activeChaseId == chase.id) {
+    final current = ref.read(nowPlayingProvider);
+    final isThisActive = _player.isPlaying && current?.kind == PlaybackKind.chase && current?.id == chase.id;
+    if (isThisActive) {
       _player.stop();
-      setState(() => _activeChaseId = null);
+      ref.read(nowPlayingProvider.notifier).state = null;
       return;
     }
     final service = ref.read(artNetServiceProvider);
@@ -88,13 +82,18 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       service: service,
       onStep: (_) {},
     );
-    setState(() => _activeChaseId = chase.id);
+    ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+      id: chase.id,
+      kind: PlaybackKind.chase,
+      name: chase.name,
+    );
   }
 
   Future<void> _toggleSmartProgram(SmartProgram program) async {
     if (_smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id) {
       _smartPlayer.stop();
       setState(() => _smartStatus = null);
+      ref.read(nowPlayingProvider.notifier).state = null;
       return;
     }
     final service = ref.read(artNetServiceProvider);
@@ -110,7 +109,8 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       );
       return;
     }
-    setState(() => _activeChaseId = null);
+    _player.stop();
+    ref.read(nowPlayingProvider.notifier).state = null;
     final started = await _smartPlayer.start(
       program: program,
       chases: ref.read(chasesProvider),
@@ -120,7 +120,13 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       universes: ref.read(universesProvider),
       service: service,
     );
-    if (!started && mounted) {
+    if (started) {
+      ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+        id: program.id,
+        kind: PlaybackKind.smartProgram,
+        name: program.name,
+      );
+    } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not start the microphone for tempo tracking')),
       );
@@ -142,20 +148,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    ref.listen<int>(activeSectionIndexProvider, (previous, next) {
-      if (next != widget.sectionIndex) {
-        if (_player.isPlaying) {
-          _player.stop();
-          setState(() => _activeChaseId = null);
-        }
-        if (_smartPlayer.isRunning) {
-          _smartPlayer.stop();
-          setState(() => _smartStatus = null);
-        }
-      }
-    });
     final chases = ref.watch(chasesProvider);
     final smartPrograms = ref.watch(smartProgramsProvider);
+    final nowPlaying = ref.watch(nowPlayingProvider);
     final isPlaying = _player.isPlaying;
 
     return Scaffold(
@@ -276,7 +271,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
             for (final chase in chases) ...[
               Builder(
                 builder: (context) {
-                  final active = isPlaying && _activeChaseId == chase.id;
+                  final active = isPlaying && nowPlaying?.kind == PlaybackKind.chase && nowPlaying?.id == chase.id;
                   final onDashboard = ref
                       .watch(dashboardTriggersProvider)
                       .any((t) => t.id == chase.id && t.kind == TriggerKind.chase);

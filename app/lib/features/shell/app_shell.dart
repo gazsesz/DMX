@@ -15,8 +15,6 @@ import '../settings/settings_screen.dart';
 /// side-nav-rail breakpoint).
 const _tabletBreakpoint = 700.0;
 
-const _bankSectionIndex = 4;
-const _chaseSectionIndex = 5;
 const _dashboardSectionIndex = 0;
 
 class _NavSection {
@@ -32,8 +30,8 @@ final _sections = [
   const _NavSection(label: 'Files', icon: Icons.folder_outlined, screen: FilesScreen()),
   const _NavSection(label: 'Fixture', icon: Icons.lightbulb_outline, screen: FixturesScreen()),
   const _NavSection(label: 'Scene', icon: Icons.auto_awesome_mosaic_outlined, screen: ScenesScreen()),
-  const _NavSection(label: 'Bank', icon: Icons.grid_view_outlined, screen: BanksScreen(sectionIndex: _bankSectionIndex)),
-  const _NavSection(label: 'Chase', icon: Icons.fast_forward_outlined, screen: ChasesScreen(sectionIndex: _chaseSectionIndex)),
+  const _NavSection(label: 'Bank', icon: Icons.grid_view_outlined, screen: BanksScreen()),
+  const _NavSection(label: 'Chase', icon: Icons.fast_forward_outlined, screen: ChasesScreen()),
   const _NavSection(label: 'Setup', icon: Icons.settings_outlined, screen: SettingsScreen()),
 ];
 
@@ -69,7 +67,11 @@ class _AppShellState extends ConsumerState<AppShell> {
               const _PulsingDot(),
               const SizedBox(width: 8),
               Icon(
-                nowPlaying.isBank ? Icons.grid_view_outlined : Icons.fast_forward_outlined,
+                switch (nowPlaying.kind) {
+                  PlaybackKind.bank => Icons.grid_view_outlined,
+                  PlaybackKind.chase => Icons.fast_forward_outlined,
+                  PlaybackKind.smartProgram => Icons.auto_graph,
+                },
                 size: 15,
                 color: AppColors.accent,
               ),

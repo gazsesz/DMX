@@ -38,14 +38,22 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
 /// notice it's no longer the visible tab and stop itself.
 final activeSectionIndexProvider = StateProvider<int>((ref) => 0);
 
-/// What the Dashboard has fired on the shared player, if anything — shown
-/// as a small status banner from every screen so leaving the Dashboard
-/// doesn't hide the fact that a bank/chase is still running.
-class NowPlaying {
-  final String name;
-  final bool isBank;
+enum PlaybackKind { bank, chase, smartProgram }
 
-  const NowPlaying({required this.name, required this.isBank});
+/// What's currently active on the shared player, if anything — the single
+/// source of truth for "what's running" so Dashboard, Banks and Chases all
+/// agree on it instead of each screen tracking its own local flag (which is
+/// how a bank/chase started from one tab used to show as inactive on every
+/// other tab). Also drives the small status banner shown when navigating
+/// away from the Dashboard.
+class NowPlaying {
+  final String id;
+  final PlaybackKind kind;
+  final String name;
+
+  const NowPlaying({required this.id, required this.kind, required this.name});
+
+  bool get isBank => kind == PlaybackKind.bank;
 }
 
 final nowPlayingProvider = StateProvider<NowPlaying?>((ref) => null);

@@ -1,21 +1,28 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/storage/project_snapshot.dart';
+import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../state/fixture_providers.dart';
 import '../shell/app_shell.dart';
 
 /// A brief branded launch screen shown while the app boots, before handing
-/// off to AppShell.
-class SplashScreen extends StatefulWidget {
+/// off to AppShell — also where the most recently saved project is loaded,
+/// so it's applied to every provider before any main-tab screen ever mounts
+/// (avoids the same "TextEditingController snapshot a stale initial value"
+/// race that settings loading has to avoid).
+class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
   @override
-  State<SplashScreen> createState() => _SplashScreenState();
+  ConsumerState<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 650),
@@ -24,16 +31,34 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 1300), () {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          transitionDuration: const Duration(milliseconds: 350),
-          pageBuilder: (_, __, ___) => const AppShell(),
-          transitionsBuilder: (_, animation, __, child) => FadeTransition(opacity: animation, child: child),
-        ),
-      );
-    });
+    _boot();
+  }
+
+  Future<void> _boot() async {
+    final minimumSplash = Future<void>.delayed(const Duration(milliseconds: 1300));
+    await _loadLastProject();
+    await minimumSplash;
+    if (!mounted) return;
+    Navigator.of(context).pushReplacement(
+      PageRouteBuilder(
+        transitionDuration: const Duration(milliseconds: 350),
+        pageBuilder: (_, __, ___) => const AppShell(),
+        transitionsBuilder: (_, animation, __, child) => FadeTransition(opacity: animation, child: child),
+      ),
+    );
+  }
+
+  Future<void> _loadLastProject() async {
+    try {
+      final files = await ProjectStorage().list();
+      if (files.isEmpty) return;
+      final builtIns = ref.read(fixtureLibraryProvider).where((f) => f.isBuiltIn).toList();
+      final data = await ProjectStorage().loadFile(files.first.file, builtIns: builtIns);
+      applyProjectData(ref, data);
+    } catch (_) {
+      // A missing/corrupt last project shouldn't block startup — the app
+      // just opens with an empty/default show, same as a fresh install.
+    }
   }
 
   @override

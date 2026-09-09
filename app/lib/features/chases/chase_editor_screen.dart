@@ -50,11 +50,21 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     _frequencyBand = ref.read(beatDetectorProvider).frequencyBand;
   }
 
+  bool get _isThisPreviewing {
+    final current = ref.read(nowPlayingProvider);
+    return _player.isPlaying && current?.kind == PlaybackKind.chase && current?.id == widget.existing.id;
+  }
+
   @override
   void dispose() {
-    // This editor is a full-screen pushed route, so nothing else could have
-    // started on the shared player while it was open — safe to always stop.
-    _player.stop();
+    // Playback can now persist across tabs (shown via the NowPlaying
+    // banner), so something else may well be running on the shared player
+    // while this editor is open — only stop it if it's actually *our own*
+    // preview, never something started elsewhere.
+    if (_isThisPreviewing) {
+      _player.stop();
+      ref.read(nowPlayingProvider.notifier).state = null;
+    }
     _nameController.dispose();
     super.dispose();
   }
@@ -110,7 +120,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   }
 
   void _restartIfPlaying() {
-    if (!_player.isPlaying) return;
+    if (!_isThisPreviewing) return;
     _player.stop();
     _togglePreview();
   }
@@ -177,8 +187,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   );
 
   Future<void> _togglePreview() async {
-    if (_player.isPlaying) {
+    if (_isThisPreviewing) {
       _player.stop();
+      ref.read(nowPlayingProvider.notifier).state = null;
       setState(() => _playingIndex = null);
       return;
     }
@@ -189,6 +200,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       );
       return;
     }
+    ref.read(smartProgramPlayerProvider).stop();
     Stream<DateTime>? beatStream;
     if (_beatSync) {
       final beatService = ref.read(beatDetectorProvider);
@@ -215,11 +227,19 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
         if (mounted) setState(() => _playingIndex = index);
       },
     );
+    ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+      id: widget.existing.id,
+      kind: PlaybackKind.chase,
+      name: _currentChase.name,
+    );
     setState(() {});
   }
 
   void _save() {
-    _player.stop();
+    if (_isThisPreviewing) {
+      _player.stop();
+      ref.read(nowPlayingProvider.notifier).state = null;
+    }
     ref.read(chasesProvider.notifier).upsert(_currentChase);
     Navigator.of(context).pop();
   }
@@ -487,8 +507,8 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _steps.isEmpty ? null : _togglePreview,
-                  icon: Icon(_player.isPlaying ? Icons.stop : Icons.play_arrow),
-                  label: Text(_player.isPlaying ? 'Stop' : 'Preview'),
+                  icon: Icon(_isThisPreviewing ? Icons.stop : Icons.play_arrow),
+                  label: Text(_isThisPreviewing ? 'Stop' : 'Preview'),
                 ),
               ),
               const SizedBox(width: 10),
