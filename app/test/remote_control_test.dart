@@ -5,7 +5,11 @@ import 'package:dmx_controller/core/remote/remote_control_server.dart';
 import 'package:dmx_controller/models/bank.dart';
 import 'package:dmx_controller/models/chase.dart';
 import 'package:dmx_controller/state/bank_providers.dart';
+import 'package:dmx_controller/models/dashboard_trigger.dart';
+import 'package:dmx_controller/models/smart_program.dart';
 import 'package:dmx_controller/state/chase_providers.dart';
+import 'package:dmx_controller/state/dashboard_providers.dart';
+import 'package:dmx_controller/state/smart_program_providers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,6 +90,40 @@ void main() {
   test('/stop and /blackout answer', () async {
     expect((await get('/stop'))['ok'], isTrue);
     expect((await get('/blackout'))['ok'], isTrue);
+  });
+
+  test('/endpoints serves the watch menu in HttpClient-WearOS format', () async {
+    // Pin one of each to the Dashboard — the watch mirrors those, not the
+    // whole project.
+    container.read(dashboardTriggersProvider.notifier).add('b1', TriggerKind.bank);
+    container.read(smartProgramsProvider.notifier).loadAll(const [
+      SmartProgram(id: 'p1', name: 'Első okos program'),
+    ]);
+
+    final client = HttpClient();
+    late String body;
+    late String? contentType;
+    try {
+      final response = await (await client.getUrl(Uri.parse('http://127.0.0.1:$port/endpoints'))).close();
+      contentType = response.headers.contentType?.mimeType;
+      body = await response.transform(utf8.decoder).join();
+    } finally {
+      client.close();
+    }
+
+    // The app refuses anything that isn't text/plain.
+    expect(contentType, 'text/plain');
+    final lines = body.split('\n');
+    expect(lines, contains('- trg,Triggers'));
+    expect(lines, contains('- smt,Smart'));
+    expect(lines, contains('-- stop,Stop,/stop'));
+    expect(lines, contains('-- blk,Blackout,/blackout'));
+    // Leaf lines are `<dashes> <id>,<name>,<path>` and the name is encoded
+    // into the URL so spaces and accents survive the round trip.
+    expect(body, contains(',Front Wash,/trigger?name=Front%20Wash'));
+    expect(body, contains('Els%C5%91%20okos%20program'));
+    // A chase that isn't pinned to the Dashboard stays off the watch.
+    expect(body, isNot(contains('Rainbow Sweep')));
   });
 
   test('an unknown endpoint says so rather than failing silently', () async {

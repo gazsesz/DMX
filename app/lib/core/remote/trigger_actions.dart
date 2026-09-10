@@ -143,7 +143,17 @@ class RemoteTarget {
   final String name;
   final String kind; // 'bank' | 'chase' | 'smart'
 
-  const RemoteTarget({required this.id, required this.name, required this.kind});
+  /// Pinned to the Dashboard as a Quick Trigger (or a Smart Program). The
+  /// watch menu shows only these, so what's on your wrist mirrors what you
+  /// curated on the Dashboard instead of every bank in the project.
+  final bool onDashboard;
+
+  const RemoteTarget({
+    required this.id,
+    required this.name,
+    required this.kind,
+    this.onDashboard = false,
+  });
 }
 
 /// Everything reachable by name: the Dashboard's Quick Triggers and Smart
@@ -156,22 +166,22 @@ List<RemoteTarget> remoteTargets(ReadProvider read) {
   final targets = <RemoteTarget>[];
   final seen = <String>{};
 
-  void add(String id, String name, String kind) {
+  void add(String id, String name, String kind, {bool onDashboard = false}) {
     if (!seen.add('$kind:$id')) return;
-    targets.add(RemoteTarget(id: id, name: name, kind: kind));
+    targets.add(RemoteTarget(id: id, name: name, kind: kind, onDashboard: onDashboard));
   }
 
   for (final trigger in quick) {
     if (trigger.kind == TriggerKind.bank) {
       final match = banks.where((b) => b.id == trigger.id);
-      if (match.isNotEmpty) add(match.first.id, match.first.name, 'bank');
+      if (match.isNotEmpty) add(match.first.id, match.first.name, 'bank', onDashboard: true);
     } else {
       final match = chases.where((c) => c.id == trigger.id);
-      if (match.isNotEmpty) add(match.first.id, match.first.name, 'chase');
+      if (match.isNotEmpty) add(match.first.id, match.first.name, 'chase', onDashboard: true);
     }
   }
   for (final program in read(smartProgramsProvider)) {
-    add(program.id, program.name, 'smart');
+    add(program.id, program.name, 'smart', onDashboard: true);
   }
   for (final bank in banks) {
     add(bank.id, bank.name, 'bank');

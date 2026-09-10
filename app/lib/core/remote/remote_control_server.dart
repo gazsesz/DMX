@@ -70,6 +70,8 @@ class RemoteControlServer {
         case '/blackout':
           await blackoutEverything(read);
           _writeJson(request, {'ok': true, 'message': 'Blackout'});
+        case '/endpoints':
+          _writeText(request, _endpointsDocument());
         case '/':
         case '/status':
           _writeJson(request, _status());
@@ -83,6 +85,44 @@ class RemoteControlServer {
     }
   }
 
+  /// The menu a Wear OS client (HttpClient-WearOS) pulls to populate itself:
+  /// `<dashes> <id>,<name>[,<path>]`, one line per entry, nesting by dash
+  /// count, served as text/plain. That app appends `/endpoints` to its base
+  /// URL, which is why this lives here.
+  ///
+  /// Only what's pinned to the Dashboard is listed, so the watch mirrors the
+  /// tiles you curated rather than every bank in the project — and it
+  /// re-reads this, so adding a tile is enough to see it on your wrist.
+  String _endpointsDocument() {
+    // Commas separate the fields, so a name carrying one would split the
+    // line; the trigger still fires on the real name in the URL.
+    String display(String name) => name.replaceAll(',', ' ').trim();
+    String path(String name) => '/trigger?name=${Uri.encodeComponent(name)}';
+
+    final targets = remoteTargets(read).where((t) => t.onDashboard).toList();
+    final playable = targets.where((t) => t.kind != 'smart').toList();
+    final smart = targets.where((t) => t.kind == 'smart').toList();
+    final lines = <String>[];
+    var index = 0;
+
+    if (playable.isNotEmpty) {
+      lines.add('- trg,Triggers');
+      for (final target in playable) {
+        lines.add('-- t${index++},${display(target.name)},${path(target.name)}');
+      }
+    }
+    if (smart.isNotEmpty) {
+      lines.add('- smt,Smart');
+      for (final target in smart) {
+        lines.add('-- s${index++},${display(target.name)},${path(target.name)}');
+      }
+    }
+    lines.add('- ctl,Control');
+    lines.add('-- stop,Stop,/stop');
+    lines.add('-- blk,Blackout,/blackout');
+    return lines.join('\n');
+  }
+
   Map<String, dynamic> _status() {
     final nowPlaying = read(nowPlayingProvider);
     return {
@@ -94,6 +134,13 @@ class RemoteControlServer {
         for (final target in remoteTargets(read)) {'name': target.name, 'kind': target.kind},
       ],
     };
+  }
+
+  void _writeText(HttpRequest request, String body) {
+    request.response
+      ..headers.contentType = ContentType('text', 'plain', charset: 'utf-8')
+      ..write(body)
+      ..close();
   }
 
   void _writeJson(HttpRequest request, Map<String, dynamic> body) {
