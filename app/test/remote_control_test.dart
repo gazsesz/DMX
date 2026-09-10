@@ -92,6 +92,13 @@ void main() {
     expect((await get('/blackout'))['ok'], isTrue);
   });
 
+  test('/beatsync?on=0 is a no-op when it is already off', () async {
+    // There's no microphone in a unit test, so only the "off" direction can
+    // be exercised end to end — enough to prove the parsing and the reply.
+    expect((await get('/beatsync?on=0'))['message'], 'Beat sync already off');
+    expect((await get('/status'))['beatSync'], isFalse);
+  });
+
   test('/endpoints serves the watch menu in HttpClient-WearOS format', () async {
     // Pin one of each to the Dashboard — the watch mirrors those, not the
     // whole project.
@@ -116,6 +123,7 @@ void main() {
     final lines = body.split('\n');
     expect(lines, contains('- trg,Triggers'));
     expect(lines, contains('- smt,Smart'));
+    expect(lines, contains('-- bs,Beat Sync,/beatsync'));
     expect(lines, contains('-- stop,Stop,/stop'));
     expect(lines, contains('-- blk,Blackout,/blackout'));
     // Leaf lines are `<dashes> <id>,<name>,<path>` and the name is encoded

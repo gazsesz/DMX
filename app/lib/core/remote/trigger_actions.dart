@@ -137,6 +137,21 @@ Future<String> toggleSmartProgramById(ReadProvider read, String programId) async
   return 'Started ${program.name}';
 }
 
+/// Arms or disarms mic beat sync — the same app-wide switch the Dashboard,
+/// the Banks tab and the control dock share. [on] null toggles it.
+///
+/// Turning it on opens the microphone, so the very first time has to happen
+/// with the app in front of you: Android only grants the mic permission from
+/// a visible prompt. After that this works from anywhere.
+Future<String> setBeatSync(ReadProvider read, {bool? on}) async {
+  final current = read(beatSyncEnabledProvider);
+  final target = on ?? !current;
+  if (target == current) return 'Beat sync already ${target ? 'on' : 'off'}';
+  final error = await read(beatSyncEnabledProvider.notifier).setEnabled(target);
+  if (error != null) return error;
+  return 'Beat sync ${target ? 'on' : 'off'}';
+}
+
 /// Something the remote endpoint can fire, and the name it answers to.
 class RemoteTarget {
   final String id;

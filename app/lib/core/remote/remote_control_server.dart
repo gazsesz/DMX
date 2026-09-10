@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import '../../state/audio_providers.dart';
 import '../../state/playback_providers.dart';
 import 'trigger_actions.dart';
 
@@ -15,10 +16,12 @@ import 'trigger_actions.dart';
 /// wrong thing.
 ///
 /// Endpoints (all plain GET, so they work from a browser or a one-line macro):
-///   /            — what's running plus every name it answers to
+///   /            — what's running, beat sync state, every name it answers to
 ///   /trigger?name=Front%20Wash — start it, or stop it if it's the one running
+///   /beatsync    — toggle mic beat sync; `?on=1` / `?on=0` to set it outright
 ///   /stop        — stop playback, leaving the rig as it is
 ///   /blackout    — stop everything and take every channel to zero
+///   /endpoints   — the same tiles as a Wear OS client's menu (text/plain)
 ///
 /// This is unauthenticated by design: it's meant for the node's own isolated
 /// Wi-Fi, which has no internet. Don't expose the tablet to a public network
@@ -64,6 +67,11 @@ class RemoteControlServer {
         case '/trigger':
           final message = await fireByName(read, query['name'] ?? '');
           _writeJson(request, {'ok': true, 'message': message});
+        case '/beatsync':
+          // No `on` parameter toggles; `on=1`/`on=0` (or true/false, on/off,
+          // yes/no) sets it outright, so a macro can force a known state.
+          final message = await setBeatSync(read, on: _parseOnOff(query['on']));
+          _writeJson(request, {'ok': true, 'message': message});
         case '/stop':
           stopPlayback(read);
           _writeJson(request, {'ok': true, 'message': 'Stopped'});
@@ -82,6 +90,24 @@ class RemoteControlServer {
     } catch (e) {
       request.response.statusCode = HttpStatus.internalServerError;
       _writeJson(request, {'ok': false, 'message': e.toString()});
+    }
+  }
+
+  /// Anything unrecognised means "toggle" rather than guessing a direction.
+  static bool? _parseOnOff(String? raw) {
+    switch (raw?.trim().toLowerCase()) {
+      case '1':
+      case 'true':
+      case 'on':
+      case 'yes':
+        return true;
+      case '0':
+      case 'false':
+      case 'off':
+      case 'no':
+        return false;
+      default:
+        return null;
     }
   }
 
@@ -118,6 +144,7 @@ class RemoteControlServer {
       }
     }
     lines.add('- ctl,Control');
+    lines.add('-- bs,Beat Sync,/beatsync');
     lines.add('-- stop,Stop,/stop');
     lines.add('-- blk,Blackout,/blackout');
     return lines.join('\n');
@@ -127,6 +154,7 @@ class RemoteControlServer {
     final nowPlaying = read(nowPlayingProvider);
     return {
       'ok': true,
+      'beatSync': read(beatSyncEnabledProvider),
       'nowPlaying': nowPlaying == null
           ? null
           : {'name': nowPlaying.name, 'kind': nowPlaying.kind.name},
