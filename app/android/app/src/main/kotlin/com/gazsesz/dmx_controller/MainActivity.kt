@@ -1,4 +1,4 @@
-package com.energiaborze.dmx_controller
+package com.gazsesz.dmx_controller
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.energiaborze" "\0"
+            VALUE "CompanyName", "com.gazsesz" "\0"
             VALUE "FileDescription", "dmx_controller" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "dmx_controller" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.energiaborze. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 com.gazsesz. All rights reserved." "\0"
             VALUE "OriginalFilename", "dmx_controller.exe" "\0"
             VALUE "ProductName", "dmx_controller" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

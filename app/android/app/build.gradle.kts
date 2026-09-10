@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.energiaborze.dmx_controller"
+    namespace = "com.gazsesz.dmx_controller"
     // flutter.compileSdkVersion lagged behind what flutter_plugin_android_lifecycle
     // requires (36+); pin explicitly instead of relying on the Flutter template default.
     compileSdk = 36
@@ -18,7 +18,7 @@ android {
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
-        applicationId = "com.energiaborze.dmx_controller"
+        applicationId = "com.gazsesz.dmx_controller"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion

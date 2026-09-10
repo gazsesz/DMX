@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Bump this on every release you build for the tablet — the Setup screen
 # reads it straight from here, so it's the single source of truth for
 # "which build is on the device?".
-version: 1.2.0+3
+version: 1.2.1+4
 
 environment:
   sdk: ^3.13.2
