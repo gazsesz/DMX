@@ -8,7 +8,7 @@
     <!-- Keeps the screen awake while running the app — a live lighting console shouldn't sleep mid-show. -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
-        android:label="dmx_controller"
+        android:label="DMX Controller"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

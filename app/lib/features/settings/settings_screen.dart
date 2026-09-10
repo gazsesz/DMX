@@ -10,7 +10,9 @@ import '../../models/artnet_settings.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
+import '../../core/remote/remote_control_server.dart';
 import '../../state/control_dock_providers.dart';
+import '../../state/remote_providers.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -25,6 +27,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _portController;
   bool _testing = false;
   String? _version;
+  String? _wifiAddress;
+  late final TextEditingController _remotePortController;
 
   @override
   void initState() {
@@ -38,6 +42,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     PackageInfo.fromPlatform().then((info) {
       if (mounted) setState(() => _version = '${info.version} (build ${info.buildNumber})');
     });
+    _remotePortController = TextEditingController(text: ref.read(remoteControlProvider).port.toString());
+    localWifiAddress().then((address) {
+      if (mounted) setState(() => _wifiAddress = address);
+    });
+  }
+
+  /// Saves the remote-control setting and brings the server in line with it
+  /// straight away, so the switch is the whole interaction.
+  Future<void> _setRemote(RemoteControlState next) async {
+    ref.read(remoteControlProvider.notifier).set(next);
+    await applyRemoteControlSetting(ref.read);
+    if (mounted) setState(() {});
   }
 
   @override
@@ -45,6 +61,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _deviceNameController.dispose();
     _hostController.dispose();
     _portController.dispose();
+    _remotePortController.dispose();
     super.dispose();
   }
 
@@ -164,6 +181,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final settings = ref.watch(artNetSettingsProvider);
     final universes = ref.watch(universesProvider);
     final status = ref.watch(connectionStatusProvider);
+    final remote = ref.watch(remoteControlProvider);
+    final server = ref.watch(remoteControlServerProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings'), actions: const [ControlDockAction(), SaveProjectAction()]),
@@ -272,6 +291,79 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ],
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _SectionTitle('Remote Control'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Lets a phone, laptop or a MacroDroid macro on a watch fire triggers '
+                    'by name over Wi-Fi — no screen tapping, no coordinates. Everything on '
+                    'the node\'s network can reach it, so leave it off on public Wi-Fi.',
+                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: SwitchListTile(
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Enable endpoint'),
+                          value: remote.enabled,
+                          onChanged: (value) => _setRemote(remote.copyWith(enabled: value)),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 90,
+                        child: TextField(
+                          controller: _remotePortController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: 'Port'),
+                          onSubmitted: (text) {
+                            final port = int.tryParse(text.trim());
+                            if (port != null && port > 0 && port < 65536) {
+                              _setRemote(remote.copyWith(port: port));
+                            }
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (remote.enabled) ...[
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Point your macro at:',
+                      style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                    ),
+                    const SizedBox(height: 4),
+                    SelectableText(
+                      _wifiAddress == null
+                          ? 'No Wi-Fi address yet'
+                          : 'http://$_wifiAddress:${remote.port}/trigger?name=YOUR%20TILE',
+                      style: appMonoStyle(fontSize: 11, color: AppColors.accent),
+                    ),
+                    const SizedBox(height: 6),
+                    const Text(
+                      'Also: /status (what it answers to), /stop, /blackout. The name is '
+                      'whatever the tile is called, so renaming a bank is the only thing '
+                      'that can break a macro.',
+                      style: TextStyle(fontSize: 10, color: AppColors.textFaint),
+                    ),
+                    if (server.lastError != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Could not start: ${server.lastError}',
+                        style: const TextStyle(fontSize: 10.5, color: AppColors.danger),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),

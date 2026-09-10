@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/playback/chase_player.dart';
 import '../core/playback/smart_program_player.dart';
 import 'artnet_providers.dart';
+import 'provider_reader.dart';
 import 'audio_providers.dart';
 
 /// A single player shared by every screen that can start a bank/chase
@@ -60,23 +61,23 @@ class NowPlaying {
 final nowPlayingProvider = StateProvider<NowPlaying?>((ref) => null);
 
 /// Kills everything: both players, every channel on every universe, and the
-/// now-playing state. Shared by the Dashboard's panic button and the control
-/// dock so they can't drift apart.
-Future<void> blackoutEverything(WidgetRef ref) async {
-  ref.read(playbackControllerProvider).stop();
-  ref.read(smartProgramPlayerProvider).stop();
-  final service = ref.read(artNetServiceProvider);
+/// now-playing state. Shared by the Dashboard's panic button, the control
+/// dock and the remote endpoint so they can't drift apart.
+Future<void> blackoutEverything(ReadProvider read) async {
+  read(playbackControllerProvider).stop();
+  read(smartProgramPlayerProvider).stop();
+  final service = read(artNetServiceProvider);
   if (!service.isConnected) {
-    await service.connect(ref.read(artNetSettingsProvider));
+    await service.connect(read(artNetSettingsProvider));
   }
-  service.blackoutAll(ref.read(universesProvider));
-  ref.read(nowPlayingProvider.notifier).state = null;
+  service.blackoutAll(read(universesProvider));
+  read(nowPlayingProvider.notifier).state = null;
 }
 
 /// Stops whatever is playing without blacking the rig out — the fixtures
 /// hold their current look.
-void stopPlayback(WidgetRef ref) {
-  ref.read(playbackControllerProvider).stop();
-  ref.read(smartProgramPlayerProvider).stop();
-  ref.read(nowPlayingProvider.notifier).state = null;
+void stopPlayback(ReadProvider read) {
+  read(playbackControllerProvider).stop();
+  read(smartProgramPlayerProvider).stop();
+  read(nowPlayingProvider.notifier).state = null;
 }

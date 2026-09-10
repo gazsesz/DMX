@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/playback/chase_player.dart';
 import '../../core/playback/smart_program_player.dart';
+import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/audio/beat_detector.dart';
@@ -19,13 +20,12 @@ import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
+import '../../state/control_dock_providers.dart';
 import '../../state/dashboard_prefs_providers.dart';
 import '../../state/dashboard_providers.dart';
-import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
-import '../../state/scene_providers.dart';
 import '../../state/smart_program_providers.dart';
-import '../chases/smart_program_editor_screen.dart';
+import '../../state/tempo_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
 import '../manual_control/manual_control_screen.dart';
 import 'live_stage_view.dart';
@@ -39,6 +39,15 @@ class _DashboardTrigger {
   const _DashboardTrigger({required this.id, required this.kind, required this.name, required this.sub});
 }
 
+/// What travels with a Dashboard tile while it's being dragged to a new
+/// position — [group] keeps the two tile rows from accepting each other's.
+class _TileDrag {
+  final String group;
+  final int index;
+
+  const _TileDrag({required this.group, required this.index});
+}
+
 class DashboardScreen extends ConsumerStatefulWidget {
   const DashboardScreen({super.key});
 
@@ -48,11 +57,7 @@ class DashboardScreen extends ConsumerStatefulWidget {
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   final List<DateTime> _taps = [];
-  double _bpm = 120;
-  double _stepSeconds = 1.2;
-  double _fadeSeconds = 0.3;
   bool _useBpm = false;
-  bool _overrideTiming = true;
   bool _tempoExpanded = true;
   double _sensitivity = 0.6;
   BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
@@ -72,7 +77,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _smartStatusSub = _smartPlayer.statusStream.listen((status) {
       if (mounted) setState(() => _smartStatus = status);
     });
-    _bpmController = TextEditingController(text: _bpm.round().toString());
+    _bpmController = TextEditingController(text: ref.read(tempoProvider).bpm.round().toString());
     final beatService = ref.read(beatDetectorProvider);
     _sensitivity = beatService.sensitivity;
     _frequencyBand = beatService.frequencyBand;
@@ -86,37 +91,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   bool get _beatSync => ref.read(beatSyncEnabledProvider);
-
-  /// A bank is just scene slots with no timing of its own, so a bank trigger
-  /// always runs at the Dashboard's Hold/Fade — override switch or not.
-  Chase _bankChase(_DashboardTrigger trigger) => Chase(
-    id: 'dashboard-bank-${trigger.id}',
-    name: trigger.name,
-    steps: [
-      ChaseStep(
-        bankId: trigger.id,
-        hold: Duration(milliseconds: (_stepSeconds * 1000).round()),
-        fade: Duration(milliseconds: (_fadeSeconds * 1000).round()),
-      ),
-    ],
-    beatSync: _beatSync,
-  );
-
-  /// A saved chase as the Dashboard should play it: beat sync always follows
-  /// the app-wide switch, while the per-step Hold/Fade is replaced by the
-  /// Dashboard's own only while "Override saved timing" is on.
-  Chase _chaseAsDashboardPlaysIt(Chase saved) {
-    if (!_overrideTiming) return saved.copyWith(beatSync: _beatSync);
-    final hold = Duration(milliseconds: (_stepSeconds * 1000).round());
-    final fade = Duration(milliseconds: (_fadeSeconds * 1000).round());
-    return saved.copyWith(
-      beatSync: _beatSync,
-      steps: [
-        for (final step in saved.steps)
-          ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: hold, fade: fade),
-      ],
-    );
-  }
 
   @override
   void dispose() {
@@ -162,16 +136,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
   }
 
-  /// Sets tempo from a BPM value, keeping [_stepSeconds] (what actually
+  /// Sets tempo from a BPM value, keeping [TempoState.stepSeconds] (what actually
   /// drives bank playback) and the BPM text field in sync with each other
   /// regardless of which one the user is interacting with.
   void _setBpm(double bpm, {required bool updateController}) {
-    final clamped = bpm.clamp(20.0, 300.0);
-    setState(() {
-      _bpm = clamped;
-      _stepSeconds = (60 / clamped).clamp(0.0, 5.0);
-    });
-    if (updateController) _bpmController.text = clamped.round().toString();
+    ref.read(tempoProvider.notifier).setBpm(bpm);
+    if (updateController) _bpmController.text = ref.read(tempoProvider).bpm.round().toString();
     // While beat sync is armed the steps are driven by the beats themselves,
     // so a new BPM reading changes nothing about playback — restarting here
     // would kick a running chase back to step 1 on *every single beat*,
@@ -310,103 +280,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  /// Both tile taps go through the same shared actions the remote-control
+  /// endpoint uses, so a macro fired from a watch does exactly what pressing
+  /// the tile here does.
   Future<void> _fireTrigger(_DashboardTrigger trigger) async {
-    final current = ref.read(nowPlayingProvider);
-    final isThisActive = _player.isPlaying && current?.id == trigger.id && current?.kind != PlaybackKind.smartProgram;
-    if (isThisActive) {
-      _player.stop();
-      ref.read(nowPlayingProvider.notifier).state = null;
-      return;
-    }
-    final service = ref.read(artNetServiceProvider);
-    if (!service.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected — check Settings')),
-      );
-      return;
-    }
-
-    Chase chase;
-    if (trigger.kind == TriggerKind.bank) {
-      chase = _bankChase(trigger);
-    } else {
-      final matches = ref.read(chasesProvider).where((c) => c.id == trigger.id);
-      if (matches.isEmpty) return;
-      chase = _chaseAsDashboardPlaysIt(matches.first);
-    }
-
-    await _startChase(chase);
-    ref.read(nowPlayingProvider.notifier).state = NowPlaying(
+    final message = await togglePlayable(
+      ref.read,
       id: trigger.id,
-      kind: trigger.kind == TriggerKind.bank ? PlaybackKind.bank : PlaybackKind.chase,
+      isBank: trigger.kind == TriggerKind.bank,
       name: trigger.name,
     );
+    _reportIfProblem(message);
   }
 
   Future<void> _toggleSmartProgram(SmartProgram program) async {
-    if (_smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id) {
-      _smartPlayer.stop();
-      setState(() => _smartStatus = null);
-      ref.read(nowPlayingProvider.notifier).state = null;
-      return;
-    }
-    final service = ref.read(artNetServiceProvider);
-    if (!service.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected — check Settings')),
-      );
-      return;
-    }
-    if (!program.hasBaseTarget) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Set a base chase for this program first — edit it on the Chase tab')),
-      );
-      return;
-    }
-    _player.stop();
-    ref.read(nowPlayingProvider.notifier).state = null;
-    final started = await _smartPlayer.start(
-      program: program,
-      chases: ref.read(chasesProvider),
-      scenes: ref.read(scenesProvider),
-      banks: ref.read(banksProvider),
-      patchedFixtures: ref.read(patchedFixturesProvider),
-      universes: ref.read(universesProvider),
-      service: service,
-    );
-    if (started) {
-      ref.read(nowPlayingProvider.notifier).state = NowPlaying(
-        id: program.id,
-        kind: PlaybackKind.smartProgram,
-        name: program.name,
-      );
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not start the microphone for tempo tracking')),
-      );
-    }
+    final wasRunning = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
+    final message = await toggleSmartProgramById(ref.read, program.id);
+    if (wasRunning && mounted) setState(() => _smartStatus = null);
+    _reportIfProblem(message);
   }
 
-  Future<void> _startChase(Chase chase) async {
-    ref.read(smartProgramPlayerProvider).stop();
-    final service = ref.read(artNetServiceProvider);
-    Stream<DateTime>? beatStream;
-    if (chase.beatSync) {
-      final beatService = ref.read(beatDetectorProvider);
-      final started = await beatService.start();
-      if (started) beatStream = beatService.beatEvents;
-    }
-    _player.play(
-      chase: chase,
-      scenes: ref.read(scenesProvider),
-      banks: ref.read(banksProvider),
-      patchedFixtures: ref.read(patchedFixturesProvider),
-      universes: ref.read(universesProvider),
-      service: service,
-      beatStream: beatStream,
-      beatRate: beatRateOf(ref),
-      onStep: (_) {},
-    );
+  /// The shared actions report what happened; only the failures are worth a
+  /// snackbar, since a successful start is obvious from the tile itself.
+  void _reportIfProblem(String message) {
+    if (!mounted) return;
+    if (message.startsWith('Started') || message.startsWith('Stopped')) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   /// Called when the user adjusts the Fade/Hold sliders (or beat sync) while
@@ -426,20 +325,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (matches.isEmpty) return;
     final trigger = matches.first;
 
-    Chase chase;
+    final Chase chase;
     if (trigger.kind == TriggerKind.bank) {
-      chase = _bankChase(trigger);
+      chase = bankChase(ref.read, bankId: trigger.id, name: trigger.name);
     } else {
-      if (timingOnly && !_overrideTiming) return;
+      if (timingOnly && !ref.read(tempoProvider).overrideTiming) return;
       final saved = ref.read(chasesProvider).where((c) => c.id == trigger.id);
       if (saved.isEmpty) return;
-      chase = _chaseAsDashboardPlaysIt(saved.first);
+      chase = chaseAsDashboardPlaysIt(ref.read, saved.first);
     }
-    await _startChase(chase);
+    await startChase(ref.read, chase);
   }
 
   Future<void> _blackout() async {
-    await blackoutEverything(ref);
+    await blackoutEverything(ref.read);
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -547,11 +446,65 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
   /// Renders a list of tiles in either mosaic or list layout, per the shared
   /// Dashboard tile-size/layout preference.
+  /// Wraps a tile so long-pressing drags it and dropping it on another tile
+  /// in the *same* group reorders them. The group tag keeps a Quick Trigger
+  /// from being dropped into the Smart Programs row and vice versa.
+  Widget _reorderableTile({
+    required String group,
+    required int index,
+    required bool mosaic,
+    required DashboardBoxSize boxSize,
+    required Widget tile,
+    required void Function(int from, int to) onReorder,
+  }) {
+    final dragged = LongPressDraggable<_TileDrag>(
+      data: _TileDrag(group: group, index: index),
+      feedback: Material(
+        type: MaterialType.transparency,
+        child: Opacity(
+          opacity: 0.9,
+          child: SizedBox(
+            width: mosaic ? boxSize.extent : 260,
+            height: mosaic ? boxSize.extent : 64,
+            child: tile,
+          ),
+        ),
+      ),
+      childWhenDragging: Opacity(opacity: 0.3, child: tile),
+      child: tile,
+    );
+    return DragTarget<_TileDrag>(
+      onWillAcceptWithDetails: (details) => details.data.group == group && details.data.index != index,
+      onAcceptWithDetails: (details) => onReorder(details.data.index, index),
+      builder: (context, candidate, rejected) {
+        if (candidate.isEmpty) return dragged;
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.accent2, width: 2),
+          ),
+          child: dragged,
+        );
+      },
+    );
+  }
+
   Widget _buildTileGroup({
     required TriggerLayout layout,
     required DashboardBoxSize boxSize,
     required List<Widget Function(bool mosaic)> tileBuilders,
+    required String group,
+    required void Function(int from, int to) onReorder,
   }) {
+    Widget tileAt(int index, bool mosaic) => _reorderableTile(
+      group: group,
+      index: index,
+      mosaic: mosaic,
+      boxSize: boxSize,
+      tile: tileBuilders[index](mosaic),
+      onReorder: onReorder,
+    );
+
     if (layout == TriggerLayout.mosaic) {
       return GridView.builder(
         shrinkWrap: true,
@@ -563,10 +516,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           crossAxisSpacing: 8,
           childAspectRatio: 1.0,
         ),
-        itemBuilder: (context, index) => tileBuilders[index](true),
+        itemBuilder: (context, index) => tileAt(index, true),
       );
     }
-    return Column(children: [for (final builder in tileBuilders) builder(false)]);
+    return Column(children: [for (var i = 0; i < tileBuilders.length; i++) tileAt(i, false)]);
   }
 
   @override
@@ -589,6 +542,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final smartActive = _smartPlayer.isRunning;
     final beatSync = ref.watch(beatSyncEnabledProvider);
     final nowPlaying = ref.watch(nowPlayingProvider);
+    final tempo = ref.watch(tempoProvider);
     // Derived straight from the shared NowPlaying state — not a local flag —
     // so a trigger fired from the Banks or Chase tab shows as active here
     // too, and vice versa.
@@ -705,6 +659,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 _buildTileGroup(
                   layout: layout,
                   boxSize: boxSize,
+                  group: 'trigger',
+                  onReorder: (from, to) => ref.read(dashboardTriggersProvider.notifier).move(from, to),
                   tileBuilders: [
                     for (final trigger in triggers)
                       (mosaic) {
@@ -761,6 +717,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 _buildTileGroup(
                   layout: layout,
                   boxSize: boxSize,
+                  group: 'smart',
+                  onReorder: (from, to) => ref.read(smartProgramsProvider.notifier).move(from, to),
                   tileBuilders: [
                     for (final program in smartPrograms)
                       (mosaic) {
@@ -850,7 +808,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     letterSpacing: 1,
                                   ),
                                 ),
-                                Text(_bpm.round().toString(), style: appMonoStyle(fontWeight: FontWeight.w700)),
+                                Text(tempo.bpm.round().toString(), style: appMonoStyle(fontWeight: FontWeight.w700)),
                               ],
                             ),
                           ),
@@ -868,7 +826,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                             ? 'Step Speed (Smart Program active)'
                                             : beatSync
                                                 ? 'Step Speed (synced to beat)'
-                                                : _overrideTiming
+                                                : tempo.overrideTiming
                                                     ? 'Step Speed (Bank + Chase triggers)'
                                                     : 'Step Speed (Bank triggers)',
                                         style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
@@ -896,7 +854,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     children: [
                                       IconButton(
                                         icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                        onPressed: () => _setBpm(_bpm - 1, updateController: true),
+                                        onPressed: () => _setBpm(tempo.bpm - 1, updateController: true),
                                       ),
                                       Expanded(
                                         child: TextField(
@@ -916,18 +874,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                       ),
                                       IconButton(
                                         icon: const Icon(Icons.add_circle_outline, size: 20),
-                                        onPressed: () => _setBpm(_bpm + 1, updateController: true),
+                                        onPressed: () => _setBpm(tempo.bpm + 1, updateController: true),
                                       ),
                                     ],
                                   ),
                                 ] else ...[
                                   Slider(
-                                    value: _stepSeconds,
+                                    value: tempo.stepSeconds,
                                     min: 0.0,
                                     max: 5,
                                     onChanged: (beatSync || smartActive)
                                         ? null
-                                        : (value) => setState(() => _stepSeconds = value),
+                                        : (value) => ref.read(tempoProvider.notifier).setStepSeconds(value),
                                     onChangeEnd: (beatSync || smartActive)
                                         ? null
                                         : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
@@ -936,7 +894,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                 Align(
                                   alignment: Alignment.centerRight,
                                   child: Text(
-                                    '${_stepSeconds.toStringAsFixed(2)}s / step · ${(60 / _stepSeconds).clamp(0, 999).toStringAsFixed(0)} BPM',
+                                    '${tempo.stepSeconds.toStringAsFixed(2)}s / step · ${(60 / tempo.stepSeconds).clamp(0, 999).toStringAsFixed(0)} BPM',
                                     style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
                                   ),
                                 ),
@@ -949,23 +907,23 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       Text(
                         smartActive
                             ? 'Fade Time (set on the Smart Program)'
-                            : _overrideTiming
+                            : tempo.overrideTiming
                                 ? 'Fade Time (Bank + Chase triggers)'
                                 : 'Fade Time (Bank triggers)',
                         style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                       ),
                       Slider(
-                        value: _fadeSeconds,
+                        value: tempo.fadeSeconds,
                         min: 0.0,
                         max: 5,
                         activeColor: AppColors.accent2,
-                        onChanged: smartActive ? null : (value) => setState(() => _fadeSeconds = value),
+                        onChanged: smartActive ? null : (value) => ref.read(tempoProvider.notifier).setFadeSeconds(value),
                         onChangeEnd: smartActive ? null : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
                       ),
                       Align(
                         alignment: Alignment.centerRight,
                         child: Text(
-                          '${_fadeSeconds.toStringAsFixed(2)}s fade',
+                          '${tempo.fadeSeconds.toStringAsFixed(2)}s fade',
                           style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
                         ),
                       ),
@@ -981,7 +939,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                   style: TextStyle(fontWeight: FontWeight.w600),
                                 ),
                                 Text(
-                                  _overrideTiming
+                                  tempo.overrideTiming
                                       ? 'Chases run at the Hold/Fade set here, not their own'
                                       : 'Chases keep their own per-step timing (banks always follow this)',
                                   style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
@@ -990,11 +948,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                           ),
                           Switch(
-                            value: _overrideTiming,
+                            value: tempo.overrideTiming,
                             onChanged: smartActive
                                 ? null
                                 : (value) {
-                                    setState(() => _overrideTiming = value);
+                                    ref.read(tempoProvider.notifier).setOverrideTiming(value);
                                     _restartActiveTriggerIfPlaying();
                                   },
                           ),
@@ -1109,15 +1067,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               const SizedBox(height: 220, child: LiveStageView()),
             ],
           ),
-          Positioned(
-            right: 16,
-            bottom: 24,
-            child: FloatingActionButton(
-              backgroundColor: AppColors.danger,
-              onPressed: _blackout,
-              child: const Icon(Icons.power_settings_new, color: Colors.white),
+          // The control dock carries its own Blackout, so two of them on
+          // screen would just be a bigger target for the wrong one.
+          if (!ref.watch(controlDockProvider).visible)
+            Positioned(
+              right: 16,
+              bottom: 24,
+              child: FloatingActionButton(
+                backgroundColor: AppColors.danger,
+                onPressed: _blackout,
+                child: const Icon(Icons.power_settings_new, color: Colors.white),
+              ),
             ),
-          ),
         ],
       ),
     );

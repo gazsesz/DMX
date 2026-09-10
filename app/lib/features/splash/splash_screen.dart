@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/remote_providers.dart';
 import '../shell/app_shell.dart';
 
 /// A brief branded launch screen shown while the app boots, before handing
@@ -39,6 +40,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     final minimumSplash = Future<void>.delayed(const Duration(milliseconds: 1300));
     await _loadLastProject();
     await _connectToNode();
+    // Bring the remote-control endpoint up before the UI, so a watch macro
+    // fired straight away already has something listening.
+    await applyRemoteControlSetting(ref.read);
     await minimumSplash;
     if (!mounted) return;
     Navigator.of(context).pushReplacement(
@@ -120,6 +124,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                 Text(
                   'ART-NET LIGHTING CONTROL',
                   style: appMonoStyle(fontSize: 10, color: AppColors.textFaint).copyWith(letterSpacing: 2),
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  'by Gazsesz',
+                  style: appMonoStyle(fontSize: 11, color: AppColors.accent).copyWith(letterSpacing: 1),
                 ),
               ],
             ),

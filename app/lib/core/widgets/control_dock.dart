@@ -42,7 +42,7 @@ class ControlDock extends ConsumerWidget {
         label: 'Stop',
         color: AppColors.accent,
         enabled: nowPlaying != null,
-        onTap: () => stopPlayback(ref),
+        onTap: () => stopPlayback(ref.read),
       ),
       _DockButton(
         icon: Icons.mic_none,
@@ -66,7 +66,7 @@ class ControlDock extends ConsumerWidget {
         icon: Icons.power_settings_new,
         label: 'Blackout',
         color: AppColors.danger,
-        onTap: () => blackoutEverything(ref),
+        onTap: () => blackoutEverything(ref.read),
       ),
     ];
 

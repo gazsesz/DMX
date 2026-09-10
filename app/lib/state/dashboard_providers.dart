@@ -31,6 +31,16 @@ class DashboardTriggersNotifier extends StateNotifier<List<DashboardTriggerRef>>
     }
   }
 
+  /// Moves the trigger at [from] to sit at [to] — what dragging one tile
+  /// onto another on the Dashboard does. The order is part of the project,
+  /// so it's saved along with everything else.
+  void move(int from, int to) {
+    if (from == to || from < 0 || from >= state.length || to < 0 || to >= state.length) return;
+    final next = [...state];
+    next.insert(to, next.removeAt(from));
+    state = next;
+  }
+
   void loadAll(List<DashboardTriggerRef> refs) {
     state = refs;
   }

@@ -51,6 +51,15 @@ class SmartProgramsNotifier extends StateNotifier<List<SmartProgram>> {
     state = state.where((p) => p.id != id).toList();
   }
 
+  /// Moves the program at [from] to sit at [to] — dragging one Dashboard
+  /// tile onto another. Saved with the project like everything else.
+  void move(int from, int to) {
+    if (from == to || from < 0 || from >= state.length || to < 0 || to >= state.length) return;
+    final next = [...state];
+    next.insert(to, next.removeAt(from));
+    state = next;
+  }
+
   void loadAll(List<SmartProgram> programs) {
     state = programs;
   }

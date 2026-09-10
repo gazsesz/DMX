@@ -11,6 +11,7 @@ import 'models/artnet_settings.dart';
 import 'state/artnet_providers.dart';
 import 'state/control_dock_providers.dart';
 import 'state/dashboard_prefs_providers.dart';
+import 'state/remote_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +45,11 @@ Future<void> main() async {
     boxSize: prefs.getString(prefDashboardBoxSize),
   );
 
+  final initialRemote = remoteControlFromPrefs(
+    enabled: prefs.getBool(prefRemoteEnabled),
+    port: prefs.getInt(prefRemotePort),
+  );
+
   final initialDock = controlDockFromPrefs(
     visible: prefs.getBool(prefDockVisible),
     position: prefs.getString(prefDockPosition),
@@ -56,6 +62,7 @@ Future<void> main() async {
         artNetSettingsProvider.overrideWith((ref) => ArtNetSettingsNotifier(initialSettings)),
         dashboardPrefsProvider.overrideWith((ref) => DashboardPrefsNotifier(initialDashboardPrefs)),
         controlDockProvider.overrideWith((ref) => ControlDockNotifier(initialDock)),
+        remoteControlProvider.overrideWith((ref) => RemoteControlNotifier(initialRemote)),
       ],
       child: const DmxControllerApp(),
     ),
