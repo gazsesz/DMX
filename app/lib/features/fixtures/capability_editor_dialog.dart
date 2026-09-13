@@ -58,7 +58,7 @@ class _Row {
 const _strobeTemplate = <ChannelCapability>[
   ChannelCapability(min: 0, max: 3, label: 'Closed', kind: CapabilityKind.off),
   ChannelCapability(min: 4, max: 7, label: 'Open', kind: CapabilityKind.slot),
-  ChannelCapability(min: 8, max: 215, label: 'Strobe slow→fast', kind: CapabilityKind.range),
+  ChannelCapability(min: 8, max: 215, label: 'Strobe slow to fast', kind: CapabilityKind.range),
   ChannelCapability(min: 216, max: 255, label: 'Random strobe', kind: CapabilityKind.range),
 ];
 

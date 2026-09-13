@@ -542,7 +542,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const Text(
                     'The built-in fixture library contains definitions from the Q Light '
                     'Controller Plus project (qlcplus.org), used under the Apache License 2.0. '
-                    'Find them under Fixtures → Fixture library.',
+                    'Find them under Fixtures, then Fixture library.',
                     style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                 ],

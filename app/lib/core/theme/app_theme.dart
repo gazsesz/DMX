@@ -1,7 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'app_colors.dart';
+
+/// The two families shipped in assets/fonts and declared in pubspec.
+///
+/// They used to come from google_fonts, which can't work here: the app runs
+/// on the node's own Wi-Fi with no internet, runtime fetching is therefore
+/// switched off, and the package then threw on every single label — the UI
+/// only looked right because Flutter quietly fell back to the platform
+/// typeface. Bundling them makes the design real and the exceptions go away.
+const appFontFamily = 'Manrope';
+const appMonoFontFamily = 'IBM Plex Mono';
 
 /// Monospace text style for DMX values / addresses, matching the wireframes'
 /// IBM Plex Mono readouts.
@@ -10,7 +19,8 @@ TextStyle appMonoStyle({
   FontWeight fontWeight = FontWeight.w500,
   Color? color,
 }) {
-  return GoogleFonts.ibmPlexMono(
+  return TextStyle(
+    fontFamily: appMonoFontFamily,
     fontSize: fontSize,
     fontWeight: fontWeight,
     color: color,
@@ -29,7 +39,9 @@ ThemeData buildAppTheme() {
       onSecondary: AppColors.accent2On,
       error: AppColors.danger,
     ),
-    textTheme: GoogleFonts.manropeTextTheme(ThemeData.dark().textTheme).apply(
+    fontFamily: appFontFamily,
+    textTheme: ThemeData.dark().textTheme.apply(
+      fontFamily: appFontFamily,
       bodyColor: AppColors.text,
       displayColor: AppColors.text,
     ),

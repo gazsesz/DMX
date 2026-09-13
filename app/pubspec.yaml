@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Bump this on every release you build for the tablet — the Setup screen
 # reads it straight from here, so it's the single source of truth for
 # "which build is on the device?".
-version: 1.4.0+7
+version: 1.4.1+8
 
 environment:
   sdk: ^3.13.2
@@ -39,7 +39,6 @@ dependencies:
   cupertino_icons: ^1.0.8
 
   flutter_riverpod: ^2.6.1
-  google_fonts: ^6.2.1
   path_provider: ^2.1.5
   file_picker: ^12.2.0
   uuid: ^4.5.1
@@ -63,6 +62,7 @@ dev_dependencies:
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
+  yaml: ^3.1.4
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -83,6 +83,38 @@ flutter:
   assets:
     - assets/fixtures/
     - assets/fixtures/m/
+
+  # Bundled rather than fetched. The app runs on the lighting node's own
+  # Wi-Fi with no internet, so a font that has to be downloaded is a font
+  # that never arrives — google_fonts used to throw on every mono label and
+  # the UI silently fell back to the platform typeface.
+  #
+  # Manrope is pulled with the latin-ext subset: the latin-only build has no
+  # ő/ű, which would tofu half the Hungarian project names.
+  #
+  # Both families are SIL Open Font License 1.1 — the licence texts sit
+  # beside the files as OFL-*.txt.
+  fonts:
+    - family: Manrope
+      fonts:
+        - asset: assets/fonts/Manrope-400.ttf
+          weight: 400
+        - asset: assets/fonts/Manrope-500.ttf
+          weight: 500
+        - asset: assets/fonts/Manrope-600.ttf
+          weight: 600
+        - asset: assets/fonts/Manrope-700.ttf
+          weight: 700
+        - asset: assets/fonts/Manrope-800.ttf
+          weight: 800
+    - family: IBM Plex Mono
+      fonts:
+        - asset: assets/fonts/IBMPlexMono-400.ttf
+          weight: 400
+        - asset: assets/fonts/IBMPlexMono-500.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexMono-700.ttf
+          weight: 700
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
