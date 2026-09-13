@@ -555,18 +555,24 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       appBar: AppBar(
         title: const Text('Dashboard'),
         actions: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Chip(
-              backgroundColor: AppColors.panel2,
-              side: const BorderSide(color: AppColors.border),
-              avatar: const Icon(Icons.circle, size: 8, color: AppColors.success),
-              label: Text(
-                '${settings.deviceName} · ${universes.length}U',
-                style: const TextStyle(fontSize: 11, color: AppColors.textDim),
+          // Which node is configured, and how many universes — a label, not
+          // a status. It used to carry a hardcoded green dot that claimed
+          // "connected" whatever the truth was; NodeStatusAction now says
+          // that, and having both meant two indicators contradicting each
+          // other. Hidden on a phone, where the action row has no room for
+          // it and the name is one tap away in Setup anyway.
+          if (MediaQuery.sizeOf(context).width >= 600)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Chip(
+                backgroundColor: AppColors.panel2,
+                side: const BorderSide(color: AppColors.border),
+                label: Text(
+                  '${settings.deviceName} · ${universes.length}U',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textDim),
+                ),
               ),
             ),
-          ),
           IconButton(
             tooltip: 'Manual Control',
             icon: const Icon(Icons.tune),

@@ -79,9 +79,11 @@ class _NodeStatusActionState extends ConsumerState<NodeStatusAction> {
       label = '···';
       tooltip = 'Looking for the node…';
     } else {
+      // No text beside it: the icon already *is* an exclamation mark, and
+      // a "!" label next to it just read as a stutter.
       color = AppColors.danger;
       icon = Icons.error;
-      label = '!';
+      label = '';
       tooltip = status.error ?? 'No reply from ${settings.host}';
     }
 
@@ -103,11 +105,13 @@ class _NodeStatusActionState extends ConsumerState<NodeStatusAction> {
                 )
               else
                 Icon(icon, size: 16, color: color),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: appMonoStyle(fontSize: 11, color: color).copyWith(fontWeight: FontWeight.w700),
-              ),
+              if (label.isNotEmpty) ...[
+                const SizedBox(width: 5),
+                Text(
+                  label,
+                  style: appMonoStyle(fontSize: 11, color: color).copyWith(fontWeight: FontWeight.w700),
+                ),
+              ],
             ],
           ),
         ),

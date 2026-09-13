@@ -7,6 +7,16 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <!-- Keeps the screen awake while running the app — a live lighting console shouldn't sleep mid-show. -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- RemoteControlService: without a foreground service Android freezes the
+         process once the screen goes off, and a trigger fired from a watch
+         silently does nothing. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
+    <!-- The service's own ongoing notification, from Android 13 on. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Lets the app offer the "don't doze me" system dialog from Settings.
+         The user still decides; the app can only ask. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
     <application
         android:label="SmART DMX Controller"
         android:name="${applicationName}"
@@ -33,6 +43,18 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- Keeps the app's process (and therefore its remote-control HTTP
+             server) alive with the screen off. "specialUse" is the honest
+             type here: none of the standard categories describes "hold a
+             lighting desk's control endpoint open during a show". -->
+        <service
+            android:name=".RemoteControlService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Keeps the DMX remote-control endpoint reachable while the screen is off during a show"/>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

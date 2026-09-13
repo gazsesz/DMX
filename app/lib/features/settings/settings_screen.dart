@@ -12,6 +12,7 @@ import '../../models/control_dock_prefs.dart';
 import '../../models/output_protocol.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
+import '../../core/remote/background_service.dart';
 import '../../core/remote/remote_control_server.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/remote_providers.dart';
@@ -32,6 +33,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _wifiAddress;
   late final TextEditingController _remotePortController;
   late final TextEditingController _sacnPriorityController;
+  bool _batteryOptimized = false;
 
   @override
   void initState() {
@@ -47,6 +49,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     });
     _remotePortController = TextEditingController(text: ref.read(remoteControlProvider).port.toString());
     _sacnPriorityController = TextEditingController(text: settings.sacnPriority.toString());
+    _refreshBatteryState();
     localWifiAddress().then((address) {
       if (mounted) setState(() => _wifiAddress = address);
     });
@@ -57,7 +60,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _setRemote(RemoteControlState next) async {
     ref.read(remoteControlProvider.notifier).set(next);
     await applyRemoteControlSetting(ref.read);
+    await _refreshBatteryState();
     if (mounted) setState(() {});
+  }
+
+  Future<void> _refreshBatteryState() async {
+    final optimized = await BackgroundService.isBatteryOptimized();
+    if (mounted) setState(() => _batteryOptimized = optimized);
+  }
+
+  /// Opens the system prompt, then re-reads the real state — Android only
+  /// lets the app ask, and the user may well say no.
+  Future<void> _requestBatteryExemption() async {
+    final opened = await BackgroundService.requestIgnoreBatteryOptimizations();
+    if (!mounted) return;
+    if (!opened) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'This device has no such screen — look for Battery / App launch in system settings',
+          ),
+        ),
+      );
+      return;
+    }
+    await _refreshBatteryState();
   }
 
   @override
@@ -422,11 +449,56 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       'that can break a macro.',
                       style: TextStyle(fontSize: 10, color: AppColors.textFaint),
                     ),
+                    const SizedBox(height: 6),
+                    // A macro running on this same device can reach the app
+                    // without touching the network at all — worth spelling
+                    // out, because it also works with Wi-Fi off.
+                    SelectableText(
+                      'From a macro on this device: http://127.0.0.1:${remote.port}/trigger?name=…',
+                      style: appMonoStyle(fontSize: 10, color: AppColors.textDim),
+                    ),
                     if (server.lastError != null) ...[
                       const SizedBox(height: 6),
                       Text(
                         'Could not start: ${server.lastError}',
                         style: const TextStyle(fontSize: 10.5, color: AppColors.danger),
+                      ),
+                    ],
+                    const Divider(height: 24),
+                    Row(
+                      children: [
+                        Icon(
+                          _batteryOptimized ? Icons.battery_alert : Icons.battery_charging_full,
+                          size: 18,
+                          color: _batteryOptimized ? AppColors.danger : AppColors.success,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            _batteryOptimized
+                                ? 'Android may still put this app to sleep. While the endpoint is on '
+                                      'a notification keeps it alive, but some phones (Huawei especially) '
+                                      'ignore that unless the app is also excluded from battery '
+                                      'optimisation — triggers then stop landing once the screen is off.'
+                                : 'Excluded from battery optimisation — the endpoint stays reachable '
+                                      'with the screen off.',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: _batteryOptimized ? AppColors.text : AppColors.textFaint,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_batteryOptimized) ...[
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: _requestBatteryExemption,
+                          icon: const Icon(Icons.settings_suggest_outlined, size: 17),
+                          label: const Text('Exclude from battery optimisation'),
+                        ),
                       ),
                     ],
                   ],

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/remote/background_service.dart';
 import '../core/remote/remote_control_server.dart';
 import 'provider_reader.dart';
 
@@ -54,12 +55,19 @@ RemoteControlState remoteControlFromPrefs({bool? enabled, int? port}) {
 
 /// Brings the server in line with the current setting — called at startup and
 /// whenever the switch or port changes.
+///
+/// The Android foreground service is tied to the same switch. It exists
+/// purely so the endpoint survives the screen going off: without it Android
+/// freezes the process and a trigger from a watch does nothing, which is the
+/// one situation the endpoint is for.
 Future<void> applyRemoteControlSetting(ReadProvider read) async {
   final settings = read(remoteControlProvider);
   final server = read(remoteControlServerProvider);
   if (!settings.enabled) {
     await server.stop();
+    await BackgroundService.stop();
     return;
   }
   await server.start(settings.port);
+  await BackgroundService.start();
 }
