@@ -8,6 +8,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'app.dart';
 import 'models/artnet_settings.dart';
+import 'models/output_protocol.dart';
 import 'state/artnet_providers.dart';
 import 'state/control_dock_providers.dart';
 import 'state/dashboard_prefs_providers.dart';
@@ -37,6 +38,8 @@ Future<void> main() async {
     host: prefs.getString('artnet.host') ?? fallback.host,
     port: prefs.getInt('artnet.port') ?? fallback.port,
     broadcast: prefs.getBool('artnet.broadcast') ?? fallback.broadcast,
+    protocol: OutputProtocol.fromName(prefs.getString(prefOutputProtocol)),
+    sacnPriority: prefs.getInt(prefSacnPriority) ?? fallback.sacnPriority,
     demoMode: prefs.getBool('artnet.demoMode') ?? fallback.demoMode,
   );
 

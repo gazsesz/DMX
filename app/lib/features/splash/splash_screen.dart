@@ -70,12 +70,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
   /// Opens the Art-Net socket with whatever host the loaded project/settings
   /// ended up with, so triggers work straight away instead of greeting the
   /// user with "Not connected — check Settings" on the first tap.
+  ///
+  /// This also starts the watchdog that keeps polling the node, so the
+  /// status indicator in the AppBar is live from launch — nobody should
+  /// have to press Test to find out whether the rig is reachable. The first
+  /// poll isn't awaited: it would add up to two seconds to the splash for
+  /// an answer the indicator can just as well show a moment later.
   Future<void> _connectToNode() async {
     try {
-      await ref.read(artNetServiceProvider).connect(ref.read(artNetSettingsProvider));
+      await ref.read(connectionStatusProvider.notifier).startAutoConnect();
     } catch (_) {
       // Node not on the network yet (or Wi-Fi still coming up) — the
-      // Settings screen's Test button is there for a manual retry.
+      // watchdog retries on its own, and Settings still has a Test button.
     }
   }
 
@@ -116,9 +122,18 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                   child: const Icon(Icons.tune, size: 40, color: Colors.black87),
                 ),
                 const SizedBox(height: 22),
-                const Text(
-                  'DMX CONTROLLER',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 3, color: AppColors.text),
+                // FittedBox rather than a fixed size: the name is long
+                // enough to overflow a narrow phone (the P20 Pro) at the
+                // letter spacing this wordmark wants.
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 24),
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      'SmART DMX CONTROLLER',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 3, color: AppColors.text),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Text(

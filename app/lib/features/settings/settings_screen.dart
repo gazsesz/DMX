@@ -5,9 +5,11 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/artnet_settings.dart';
 import '../../models/control_dock_prefs.dart';
+import '../../models/output_protocol.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
 import '../../core/remote/remote_control_server.dart';
@@ -29,6 +31,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   String? _version;
   String? _wifiAddress;
   late final TextEditingController _remotePortController;
+  late final TextEditingController _sacnPriorityController;
 
   @override
   void initState() {
@@ -43,6 +46,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) setState(() => _version = '${info.version} (build ${info.buildNumber})');
     });
     _remotePortController = TextEditingController(text: ref.read(remoteControlProvider).port.toString());
+    _sacnPriorityController = TextEditingController(text: settings.sacnPriority.toString());
     localWifiAddress().then((address) {
       if (mounted) setState(() => _wifiAddress = address);
     });
@@ -62,6 +66,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _hostController.dispose();
     _portController.dispose();
     _remotePortController.dispose();
+    _sacnPriorityController.dispose();
     super.dispose();
   }
 
@@ -80,9 +85,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _runTest() async {
     _applyFieldsToProvider();
     setState(() => _testing = true);
-    await ref
-        .read(connectionStatusProvider.notifier)
-        .testConnection(ref.read(artNetSettingsProvider));
+    await ref.read(connectionStatusProvider.notifier).testConnection();
     if (mounted) setState(() => _testing = false);
   }
 
@@ -185,7 +188,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final server = ref.watch(remoteControlServerProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), actions: const [ControlDockAction(), SaveProjectAction()]),
+      appBar: AppBar(title: const Text('Settings'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
@@ -242,6 +245,67 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ],
                   ),
+                  const SizedBox(height: 14),
+                  const Text(
+                    'OUTPUT PROTOCOL',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+                  ),
+                  const SizedBox(height: 6),
+                  SegmentedButton<OutputProtocol>(
+                    segments: [
+                      for (final protocol in OutputProtocol.values)
+                        ButtonSegment(value: protocol, label: Text(protocol.label)),
+                    ],
+                    selected: {settings.protocol},
+                    onSelectionChanged: (selection) async {
+                      ref
+                          .read(artNetSettingsProvider.notifier)
+                          .update((current) => current.copyWith(protocol: selection.first));
+                      // The status indicator means something different per
+                      // protocol (sACN has no reply to wait for), so refresh
+                      // it rather than leaving a stale verdict on screen.
+                      await ref.read(connectionStatusProvider.notifier).startAutoConnect();
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    settings.protocol.sendsSacn
+                        ? 'sACN goes to 239.255.0.<universe+1> on port 5568 — the Host above '
+                              'is only used for Art-Net. Set the node to the same universe number.'
+                        : 'Art-Net is sent to the Host above. Switch to sACN if your node is '
+                              'set up for E1.31 instead.',
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  ),
+                  if (settings.protocol.sendsSacn) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'sACN priority (0-200, default 100) — a higher number wins over '
+                            'another source on the same universe.',
+                            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 78,
+                          child: TextField(
+                            controller: _sacnPriorityController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Priority', isDense: true),
+                            onChanged: (text) {
+                              final value = int.tryParse(text.trim());
+                              if (value == null || value < 0 || value > 200) return;
+                              ref
+                                  .read(artNetSettingsProvider.notifier)
+                                  .update((current) => current.copyWith(sacnPriority: value));
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
                   const Divider(height: 28),
                   Row(
                     children: [
@@ -267,8 +331,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               .update((current) => current.copyWith(demoMode: value));
                           // Re-open the connection either way: leaving demo
                           // mode has to actually bind a socket, entering it
-                          // has to drop one.
-                          await ref.read(artNetServiceProvider).connect(ref.read(artNetSettingsProvider));
+                          // has to drop one. Going through the watchdog
+                          // rather than the service directly also refreshes
+                          // the status indicator immediately.
+                          await ref.read(connectionStatusProvider.notifier).startAutoConnect();
                           if (context.mounted) setState(() {});
                         },
                       ),
@@ -467,6 +533,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       icon: const Icon(Icons.bolt_outlined),
                       label: const Text('Send Test DMX Pulse'),
                     ),
+                  ),
+                  const Divider(height: 24),
+                  // Apache-2.0 asks for attribution wherever the work is
+                  // redistributed, and the bundled fixture definitions are
+                  // exactly that. The licence text ships as
+                  // assets/fixtures/LICENSE.txt.
+                  const Text(
+                    'The built-in fixture library contains definitions from the Q Light '
+                    'Controller Plus project (qlcplus.org), used under the Apache License 2.0. '
+                    'Find them under Fixtures → Fixture library.',
+                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                 ],
               ),

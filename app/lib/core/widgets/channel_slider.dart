@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/channel_capability.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
@@ -14,16 +15,61 @@ class ChannelSliderTile extends StatelessWidget {
   final Color color;
   final ValueChanged<int> onChanged;
 
+  /// The channel's labelled value spans, when the fixture profile defines
+  /// them. Given some, the readout under the fader names what the current
+  /// value does ("Strobe 1-20Hz", "Gobo 3 – spiral") and tapping it offers
+  /// the whole list by name instead of making you hunt for the number.
+  final List<ChannelCapability> capabilities;
+
   const ChannelSliderTile({
     super.key,
     required this.label,
     required this.value,
     required this.color,
     required this.onChanged,
+    this.capabilities = const [],
   });
+
+  Future<void> _pickCapability(BuildContext context) async {
+    final picked = await showModalBottomSheet<ChannelCapability>(
+      context: context,
+      backgroundColor: AppColors.panel,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+              child: Text(
+                label.toUpperCase(),
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+              ),
+            ),
+            for (final capability in capabilities)
+              ListTile(
+                dense: true,
+                selected: capability.contains(value),
+                selectedTileColor: AppColors.panel2,
+                title: Text(capability.label, style: const TextStyle(fontSize: 13)),
+                subtitle: Text(
+                  capability.rangeLabel,
+                  style: appMonoStyle(fontSize: 10, color: AppColors.textFaint),
+                ),
+                trailing: capability.kind == CapabilityKind.range
+                    ? const Icon(Icons.tune, size: 15, color: AppColors.textFaint)
+                    : null,
+                onTap: () => Navigator.pop(context, capability),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) onChanged(picked.pickValue);
+  }
 
   @override
   Widget build(BuildContext context) {
+    final active = capabilities.isEmpty ? null : _capabilityFor(value);
     return SizedBox(
       width: 60,
       child: Column(
@@ -39,10 +85,50 @@ class ChannelSliderTile extends StatelessWidget {
           const SizedBox(height: 6),
           _VerticalFader(value: value, color: color, onChanged: onChanged),
           const SizedBox(height: 6),
-          Text('$value', style: appMonoStyle(fontSize: 11.5)),
+          if (capabilities.isEmpty)
+            Text('$value', style: appMonoStyle(fontSize: 11.5))
+          else
+            InkWell(
+              onTap: () => _pickCapability(context),
+              borderRadius: BorderRadius.circular(6),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('$value', style: appMonoStyle(fontSize: 11.5)),
+                        const Icon(Icons.arrow_drop_down, size: 14, color: AppColors.textFaint),
+                      ],
+                    ),
+                    Text(
+                      active?.label ?? '—',
+                      style: TextStyle(
+                        fontSize: 8.5,
+                        height: 1.15,
+                        color: active == null ? AppColors.textFaint : color,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
+  }
+
+  ChannelCapability? _capabilityFor(int value) {
+    for (final capability in capabilities) {
+      if (capability.contains(value)) return capability;
+    }
+    return null;
   }
 }
 

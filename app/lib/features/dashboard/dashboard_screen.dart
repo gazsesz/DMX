@@ -11,6 +11,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/audio/beat_detector.dart';
 import '../../core/widgets/beat_meter.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_prefs.dart';
@@ -573,7 +574,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               MaterialPageRoute(builder: (_) => const ManualControlScreen()),
             ),
           ),
-          const ControlDockAction(), const SaveProjectAction(),
+          const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: Stack(

@@ -1,13 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../core/fixtures/fixture_library_asset.dart';
 import '../models/builtin_fixtures.dart';
+import '../models/channel_capability.dart';
 import '../models/channel_function.dart';
 import '../models/fixture_channel.dart';
 import '../models/fixture_profile.dart';
 import '../models/patched_fixture.dart';
 
 const _uuid = Uuid();
+
+/// The read-only fixture library bundled with the app. One instance, so the
+/// manufacturer index and any manufacturer file already opened stay parsed.
+final fixtureLibraryAssetProvider = Provider<FixtureLibraryAsset>((ref) => FixtureLibraryAsset());
 
 /// Built-in templates plus any custom fixtures the user has created.
 final fixtureLibraryProvider =
@@ -22,6 +28,10 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
     required String name,
     required FixtureCategory category,
     required List<FixtureChannelDraft> channels,
+    String? manufacturer,
+    String? model,
+    String? modeName,
+    String? sourceFormat,
   }) {
     final profile = FixtureProfile(
       id: _uuid.v4(),
@@ -31,9 +41,31 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
         for (var i = 0; i < channels.length; i++)
           channels[i].toChannel(i),
       ],
+      manufacturer: manufacturer,
+      model: model,
+      modeName: modeName,
+      sourceFormat: sourceFormat,
     );
     state = [...state, profile];
     return profile;
+  }
+
+  /// Adds an already-built profile (an import, or a pick from the bundled
+  /// library) under a fresh id, so the same library entry can be brought in
+  /// twice and edited independently.
+  FixtureProfile addProfile(FixtureProfile profile) {
+    final copy = FixtureProfile(
+      id: _uuid.v4(),
+      name: profile.name,
+      category: profile.category,
+      channels: profile.channels,
+      manufacturer: profile.manufacturer,
+      model: profile.model,
+      modeName: profile.modeName,
+      sourceFormat: profile.sourceFormat,
+    );
+    state = [...state, copy];
+    return copy;
   }
 
   FixtureProfile updateCustom(
@@ -42,11 +74,18 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
     required FixtureCategory category,
     required List<FixtureChannelDraft> channels,
   }) {
+    // Keep the import provenance across an edit — the user renaming a
+    // channel shouldn't erase which library entry this came from.
+    final existing = state.where((p) => p.id == id).firstOrNull;
     final updated = FixtureProfile(
       id: id,
       name: name,
       category: category,
       channels: [for (var i = 0; i < channels.length; i++) channels[i].toChannel(i)],
+      manufacturer: existing?.manufacturer,
+      model: existing?.model,
+      modeName: existing?.modeName,
+      sourceFormat: existing?.sourceFormat,
     );
     state = [for (final p in state) if (p.id == id) updated else p];
     return updated;
@@ -66,11 +105,20 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
 class FixtureChannelDraft {
   ChannelFunction function;
   String? customLabel;
+  List<ChannelCapability> capabilities;
 
-  FixtureChannelDraft({required this.function, this.customLabel});
+  FixtureChannelDraft({
+    required this.function,
+    this.customLabel,
+    List<ChannelCapability>? capabilities,
+  }) : capabilities = [...?capabilities];
 
-  FixtureChannel toChannel(int offset) =>
-      FixtureChannel(offset: offset, function: function, customLabel: customLabel);
+  FixtureChannel toChannel(int offset) => FixtureChannel(
+    offset: offset,
+    function: function,
+    customLabel: customLabel,
+    capabilities: normalizeCapabilities(capabilities),
+  );
 }
 
 final patchedFixturesProvider =

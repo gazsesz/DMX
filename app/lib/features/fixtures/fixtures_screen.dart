@@ -1,10 +1,18 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/fixtures/fixture_io.dart';
+import '../../core/fixtures/qlcplus_format.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/fixture_category_style.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/fixture_profile.dart';
 import '../../models/patched_fixture.dart';
@@ -12,6 +20,7 @@ import '../../state/fixture_providers.dart';
 import '../../state/artnet_providers.dart';
 import 'fixture_editor_screen.dart';
 import 'fixture_layout_screen.dart';
+import 'fixture_library_browser.dart';
 
 IconData _categoryIcon(FixtureCategory category) => fixtureCategoryIcon(category);
 Color _categoryColor(FixtureCategory category) => fixtureCategoryColor(category);
@@ -141,6 +150,108 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     }
   }
 
+  /// Picks a fixture out of the ~1700 that ship with the app.
+  Future<void> _addFromLibrary() async {
+    final added = await Navigator.of(context).push<FixtureProfile>(
+      MaterialPageRoute(builder: (_) => const FixtureLibraryBrowser()),
+    );
+    if (added == null || !mounted) return;
+    setState(() => _showPatched = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Added "${added.name}" — tap it in Templates to patch it'),
+      ),
+    );
+  }
+
+  /// Reads a fixture file the user brought along: this app's own JSON, a
+  /// QLC+ `.qxf`, or a CSV channel chart.
+  Future<void> _importFixtures() async {
+    final file = await FilePicker.pickFile(
+      type: FileType.custom,
+      allowedExtensions: ['qxf', 'json', 'csv', 'xml'],
+    );
+    final path = file?.path;
+    if (path == null || !mounted) return;
+
+    final FixtureImportResult result;
+    try {
+      final content = await File(path).readAsString();
+      result = importFixtures(path.split(RegExp(r'[\\/]')).last, content);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Could not import: $e'), backgroundColor: AppColors.danger),
+      );
+      return;
+    }
+
+    final notifier = ref.read(fixtureLibraryProvider.notifier);
+    for (final profile in result.profiles) {
+      notifier.addProfile(profile);
+    }
+    if (!mounted) return;
+    setState(() => _showPatched = false);
+    final summary = result.profiles.length == 1
+        ? 'Imported "${result.profiles.first.name}"'
+        : 'Imported ${result.profiles.length} fixtures';
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text([summary, ...result.warnings].join('\n')),
+        duration: Duration(seconds: result.warnings.isEmpty ? 3 : 6),
+      ),
+    );
+  }
+
+  /// Writes out every fixture the user has added to this project — the
+  /// built-in templates aren't theirs to move.
+  Future<void> _exportFixtures(String format) async {
+    final custom = ref.read(fixtureLibraryProvider).where((f) => !f.isBuiltIn).toList();
+    if (custom.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No custom fixtures to export yet')),
+      );
+      return;
+    }
+
+    final String content;
+    final String extension;
+    switch (format) {
+      case 'csv':
+        content = exportFixturesCsv(custom);
+        extension = 'csv';
+      case 'qxf':
+        // QLC+ definitions are one fixture per file, so exporting several
+        // at once would mean several files. Export the first and say so.
+        content = writeQxf(custom.first);
+        extension = 'qxf';
+      default:
+        content = exportFixturesJson(custom);
+        extension = 'json';
+    }
+
+    final name = format == 'qxf' ? custom.first.name : 'fixtures';
+    await FilePicker.saveFile(
+      dialogTitle: 'Export fixtures',
+      fileName: '$name.$extension',
+      bytes: Uint8List.fromList(utf8.encode(content)),
+      type: FileType.custom,
+      allowedExtensions: [extension],
+    );
+    if (!mounted) return;
+    if (format == 'qxf' && custom.length > 1) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'QLC+ files hold one fixture each — exported "${custom.first.name}". '
+            'Use JSON or CSV to export all ${custom.length} at once.',
+          ),
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    }
+  }
+
   Future<void> _editCustom(FixtureProfile profile) async {
     final updated = await Navigator.of(context).push<FixtureProfile>(
       MaterialPageRoute(builder: (_) => FixtureEditorScreen(existing: profile)),
@@ -168,7 +279,29 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
               MaterialPageRoute(builder: (_) => const FixtureLayoutScreen()),
             ),
           ),
-          const ControlDockAction(), const SaveProjectAction(),
+          PopupMenuButton<String>(
+            tooltip: 'Fixture library, import and export',
+            icon: const Icon(Icons.library_books_outlined),
+            onSelected: (value) {
+              switch (value) {
+                case 'library':
+                  _addFromLibrary();
+                case 'import':
+                  _importFixtures();
+                default:
+                  _exportFixtures(value.substring('export-'.length));
+              }
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(value: 'library', child: Text('Fixture library…')),
+              PopupMenuItem(value: 'import', child: Text('Import from file…')),
+              PopupMenuDivider(),
+              PopupMenuItem(value: 'export-json', child: Text('Export fixtures as JSON…')),
+              PopupMenuItem(value: 'export-qxf', child: Text('Export as QLC+ (.qxf)…')),
+              PopupMenuItem(value: 'export-csv', child: Text('Export as CSV…')),
+            ],
+          ),
+          const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: Column(

@@ -8,6 +8,7 @@ import '../../core/playback/smart_program_player.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
@@ -160,7 +161,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     final isPlaying = _player.isPlaying;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chases'), actions: const [ControlDockAction(), SaveProjectAction()]),
+      appBar: AppBar(title: const Text('Chases'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [

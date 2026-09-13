@@ -169,8 +169,10 @@ class _LiveFixtureIcon extends StatelessWidget {
 
     String? goboLabel;
     if (hasGobo && active) {
-      final idx = (_valueOf(ChannelFunction.gobo) ~/ 32).clamp(0, goboPresets.length - 1);
-      goboLabel = goboPresets[idx];
+      final goboChannel = fixture.profile.channels
+          .where((c) => c.function == ChannelFunction.gobo)
+          .firstOrNull;
+      goboLabel = goboLabelFor(goboChannel?.capabilities ?? const [], _valueOf(ChannelFunction.gobo));
     }
 
     return Positioned(

@@ -5,6 +5,7 @@ import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/bank_picker_dialog.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/scene.dart';
@@ -548,7 +549,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
                     PopupMenuItem(value: _GroupMode.bank, child: Text('Group by Bank')),
                   ],
                 ),
-                const ControlDockAction(), const SaveProjectAction(),
+                const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
               ],
             ),
       body: allScenes.isEmpty

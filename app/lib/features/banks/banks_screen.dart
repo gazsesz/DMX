@@ -6,6 +6,7 @@ import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/chase.dart';
@@ -218,7 +219,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final scenes = ref.watch(scenesProvider);
     if (banks.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Banks'), actions: const [ControlDockAction(), SaveProjectAction()]),
+        appBar: AppBar(title: const Text('Banks'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
         body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
       );
     }
@@ -274,7 +275,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
             tooltip: 'Rename bank',
             onPressed: () => _renameBank(selected),
           ),
-          const ControlDockAction(), const SaveProjectAction(),
+          const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: Column(

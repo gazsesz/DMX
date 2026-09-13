@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../models/channel_function.dart';
 import '../../models/fixture_profile.dart';
 import '../../state/fixture_providers.dart';
+import 'capability_editor_dialog.dart';
 
 class FixtureEditorScreen extends ConsumerStatefulWidget {
   final FixtureProfile? existing;
@@ -32,7 +33,11 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
         ? [FixtureChannelDraft(function: ChannelFunction.dimmer)]
         : [
             for (final channel in existing.channels)
-              FixtureChannelDraft(function: channel.function, customLabel: channel.customLabel),
+              FixtureChannelDraft(
+                function: channel.function,
+                customLabel: channel.customLabel,
+                capabilities: channel.capabilities,
+              ),
           ];
   }
 
@@ -48,6 +53,17 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
 
   void _removeChannel(int index) {
     setState(() => _channels.removeAt(index));
+  }
+
+  Future<void> _editCapabilities(int index) async {
+    final draft = _channels[index];
+    final updated = await showCapabilityEditor(
+      context,
+      channelLabel: draft.customLabel ?? draft.function.label,
+      initial: draft.capabilities,
+    );
+    if (updated == null) return;
+    setState(() => draft.capabilities = updated);
   }
 
   void _save() {
@@ -183,6 +199,25 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
                                 setState(() => _channels[i].function = value);
                               }
                             },
+                          ),
+                        ),
+                        // Ranges are per channel and most channels have
+                        // none, so they live behind a button that shows
+                        // the count rather than taking room in every row.
+                        TextButton(
+                          onPressed: () => _editCapabilities(i),
+                          style: TextButton.styleFrom(
+                            minimumSize: const Size(52, 34),
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            foregroundColor: _channels[i].capabilities.isEmpty
+                                ? AppColors.textFaint
+                                : AppColors.accent2,
+                          ),
+                          child: Text(
+                            _channels[i].capabilities.isEmpty
+                                ? 'Ranges'
+                                : '${_channels[i].capabilities.length} ranges',
+                            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
                           ),
                         ),
                         IconButton(

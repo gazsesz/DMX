@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/bank_picker_dialog.dart';
 import '../../core/widgets/channel_slider.dart';
 import '../../models/builtin_fixtures.dart';
+import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
@@ -154,6 +155,22 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
 
   int _valueForInGroup(_Group group, ChannelFunction function) => group.values[function.name] ?? 0;
 
+  /// The declared value ranges for [function] across the group's fixtures.
+  ///
+  /// A group can mix fixture types, and one fader drives them all, so the
+  /// first fixture that declares ranges for this function names the options.
+  /// Mixed-profile groups therefore show one fixture's labels — accepted:
+  /// the alternative is showing no names at all for the common case where
+  /// every fixture in the group is the same model.
+  List<ChannelCapability> _capabilitiesFor(_Group group, ChannelFunction function) {
+    for (final fixture in _fixturesIn(group)) {
+      for (final channel in fixture.profile.channels) {
+        if (channel.function == function && channel.hasCapabilities) return channel.capabilities;
+      }
+    }
+    return const [];
+  }
+
   void _setValueInGroup(_Group group, ChannelFunction function, int value) {
     setState(() => group.values[function.name] = value.clamp(0, 255));
     for (final id in group.fixtureIds) {
@@ -240,8 +257,8 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
       return best ?? 'Custom';
     }
     if (functions.any((f) => f.isGobo)) {
-      final idx = (_valueForInGroup(group, ChannelFunction.gobo) ~/ 32).clamp(0, goboPresets.length - 1);
-      return 'Gobo: ${goboPresets[idx]}';
+      final value = _valueForInGroup(group, ChannelFunction.gobo);
+      return 'Gobo: ${goboLabelFor(_capabilitiesFor(group, ChannelFunction.gobo), value)}';
     }
     if (functions.any((f) => f.isPanTilt)) return 'Moving';
     return 'Custom';
@@ -384,11 +401,11 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            for (var i = 0; i < goboPresets.length; i++)
+                            for (final choice in goboChoicesFor(_capabilitiesFor(group, ChannelFunction.gobo)))
                               ChoiceChip(
-                                label: Text(goboPresets[i], style: const TextStyle(fontSize: 11)),
-                                selected: _valueForInGroup(group, ChannelFunction.gobo) ~/ 32 == i,
-                                onSelected: (_) => _setValueInGroup(group, ChannelFunction.gobo, i * 32),
+                                label: Text(choice.label, style: const TextStyle(fontSize: 11)),
+                                selected: choice.contains(_valueForInGroup(group, ChannelFunction.gobo)),
+                                onSelected: (_) => _setValueInGroup(group, ChannelFunction.gobo, choice.pickValue),
                               ),
                           ],
                         ),
@@ -411,6 +428,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                                 label: function.label,
                                 value: _valueForInGroup(group, function),
                                 color: AppColors.accent,
+                                capabilities: _capabilitiesFor(group, function),
                                 onChanged: (v) => _setValueInGroup(group, function, v),
                               ),
                           ],

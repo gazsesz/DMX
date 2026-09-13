@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 
 import '../../models/artnet_settings.dart';
 import '../../models/universe_config.dart';
 import 'artnet_packet.dart';
+import 'sacn_packet.dart';
 
 class ArtPollResult {
   final bool success;
@@ -19,7 +21,8 @@ class ArtPollResult {
 }
 
 /// Owns the UDP socket and per-universe DMX buffers, and talks Art-Net to
-/// whatever node is configured in [ArtNetSettings] (e.g. an EasyNode Blue).
+/// whatever node is configured in [ArtNetSettings] (e.g. an EasyNode Blue),
+/// and/or sACN to each universe's multicast group — see [ArtNetSettings.protocol].
 class ArtNetService {
   RawDatagramSocket? _socket;
   ArtNetSettings _settings = const ArtNetSettings();
@@ -30,6 +33,19 @@ class ArtNetService {
 
   Timer? _keepAliveTimer;
   bool _demoMode = false;
+
+  /// This sender's E1.31 component identifier. Receivers merge and
+  /// prioritise by CID, so it has to be stable for as long as the app runs
+  /// — one per service instance, generated once.
+  final Uint8List _cid = _randomCid();
+
+  /// What a console shows in its list of sACN sources.
+  static const _sourceName = 'SmART DMX Controller';
+
+  static Uint8List _randomCid() {
+    final random = Random.secure();
+    return Uint8List.fromList([for (var i = 0; i < 16; i++) random.nextInt(256)]);
+  }
 
   /// Demo mode counts as connected on purpose: every screen gates triggers
   /// on this, and the whole point is to let a show be written with no node
@@ -86,7 +102,7 @@ class ArtNetService {
     if (send) _send(universe);
   }
 
-  /// Sends the current buffer for [universe] as one Art-Net packet. Call
+  /// Sends the current buffer for [universe] on every enabled protocol. Call
   /// this once after a batch of [setChannel](send: false) calls.
   void flush(UniverseConfig universe) => _send(universe);
 
@@ -164,13 +180,39 @@ class ArtNetService {
     if (socket == null) return;
     final nextSequence = ((_sequences[universe.id] ?? 0) % 255) + 1;
     _sequences[universe.id] = nextSequence;
-    final packet = buildArtDmxPacket(
-      net: universe.net,
-      subNet: universe.subNet,
-      universe: universe.universe,
-      sequence: nextSequence,
-      dmxData: _buffers[universe.id]!,
-    );
-    socket.send(packet, InternetAddress(_settings.host), _settings.port);
+    final data = _buffers[universe.id]!;
+    final protocol = _settings.protocol;
+
+    if (protocol.sendsArtNet) {
+      socket.send(
+        buildArtDmxPacket(
+          net: universe.net,
+          subNet: universe.subNet,
+          universe: universe.universe,
+          sequence: nextSequence,
+          dmxData: data,
+        ),
+        InternetAddress(_settings.host),
+        _settings.port,
+      );
+    }
+
+    if (protocol.sendsSacn) {
+      // sACN addresses the universe, not the node: the packet goes to the
+      // universe's own multicast group and whichever nodes subscribed to it
+      // pick it up. Nothing here depends on the configured host.
+      socket.send(
+        buildSacnDataPacket(
+          universe: universe.sacnUniverse,
+          sequence: nextSequence,
+          dmxData: data,
+          cid: _cid,
+          sourceName: _sourceName,
+          priority: _settings.sacnPriority,
+        ),
+        InternetAddress(sacnMulticastAddress(universe.sacnUniverse)),
+        sacnPort,
+      );
+    }
   }
 }

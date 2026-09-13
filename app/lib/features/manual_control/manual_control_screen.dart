@@ -5,7 +5,9 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/channel_slider.dart';
 import '../../models/builtin_fixtures.dart';
+import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
+import '../../models/fixture_channel.dart';
 import '../../models/patched_fixture.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
@@ -110,6 +112,15 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       _values[fixture.id] = List<int>.filled(fixture.profile.channelCount, 0);
     }
     setState(() {});
+  }
+
+  /// The declared value ranges of the channel carrying [function], or an
+  /// empty list when the fixture has no such channel or no ranges for it.
+  static List<ChannelCapability> _capabilitiesOf(List<FixtureChannel> channels, ChannelFunction function) {
+    for (final channel in channels) {
+      if (channel.function == function) return channel.capabilities;
+    }
+    return const [];
   }
 
   Color _colorForFunction(ChannelFunction function) {
@@ -238,11 +249,13 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            for (var i = 0; i < goboPresets.length; i++)
+                            // The fixture's own gobo names where the profile
+                            // declares them, otherwise the generic eight.
+                            for (final choice in goboChoicesFor(_capabilitiesOf(channels, ChannelFunction.gobo)))
                               ChoiceChip(
-                                label: Text(goboPresets[i], style: const TextStyle(fontSize: 11)),
-                                selected: (_valueForFunction(fixture, ChannelFunction.gobo) ?? 0) ~/ 32 == i,
-                                onSelected: (_) => setFunction(ChannelFunction.gobo, i * 32),
+                                label: Text(choice.label, style: const TextStyle(fontSize: 11)),
+                                selected: choice.contains(_valueForFunction(fixture, ChannelFunction.gobo) ?? 0),
+                                onSelected: (_) => setFunction(ChannelFunction.gobo, choice.pickValue),
                               ),
                           ],
                         ),
@@ -258,6 +271,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                                 label: channels[i].label,
                                 value: values[i],
                                 color: _colorForFunction(channels[i].function),
+                                capabilities: channels[i].capabilities,
                                 onChanged: (v) => _setChannel(fixture, i, v),
                               ),
                           ],

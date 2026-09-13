@@ -9,7 +9,7 @@ class DmxControllerApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'DMX Controller',
+      title: 'SmART DMX Controller',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
       darkTheme: buildAppTheme(),

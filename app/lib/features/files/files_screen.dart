@@ -11,17 +11,12 @@ import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/new_project_dialog.dart';
+import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
-import '../../models/artnet_settings.dart';
 import '../../models/project_data.dart';
-import '../../state/artnet_providers.dart';
-import '../../state/bank_providers.dart';
-import '../../state/chase_providers.dart';
-import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/project_providers.dart';
-import '../../state/scene_providers.dart';
-import '../../state/smart_program_providers.dart';
 
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key});
@@ -96,17 +91,41 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     await _refresh();
   }
 
-  void _newProject() {
-    ref.read(currentProjectNameProvider.notifier).state = 'Untitled Project';
-    ref.read(artNetSettingsProvider.notifier).update((_) => const ArtNetSettings());
-    ref.read(universesProvider.notifier).reset();
-    ref.read(fixtureLibraryProvider.notifier).loadAll(const []);
-    ref.read(patchedFixturesProvider.notifier).loadAll(const []);
-    ref.read(scenesProvider.notifier).loadAll(const []);
-    ref.read(banksProvider.notifier).reset();
-    ref.read(chasesProvider.notifier).loadAll(const []);
-    ref.read(dashboardTriggersProvider.notifier).loadAll(const []);
-    ref.read(smartProgramsProvider.notifier).loadAll(const []);
+  /// New Project asks what to bring along rather than wiping everything:
+  /// re-patching a rig you've already patched is the most expensive way to
+  /// start a show, so "keep fixtures" is the default.
+  Future<void> _newProject() async {
+    final current = ref.read(currentProjectNameProvider);
+    final choice = await showNewProjectDialog(
+      context,
+      title: 'New Project',
+      initialName: 'Untitled Project',
+      sourceName: current.trim().isEmpty ? 'current show' : current,
+    );
+    if (choice == null || !mounted) return;
+    startProject(ref, name: choice.name, carryOver: choice.carryOver, source: _snapshot());
+  }
+
+  /// Copies a saved project under a new name — the same question as New
+  /// Project, but sourced from a file instead of what's open.
+  Future<void> _duplicate(ProjectFileInfo info) async {
+    final builtIns = ref.read(fixtureLibraryProvider).where((f) => f.isBuiltIn).toList();
+    final source = await _storage.loadFile(info.file, builtIns: builtIns);
+    if (!mounted) return;
+    final choice = await showNewProjectDialog(
+      context,
+      title: 'Duplicate Project',
+      initialName: '${info.name} Copy',
+      sourceName: info.name,
+      initial: ProjectCarryOver.everything,
+    );
+    if (choice == null || !mounted) return;
+    startProject(ref, name: choice.name, carryOver: choice.carryOver, source: source);
+    await _storage.save(choice.name, _snapshot());
+    await _refresh();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Created "${choice.name}"')));
+    }
   }
 
   Future<void> _exportToFile() async {
@@ -148,7 +167,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         title: const Text('Files'),
         actions: [
           IconButton(icon: const Icon(Icons.add), tooltip: 'New Project', onPressed: _newProject),
-          const ControlDockAction(), const SaveProjectAction(),
+          const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
       body: ListView(
@@ -203,9 +222,19 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                         style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
                       ),
                       onTap: () => _load(file),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        onPressed: () => _delete(file),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.copy_all_outlined, size: 18),
+                            tooltip: 'Duplicate…',
+                            onPressed: () => _duplicate(file),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline, size: 18),
+                            onPressed: () => _delete(file),
+                          ),
+                        ],
                       ),
                     ),
                 ],

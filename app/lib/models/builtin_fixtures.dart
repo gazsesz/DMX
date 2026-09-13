@@ -1,3 +1,4 @@
+import 'channel_capability.dart';
 import 'channel_function.dart';
 import 'fixture_channel.dart';
 import 'fixture_profile.dart';
@@ -94,4 +95,29 @@ const colorPresets = <String, List<int>>{
 };
 
 /// Named gobo patterns shown in the Scene editor's gobo picker.
+///
+/// This is the fallback for a profile that doesn't declare its own value
+/// ranges: eight equal 32-wide slices with generic names. It matches almost
+/// no real fixture — which is exactly why [ChannelCapability] exists — but
+/// it keeps the picker usable for a hand-made profile nobody has filled the
+/// ranges in for yet.
 const goboPresets = <String>['Open', 'Dots', 'Breakup', 'Stars', 'Stripes', 'Swirl', 'Triangle', 'Prism'];
+
+/// The choices to offer for a gobo (or any other slotted) channel: the
+/// fixture's own capability list where it has one, otherwise [goboPresets]
+/// spread evenly across 0-255.
+List<ChannelCapability> goboChoicesFor(List<ChannelCapability> capabilities) {
+  if (capabilities.isNotEmpty) return capabilities;
+  return [
+    for (var i = 0; i < goboPresets.length; i++)
+      ChannelCapability(min: i * 32, max: i * 32 + 31, label: goboPresets[i]),
+  ];
+}
+
+/// What a gobo channel at [value] is showing, named.
+String goboLabelFor(List<ChannelCapability> capabilities, int value) {
+  for (final choice in goboChoicesFor(capabilities)) {
+    if (choice.contains(value)) return choice.label;
+  }
+  return '$value';
+}

@@ -14,6 +14,15 @@ class UniverseConfig {
     required this.universe,
   });
 
+  /// The 15-bit Art-Net Port-Address this universe resolves to.
+  int get portAddress => ((net & 0x7F) << 8) | ((subNet & 0x0F) << 4) | (universe & 0x0F);
+
+  /// The E1.31 universe number to send on. Art-Net counts port addresses
+  /// from 0 and sACN counts universes from 1, so the default rig (Net 0,
+  /// Sub 0, Universe 0) lands on sACN universe 1 — which is what every
+  /// console and node expects "the first universe" to be.
+  int get sacnUniverse => portAddress + 1;
+
   UniverseConfig copyWith({
     String? name,
     int? net,
