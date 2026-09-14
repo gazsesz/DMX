@@ -10,7 +10,6 @@ import '../core/widgets/log_scale.dart';
 /// firing the same triggers — today the remote-control endpoint — plays them
 /// exactly as pressing the tile would. The *controls* stay on the Dashboard.
 class TempoState {
-  final double bpm;
   final double stepSeconds;
   final double fadeSeconds;
   final bool overrideTiming;
@@ -25,13 +24,24 @@ class TempoState {
   final double autoFadeAmount;
 
   const TempoState({
-    this.bpm = 120,
     this.stepSeconds = 1.2,
     this.fadeSeconds = 0.3,
     this.overrideTiming = true,
     this.autoFade = false,
     this.autoFadeAmount = 0.5,
   });
+
+  /// Steps per minute, derived rather than stored.
+  ///
+  /// It used to be a field kept in step with [stepSeconds] by every setter,
+  /// which drifted the moment one was set without the other — the default
+  /// state shipped claiming 120 BPM and 1.2s per step at the same time, and
+  /// the readout dutifully printed both. One number, one source.
+  ///
+  /// The clamp is a display bound: the Step Speed slider reaches well past
+  /// 300 steps a minute, and the BPM box would rather saturate than show a
+  /// four-digit tempo.
+  double get bpm => (60 / stepSeconds).clamp(20.0, 300.0);
 
   /// The fraction of a step the cross-fade takes at the current amount.
   ///
@@ -58,7 +68,6 @@ class TempoState {
   Duration get fade => Duration(milliseconds: (effectiveFadeSeconds * 1000).round());
 
   TempoState copyWith({
-    double? bpm,
     double? stepSeconds,
     double? fadeSeconds,
     bool? overrideTiming,
@@ -66,7 +75,6 @@ class TempoState {
     double? autoFadeAmount,
   }) {
     return TempoState(
-      bpm: bpm ?? this.bpm,
       stepSeconds: stepSeconds ?? this.stepSeconds,
       fadeSeconds: fadeSeconds ?? this.fadeSeconds,
       overrideTiming: overrideTiming ?? this.overrideTiming,
@@ -79,21 +87,13 @@ class TempoState {
 class TempoNotifier extends StateNotifier<TempoState> {
   TempoNotifier() : super(const TempoState());
 
-  /// Sets tempo from a BPM value, keeping [TempoState.stepSeconds] (what
-  /// actually drives bank playback) in step with it.
-  void setBpm(double bpm) {
-    final clamped = bpm.clamp(20.0, 300.0);
-    state = state.copyWith(
-      bpm: clamped,
-      stepSeconds: (60 / clamped).clamp(stepSpeedScale.min, stepSpeedScale.max),
-    );
-  }
+  /// Sets tempo from a BPM value. [TempoState.stepSeconds] is the one stored
+  /// number — BPM is a view of it — so this just converts.
+  void setBpm(double bpm) => setStepSeconds(60 / bpm.clamp(20.0, 300.0));
 
   void setStepSeconds(double seconds) {
-    final clamped = seconds.clamp(stepSpeedScale.min, stepSpeedScale.max);
     state = state.copyWith(
-      stepSeconds: clamped,
-      bpm: (60 / clamped).clamp(20.0, 300.0),
+      stepSeconds: seconds.clamp(stepSpeedScale.min, stepSpeedScale.max),
     );
   }
 

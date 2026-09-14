@@ -1207,30 +1207,35 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 22),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text(
-                    'LIVE STAGE',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1,
-                      color: AppColors.textFaint,
+              // Skipped when the stage dock is up: it draws the same view
+              // right underneath, and two of them stacked is just the
+              // Dashboard scrolled twice as far for nothing.
+              if (!ref.watch(controlDockProvider).stageVisible) ...[
+                const SizedBox(height: 22),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'LIVE STAGE',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1,
+                        color: AppColors.textFaint,
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Edit stage layout',
-                    icon: const Icon(Icons.open_in_full, size: 16, color: AppColors.textFaint),
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const FixtureLayoutScreen()),
+                    IconButton(
+                      tooltip: 'Edit stage layout',
+                      icon: const Icon(Icons.open_in_full, size: 16, color: AppColors.textFaint),
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const FixtureLayoutScreen()),
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 4),
-              const SizedBox(height: 220, child: LiveStageView()),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                const SizedBox(height: 220, child: LiveStageView()),
+              ],
             ],
           ),
           // The control dock carries its own Blackout, so two of them on

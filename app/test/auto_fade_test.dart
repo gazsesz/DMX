@@ -1,4 +1,5 @@
 import 'package:dmx_controller/core/playback/chase_player.dart';
+import 'package:dmx_controller/core/widgets/log_scale.dart';
 import 'package:dmx_controller/state/audio_providers.dart';
 import 'package:dmx_controller/state/tempo_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,6 +75,38 @@ void main() {
     expect(tempo().autoFadeAmount, 0);
     notifier().setAutoFadeAmount(5);
     expect(tempo().autoFadeAmount, 1);
+  });
+
+  group('bpm and step speed are one number', () {
+    // They used to be two fields kept in step by every setter, and the
+    // default state shipped disagreeing with itself: 120 BPM alongside a
+    // 1.2s step, which is 50.
+    test('the default state agrees with itself', () {
+      expect(tempo().bpm, closeTo(60 / tempo().stepSeconds, 1e-9));
+    });
+
+    test('setting one moves the other', () {
+      notifier().setBpm(120);
+      expect(tempo().stepSeconds, closeTo(0.5, 1e-9));
+      notifier().setStepSeconds(2.0);
+      expect(tempo().bpm, closeTo(30, 1e-9));
+    });
+
+    test('a BPM round-trips', () {
+      for (final bpm in [30.0, 60.0, 128.0, 174.0, 300.0]) {
+        notifier().setBpm(bpm);
+        expect(tempo().bpm, closeTo(bpm, 1e-9), reason: '$bpm');
+      }
+    });
+
+    test('BPM saturates for display where the step slider runs past it', () {
+      // The slider reaches 20ms — 3000 steps a minute — and the box would
+      // rather read 300 than print a four-digit tempo.
+      notifier().setStepSeconds(stepSpeedScale.min);
+      expect(tempo().bpm, 300);
+      notifier().setStepSeconds(stepSpeedScale.max);
+      expect(tempo().bpm, 20);
+    });
   });
 
   group('beat rate', () {
