@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/playback_providers.dart';
 import '../../state/remote_providers.dart';
 import '../shell/app_shell.dart';
 
@@ -38,6 +39,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
 
   Future<void> _boot() async {
     final minimumSplash = Future<void>.delayed(const Duration(milliseconds: 1300));
+    // Has to be listening before anything can play, or the dock's Start
+    // button has nothing to resume the first time it's needed.
+    watchLastPlayed(ref.read);
     await _loadLastProject();
     await _connectToNode();
     // Bring the remote-control endpoint up before the UI, so a watch macro

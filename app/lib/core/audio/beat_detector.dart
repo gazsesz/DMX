@@ -24,6 +24,14 @@ enum BeatFrequencyBand {
   };
 }
 
+/// One band's onset level against its own recent norm, for a VU bar.
+class BandLevel {
+  final double db; // this band's onset strength right now, dB-like
+  final double avg; // its own rolling average, same units
+
+  const BandLevel({required this.db, required this.avg});
+}
+
 /// One live audio-level reading, for driving a VU meter / LED indicator.
 class BeatMeterSample {
   final double db; // current onset-strength level, dB-like scale
@@ -32,12 +40,22 @@ class BeatMeterSample {
   final double requiredRise; // threshold - avg, i.e. how sensitive we are
   final bool isBeat;
 
+  /// The band detection is currently listening to.
+  final BeatFrequencyBand band;
+
+  /// Every band's level, whether or not it's the one being watched — so the
+  /// meter can show all of them at once and you can see which band the beat
+  /// actually lives in before committing to it.
+  final Map<BeatFrequencyBand, BandLevel> bands;
+
   const BeatMeterSample({
     required this.db,
     required this.avg,
     required this.threshold,
     required this.requiredRise,
     required this.isBeat,
+    this.band = BeatFrequencyBand.overall,
+    this.bands = const {},
   });
 }
 
@@ -177,8 +195,15 @@ class BeatDetectorService {
     }
   }
 
-  /// The [loBin, hiBin] FFT bin range covering the currently selected band.
-  (int, int) _bandBinRange() {
+  /// Cached because the ranges are fixed and the meter now asks for all of
+  /// them on every one of the ~86 frames a second.
+  static final Map<BeatFrequencyBand, (int, int)> _binRangeCache = {};
+
+  (int, int) _binRangeFor(BeatFrequencyBand band) {
+    return _binRangeCache.putIfAbsent(band, () => _computeBinRange(band));
+  }
+
+  (int, int) _computeBinRange(BeatFrequencyBand frequencyBand) {
     final nyquistBin = _fftSize ~/ 2;
     double loHz;
     double hiHz;
@@ -217,24 +242,53 @@ class BeatDetectorService {
     final magnitude = _fft.realFft(windowed).magnitudes();
 
     final prev = _prevMagnitude;
-    var flux = 0.0;
-    if (prev != null) {
-      final (loBin, hiBin) = _bandBinRange();
-      for (var k = loBin; k <= hiBin; k++) {
-        // Spectral flux: only positive (energy-rising) changes count as
-        // onset evidence — a bin fading out shouldn't cancel one growing.
-        final diff = magnitude[k] - prev[k];
-        if (diff > 0) flux += diff;
+    // Every band, not just the selected one: the meter draws them all so
+    // you can see where the beat actually is before choosing which to
+    // follow. The extra work is a second sweep of the spectrum per frame,
+    // which is nothing next to the FFT itself.
+    final fluxes = <BeatFrequencyBand, double>{};
+    for (final band in BeatFrequencyBand.values) {
+      var sum = 0.0;
+      if (prev != null) {
+        final (loBin, hiBin) = _binRangeFor(band);
+        for (var k = loBin; k <= hiBin; k++) {
+          // Spectral flux: only positive (energy-rising) changes count as
+          // onset evidence — a bin fading out shouldn't cancel one growing.
+          final diff = magnitude[k] - prev[k];
+          if (diff > 0) sum += diff;
+        }
       }
+      fluxes[band] = sum;
     }
     _prevMagnitude = magnitude;
-    _handleFluxSample(flux);
+    _handleFluxSample(fluxes);
+  }
+
+  /// Per-band rolling averages, so each bar is drawn against its own norm
+  /// rather than against whatever the loudest band happens to be doing.
+  final Map<BeatFrequencyBand, double> _bandEma = {};
+
+  Map<BeatFrequencyBand, BandLevel> _bandLevels(Map<BeatFrequencyBand, double> fluxes, double alpha) {
+    final levels = <BeatFrequencyBand, BandLevel>{};
+    for (final entry in fluxes.entries) {
+      final previous = _bandEma[entry.key];
+      final mean = previous == null ? entry.value : previous + alpha * (entry.value - previous);
+      _bandEma[entry.key] = mean;
+      levels[entry.key] = BandLevel(db: _toDb(entry.value), avg: _toDb(mean));
+    }
+    return levels;
   }
 
   static double _toDb(double linear) => linear > 1e-9 ? 20 * math.log(linear) / math.ln10 : -200.0;
 
-  void _handleFluxSample(double flux) {
+  void _handleFluxSample(Map<BeatFrequencyBand, double> fluxes) {
     _frameCount++;
+    // Detection follows the selected band; the rest are carried along
+    // purely so the meter can draw them.
+    final flux = fluxes[frequencyBand] ?? 0;
+    final alpha = 1 - math.exp(-_hopMs / _emaTauMs);
+    final bands = _bandLevels(fluxes, alpha);
+
     final mean = _emaMean;
     if (mean == null) {
       _emaMean = flux;
@@ -245,7 +299,6 @@ class BeatDetectorService {
       // window and yanking the average by its own full weight — this is
       // what keeps the meter's avg/threshold display smooth instead of
       // visibly stepping every ~12ms.
-      final alpha = 1 - math.exp(-_hopMs / _emaTauMs);
       final delta = flux - mean;
       final newMean = mean + alpha * delta;
       _emaMean = newMean;
@@ -257,7 +310,15 @@ class BeatDetectorService {
     if (_frameCount < warmupFrames) {
       // Rolling stats still warming up — show the raw level, no beats yet.
       final db = _toDb(flux);
-      _meterController.add(BeatMeterSample(db: db, avg: db, threshold: db, requiredRise: 0, isBeat: false));
+      _meterController.add(BeatMeterSample(
+        db: db,
+        avg: db,
+        threshold: db,
+        requiredRise: 0,
+        isBeat: false,
+        band: frequencyBand,
+        bands: bands,
+      ));
       return;
     }
 
@@ -271,11 +332,12 @@ class BeatDetectorService {
     final stddev = math.sqrt(_emaVariance);
 
     // Higher sensitivity -> fewer standard deviations above the mean are
-    // enough to count as a beat. Range picked from calibration against
-    // synthetic click tracks: 6.0 stays silent on pure noise/steady tones
-    // even at moderate sensitivity, 2.5 still reliably catches real onsets
-    // at max sensitivity.
-    final k = 6.0 - sensitivity * 3.5;
+    // enough to count as a beat. The top of the range (2.5) is calibrated
+    // against synthetic click tracks: it still reliably catches real
+    // onsets. The bottom was 6.0 and turned out not to be strict enough in
+    // a loud room, where a busy mix crosses it constantly — 9.0 leaves
+    // room to wind it right down to "only the hardest hits".
+    final k = 9.0 - sensitivity * 6.5;
     final thresholdFlux = _emaMean! + k * stddev;
 
     final now = DateTime.now();
@@ -296,6 +358,8 @@ class BeatDetectorService {
         threshold: thresholdDb,
         requiredRise: thresholdDb - avgDb,
         isBeat: isBeat,
+        band: frequencyBand,
+        bands: bands,
       ),
     );
   }

@@ -56,6 +56,10 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _buildNowPlayingBanner() {
     final nowPlaying = ref.watch(nowPlayingProvider);
     if (nowPlaying == null || _index == _dashboardSectionIndex) return const SizedBox.shrink();
+    // The dock already says what's running — and says more, since it shows
+    // which zone of a Smart Program is playing. Two banners for the same
+    // fact is one too many, and the top one costs a strip of screen.
+    if (ref.watch(controlDockProvider).visible) return const SizedBox.shrink();
     return Material(
       color: AppColors.panel2,
       // The OS status bar (clock/battery/notification icons) can sit right

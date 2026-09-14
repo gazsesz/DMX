@@ -6,7 +6,10 @@ import '../../models/control_dock_prefs.dart';
 import '../../state/audio_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
+import '../../state/tempo_providers.dart';
 import '../playback/chase_player.dart';
+import '../playback/smart_program_player.dart';
+import '../remote/trigger_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
@@ -23,6 +26,14 @@ class ControlDock extends ConsumerWidget {
 
   bool get _vertical => position == ControlDockPosition.right;
 
+  /// Restarts whatever played last. Reports back, because the common
+  /// failure — no node on the network — is silent otherwise.
+  Future<void> _resume(BuildContext context, WidgetRef ref) async {
+    final message = await resumeLastPlayed(ref.read);
+    if (!context.mounted || message.startsWith('Started')) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _setBeatSync(BuildContext context, WidgetRef ref, bool value) async {
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null && context.mounted) {
@@ -34,16 +45,31 @@ class ControlDock extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final nowPlaying = ref.watch(nowPlayingProvider);
     final beatSync = ref.watch(beatSyncEnabledProvider);
+    final lastPlayed = ref.watch(lastPlayedProvider);
+    final tempo = ref.watch(tempoProvider);
+    // Only meaningful while a Smart Program is the thing running — the
+    // stream keeps its last value after one stops.
+    final zone = nowPlaying?.kind == PlaybackKind.smartProgram
+        ? ref.watch(smartProgramStatusProvider).valueOrNull
+        : null;
 
     final children = <Widget>[
-      _NowPlayingChip(nowPlaying: nowPlaying, vertical: _vertical),
-      _DockButton(
-        icon: Icons.stop_rounded,
-        label: 'Stop',
-        color: AppColors.accent,
-        enabled: nowPlaying != null,
-        onTap: () => stopPlayback(ref.read),
-      ),
+      _NowPlayingChip(nowPlaying: nowPlaying, zone: zone, vertical: _vertical),
+      if (nowPlaying == null)
+        _DockButton(
+          icon: Icons.play_arrow_rounded,
+          label: 'Start',
+          color: AppColors.success,
+          enabled: lastPlayed != null,
+          onTap: () => _resume(context, ref),
+        )
+      else
+        _DockButton(
+          icon: Icons.stop_rounded,
+          label: 'Stop',
+          color: AppColors.accent,
+          onTap: () => stopPlayback(ref.read),
+        ),
       _DockButton(
         icon: Icons.mic_none,
         label: 'Beat',
@@ -62,6 +88,18 @@ class ControlDock extends ConsumerWidget {
           ),
           onSelectionChanged: (selection) => ref.read(beatRateProvider.notifier).state = selection.first,
         ),
+      // Greyed out while Flash is the beat rate — Flash snaps by
+      // definition, so it forces the fade to zero and auto-fade has
+      // nothing to do. Showing it dimmed rather than hiding it keeps the
+      // toggle's own state visible.
+      _DockButton(
+        icon: Icons.blur_on,
+        label: 'AutoFade',
+        color: AppColors.accent2,
+        active: tempo.autoFade,
+        enabled: !(beatSync && ref.watch(beatRateProvider) == BeatRate.flash),
+        onTap: () => ref.read(tempoProvider.notifier).setAutoFade(!tempo.autoFade),
+      ),
       _DockButton(
         icon: Icons.power_settings_new,
         label: 'Blackout',
@@ -104,9 +142,24 @@ class ControlDock extends ConsumerWidget {
 /// screen that isn't the Dashboard.
 class _NowPlayingChip extends StatelessWidget {
   final NowPlaying? nowPlaying;
+
+  /// Set only while a Smart Program is what's running — which of its zones
+  /// is playing right now, and the tempo it's tracking.
+  final SmartProgramStatus? zone;
   final bool vertical;
 
-  const _NowPlayingChip({required this.nowPlaying, required this.vertical});
+  const _NowPlayingChip({required this.nowPlaying, required this.zone, required this.vertical});
+
+  static String _zoneLabel(SmartProgramStatus status) {
+    if (status.isSilent) return 'Waiting for music';
+    final name = switch (status.zone) {
+      SmartProgramZone.faster => 'Faster',
+      SmartProgramZone.slower => 'Slower',
+      SmartProgramZone.base => 'Base',
+    };
+    final bpm = status.liveBpm;
+    return bpm == null ? name : '$name · ${bpm.round()} BPM';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -121,8 +174,9 @@ class _NowPlayingChip extends StatelessWidget {
         ),
       );
     }
+    final status = zone;
     return SizedBox(
-      width: vertical ? 56 : 130,
+      width: vertical ? 56 : 150,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -143,6 +197,17 @@ class _NowPlayingChip extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.accent),
           ),
+          if (status != null)
+            Text(
+              _zoneLabel(status),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: appMonoStyle(
+                fontSize: 9,
+                color: status.isSilent ? AppColors.textFaint : AppColors.accent2,
+              ),
+            ),
         ],
       ),
     );

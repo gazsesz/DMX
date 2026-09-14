@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../models/smart_program.dart';
@@ -95,6 +96,9 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
 
   void _save() {
     ref.read(smartProgramsProvider.notifier).upsert(_current);
+    // If this program is the one currently playing, the edit lands on the
+    // running show rather than waiting for a restart.
+    syncRunningSmartProgram(ref.read);
     Navigator.of(context).pop();
   }
 

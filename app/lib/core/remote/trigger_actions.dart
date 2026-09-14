@@ -17,7 +17,12 @@ export '../../state/provider_reader.dart' show ReadProvider;
 
 /// Fires [chase] on the shared player exactly the way the Dashboard does:
 /// superseding any Smart Program, and wiring up beat sync when armed.
-Future<void> startChase(ReadProvider read, Chase chase) async {
+///
+/// [dashboardTiming] says whether this chase is one the Dashboard's own
+/// Hold/Fade governs — always true for a bank, and for a saved chase only
+/// while "Override saved timing" is on. Auto-fade rides on the same rule:
+/// a chase keeping its own timing keeps its own fades too.
+Future<void> startChase(ReadProvider read, Chase chase, {bool dashboardTiming = true}) async {
   read(smartProgramPlayerProvider).stop();
   final service = read(artNetServiceProvider);
   Stream<DateTime>? beatStream;
@@ -34,7 +39,19 @@ Future<void> startChase(ReadProvider read, Chase chase) async {
     service: service,
     beatStream: beatStream,
     beatRate: read(beatRateProvider),
+    flashLength: read(flashLengthProvider),
+    liveBeatRate: () => read(beatRateProvider),
+    liveFlashLength: () => read(flashLengthProvider),
     onStep: (_) {},
+    // Read fresh on every step rather than captured here, so tempo changes
+    // reach the rig without restarting the chase. Returns null while
+    // auto-fade is off, leaving the step's own fade alone.
+    fadeOverride: dashboardTiming
+        ? () {
+            final tempo = read(tempoProvider);
+            return tempo.autoFade ? tempo.fade : null;
+          }
+        : null,
   );
 }
 
@@ -92,7 +109,7 @@ Future<String> togglePlayable(
     if (matches.isEmpty) return 'Chase no longer exists';
     chase = chaseAsDashboardPlaysIt(read, matches.first);
   }
-  await startChase(read, chase);
+  await startChase(read, chase, dashboardTiming: isBank || read(tempoProvider).overrideTiming);
   read(nowPlayingProvider.notifier).state = NowPlaying(
     id: id,
     kind: isBank ? PlaybackKind.bank : PlaybackKind.chase,
@@ -135,6 +152,39 @@ Future<String> toggleSmartProgramById(ReadProvider read, String programId) async
     name: program.name,
   );
   return 'Started ${program.name}';
+}
+
+/// Starts whatever played last again — what the control dock's Start
+/// button does, so you can stop for a moment and pick the show back up
+/// without hunting for the tile you fired it from.
+Future<String> resumeLastPlayed(ReadProvider read) async {
+  final last = read(lastPlayedProvider);
+  if (last == null) return 'Nothing has played yet';
+  if (last.kind == PlaybackKind.smartProgram) return toggleSmartProgramById(read, last.id);
+  return togglePlayable(read, id: last.id, isBank: last.isBank, name: last.name);
+}
+
+/// Pushes the saved version of a Smart Program onto the runner if that same
+/// program is currently playing.
+///
+/// Call this after any edit. Without it, saving a program changed nothing
+/// until it was stopped and started again — the runner holds the program it
+/// was handed at start, so the editor and the rig disagreed.
+void syncRunningSmartProgram(ReadProvider read) {
+  final player = read(smartProgramPlayerProvider);
+  final id = player.activeProgramId;
+  if (id == null) return;
+  final matches = read(smartProgramsProvider).where((p) => p.id == id);
+  if (matches.isEmpty) return;
+  player.updateProgram(
+    matches.first,
+    chases: read(chasesProvider),
+    scenes: read(scenesProvider),
+    banks: read(banksProvider),
+    patchedFixtures: read(patchedFixturesProvider),
+    universes: read(universesProvider),
+    service: read(artNetServiceProvider),
+  );
 }
 
 /// Arms or disarms mic beat sync — the same app-wide switch the Dashboard,

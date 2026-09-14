@@ -87,6 +87,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       service: service,
       beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
       beatRate: beatRateOf(ref),
+      flashLength: ref.read(flashLengthProvider),
+      liveBeatRate: () => ref.read(beatRateProvider),
+      liveFlashLength: () => ref.read(flashLengthProvider),
       onStep: (index) {
         if (mounted) setState(() => _runningSlot = index);
       },
@@ -293,7 +296,12 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       label: Text(bank.name),
                       selected: bank.id == selected.id,
                       onSelected: (_) {
-                        if (_isThisBankRunning(selected)) {
+                        // Hand playback over rather than dropping it: if
+                        // the bank you're leaving was running, the one you
+                        // switch to picks up and keeps going. Switching
+                        // banks mid-show is a transition, not a stop.
+                        final wasRunning = _isThisBankRunning(selected);
+                        if (wasRunning) {
                           _player.stop();
                           ref.read(nowPlayingProvider.notifier).state = null;
                         }
@@ -302,6 +310,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                           _runningSlot = null;
                           _manualSlot = null;
                         });
+                        if (wasRunning) _toggleRun(bank);
                       },
                     ),
                   ),

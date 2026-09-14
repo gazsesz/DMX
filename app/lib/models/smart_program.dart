@@ -186,4 +186,14 @@ class ProgramTarget {
     if (bankId != null) return ProgramTarget(id: bankId, isBank: true);
     return null;
   }
+
+  // Compared by value: the getters build a fresh instance every call, so
+  // the player's "did the target actually change?" check would otherwise
+  // see a difference on every edit and restart the chase needlessly.
+  @override
+  bool operator ==(Object other) =>
+      other is ProgramTarget && other.id == id && other.isBank == isBank;
+
+  @override
+  int get hashCode => Object.hash(id, isBank);
 }

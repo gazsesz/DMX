@@ -101,6 +101,58 @@ class SmartProgramPlayer {
     return true;
   }
 
+  /// Applies an edited version of the program that's already running.
+  ///
+  /// Without this, saving a Smart Program changed nothing until you stopped
+  /// and restarted it: [start] captures the program by value, so the runner
+  /// kept driving the old thresholds, targets and fades while the editor
+  /// showed the new ones. Now a save lands on the running show.
+  ///
+  /// Playback is only re-triggered when the current zone's *target* or
+  /// *fade* actually changed — thresholds and hold times take effect on the
+  /// next beat by themselves, and restarting the chase for those would jump
+  /// the look for no reason.
+  void updateProgram(
+    SmartProgram program, {
+    required List<Chase> chases,
+    required List<Scene> scenes,
+    required List<Bank> banks,
+    required List<PatchedFixture> patchedFixtures,
+    required List<UniverseConfig> universes,
+    required ArtNetService service,
+  }) {
+    final current = _program;
+    if (current == null || current.id != program.id) return;
+    final zone = _confirmedZone;
+    final targetChanged = _targetOf(current, zone) != _targetOf(program, zone);
+    final fadeChanged = _fadeOf(current, zone) != _fadeOf(program, zone);
+    final holdChanged = _zoneHold(current, zone) != _zoneHold(program, zone);
+    _program = program;
+    if (_isSilent) return;
+    if (!targetChanged && !fadeChanged && !holdChanged) return;
+    _playZone(
+      zone,
+      chases: chases,
+      scenes: scenes,
+      banks: banks,
+      patchedFixtures: patchedFixtures,
+      universes: universes,
+      service: service,
+    );
+  }
+
+  static ProgramTarget? _targetOf(SmartProgram program, SmartProgramZone zone) => switch (zone) {
+    SmartProgramZone.base => program.baseTarget,
+    SmartProgramZone.faster => program.fasterTarget ?? program.baseTarget,
+    SmartProgramZone.slower => program.slowerTarget ?? program.baseTarget,
+  };
+
+  static Duration _fadeOf(SmartProgram program, SmartProgramZone zone) => switch (zone) {
+    SmartProgramZone.base => program.baseFade,
+    SmartProgramZone.faster => program.fasterFade,
+    SmartProgramZone.slower => program.slowerFade,
+  };
+
   void _resetSilenceTimer({required ArtNetService service, required List<UniverseConfig> universes}) {
     _silenceTimer?.cancel();
     _silenceTimer = Timer(_silenceTimeout, () => _enterSilence(service: service, universes: universes));

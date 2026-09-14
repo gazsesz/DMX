@@ -20,9 +20,16 @@ final beatSyncEnabledProvider = StateNotifierProvider<BeatSyncNotifier, bool>((r
   return BeatSyncNotifier(ref.watch(beatDetectorProvider));
 });
 
-/// Half time / on the beat / double time — shared app-wide like
+/// Half time / on the beat / double time / flash — shared app-wide like
 /// [beatSyncEnabledProvider], so a chase reads the same however it's fired.
 final beatRateProvider = StateProvider<BeatRate>((ref) => BeatRate.normal);
+
+/// How long the lit step stays up in [BeatRate.flash].
+///
+/// 80 ms is about the shortest a flash still reads as light rather than a
+/// glitch, and short enough that the rig is dark again well before the next
+/// beat at any danceable tempo.
+final flashLengthProvider = StateProvider<Duration>((ref) => const Duration(milliseconds: 80));
 
 BeatRate beatRateOf(WidgetRef ref) => ref.read(beatRateProvider);
 

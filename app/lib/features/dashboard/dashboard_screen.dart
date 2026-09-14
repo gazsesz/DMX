@@ -10,6 +10,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/audio/beat_detector.dart';
 import '../../core/widgets/beat_meter.dart';
+import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
@@ -92,6 +93,50 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   bool get _beatSync => ref.read(beatSyncEnabledProvider);
+
+  /// The Smart Program currently on the shared player, if any.
+  SmartProgram? get _runningProgram {
+    final id = _smartPlayer.activeProgramId;
+    if (id == null) return null;
+    final matches = ref.read(smartProgramsProvider).where((p) => p.id == id);
+    return matches.isEmpty ? null : matches.first;
+  }
+
+  SmartProgramZone get _runningZone => _smartStatus?.zone ?? SmartProgramZone.base;
+
+  String _smartZoneLabel() => switch (_runningZone) {
+    SmartProgramZone.faster => 'Faster',
+    SmartProgramZone.slower => 'Slower',
+    SmartProgramZone.base => 'Base',
+  };
+
+  double _runningZoneFadeSeconds() {
+    final program = _runningProgram;
+    if (program == null) return ref.read(tempoProvider).fadeSeconds;
+    final fade = switch (_runningZone) {
+      SmartProgramZone.faster => program.fasterFade,
+      SmartProgramZone.slower => program.slowerFade,
+      SmartProgramZone.base => program.baseFade,
+    };
+    return fade.inMilliseconds / 1000;
+  }
+
+  /// Writes the fade back onto the running program's current zone and hands
+  /// the change to the player, so it takes effect on this run rather than
+  /// the next one.
+  void _setRunningZoneFade(double seconds) {
+    final program = _runningProgram;
+    if (program == null) return;
+    final fade = Duration(milliseconds: (seconds * 1000).round());
+    final updated = switch (_runningZone) {
+      SmartProgramZone.faster => program.copyWith(fasterFade: fade),
+      SmartProgramZone.slower => program.copyWith(slowerFade: fade),
+      SmartProgramZone.base => program.copyWith(baseFade: fade),
+    };
+    ref.read(smartProgramsProvider.notifier).upsert(updated);
+    syncRunningSmartProgram(ref.read);
+    setState(() {});
+  }
 
   @override
   void dispose() {
@@ -542,6 +587,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final smartPrograms = ref.watch(smartProgramsProvider);
     final smartActive = _smartPlayer.isRunning;
     final beatSync = ref.watch(beatSyncEnabledProvider);
+    // Flash forces the fade to zero, so anything fade-related is inert.
+    final flashActive = beatSync && ref.watch(beatRateProvider) == BeatRate.flash;
     final nowPlaying = ref.watch(nowPlayingProvider);
     final tempo = ref.watch(tempoProvider);
     // Derived straight from the shared NowPlaying state — not a local flag —
@@ -886,13 +933,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                                     ],
                                   ),
                                 ] else ...[
+                                  // Logarithmic and running the other way:
+                                  // pushing the slider up speeds the chase
+                                  // up, and the quick end — where a tenth
+                                  // of a second changes the whole look —
+                                  // gets real travel instead of the last
+                                  // few pixels.
                                   Slider(
-                                    value: tempo.stepSeconds,
-                                    min: 0.0,
-                                    max: 5,
+                                    value: stepSpeedScale.positionOf(tempo.stepSeconds),
                                     onChanged: (beatSync || smartActive)
                                         ? null
-                                        : (value) => ref.read(tempoProvider.notifier).setStepSeconds(value),
+                                        : (position) => ref
+                                            .read(tempoProvider.notifier)
+                                            .setStepSeconds(stepSpeedScale.valueAt(position)),
                                     onChangeEnd: (beatSync || smartActive)
                                         ? null
                                         : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
@@ -913,58 +966,140 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       const SizedBox(height: 4),
                       Text(
                         smartActive
-                            ? 'Fade Time (set on the Smart Program)'
-                            : tempo.overrideTiming
-                                ? 'Fade Time (Bank + Chase triggers)'
-                                : 'Fade Time (Bank triggers)',
+                            ? 'Fade Time (${_smartZoneLabel().toLowerCase()} zone of the running program)'
+                            : tempo.autoFade
+                                ? 'Fade Time (following the tempo)'
+                                : tempo.overrideTiming
+                                    ? 'Fade Time (Bank + Chase triggers)'
+                                    : 'Fade Time (Bank triggers)',
                         style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                       ),
+                      // Logarithmic: everything worth setting lives under a
+                      // second, and on a linear 0-5s slider that was the
+                      // first tenth of the travel.
+                      //
+                      // While a Smart Program runs this drives *that
+                      // program's* fade for the zone currently playing,
+                      // saved back to the program — it used to be dead,
+                      // which left no way to adjust a fade mid-show.
                       Slider(
-                        value: tempo.fadeSeconds,
-                        min: 0.0,
-                        max: 5,
+                        value: fadeTimeScale.positionOf(
+                          smartActive
+                              ? _runningZoneFadeSeconds()
+                              : tempo.autoFade
+                                  ? tempo.effectiveFadeSeconds
+                                  : tempo.fadeSeconds,
+                        ),
                         activeColor: AppColors.accent2,
-                        onChanged: smartActive ? null : (value) => ref.read(tempoProvider.notifier).setFadeSeconds(value),
+                        // Auto-fade computes the value from the tempo, so
+                        // the slider becomes a readout — the Amount below
+                        // is the control.
+                        onChanged: (!smartActive && tempo.autoFade)
+                            ? null
+                            : (position) {
+                                final seconds = fadeTimeScale.valueAt(position);
+                                if (smartActive) {
+                                  _setRunningZoneFade(seconds);
+                                } else {
+                                  ref.read(tempoProvider.notifier).setFadeSeconds(seconds);
+                                }
+                              },
                         onChangeEnd: smartActive ? null : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
                       ),
                       Align(
                         alignment: Alignment.centerRight,
                         child: Text(
-                          '${tempo.fadeSeconds.toStringAsFixed(2)}s fade',
+                          '${(smartActive ? _runningZoneFadeSeconds() : tempo.effectiveFadeSeconds).toStringAsFixed(2)}s fade',
                           style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
                         ),
                       ),
-                      const Divider(height: 26),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Override saved timing',
-                                  style: TextStyle(fontWeight: FontWeight.w600),
-                                ),
-                                Text(
-                                  tempo.overrideTiming
-                                      ? 'Chases run at the Hold/Fade set here, not their own'
-                                      : 'Chases keep their own per-step timing (banks always follow this)',
-                                  style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-                                ),
-                              ],
+                      if (!smartActive) ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Auto fade',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    flashActive
+                                        ? 'Not in play: the Flash beat rate snaps, so fades are off'
+                                        : tempo.autoFade
+                                            ? 'Fade follows the tempo — slower music fades longer, faster snaps tighter'
+                                            : 'Set the fade by hand',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      color: flashActive ? AppColors.accent : AppColors.textFaint,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: tempo.autoFade,
+                              onChanged: (value) => ref.read(tempoProvider.notifier).setAutoFade(value),
+                            ),
+                          ],
+                        ),
+                        if (tempo.autoFade) ...[
+                          Slider(
+                            value: tempo.autoFadeAmount,
+                            activeColor: AppColors.accent2,
+                            onChanged: (value) => ref.read(tempoProvider.notifier).setAutoFadeAmount(value),
+                          ),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: Text(
+                              'Amount ${(tempo.autoFadeAmount * 100).round()}% · '
+                              '${(tempo.autoFadeRatio * 100).round()}% of each step',
+                              style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
                             ),
                           ),
-                          Switch(
-                            value: tempo.overrideTiming,
-                            onChanged: smartActive
-                                ? null
-                                : (value) {
-                                    ref.read(tempoProvider.notifier).setOverrideTiming(value);
-                                    _restartActiveTriggerIfPlaying();
-                                  },
-                          ),
                         ],
-                      ),
+                      ],
+                      const Divider(height: 26),
+                      // Hidden while a Smart Program runs rather than shown
+                      // greyed out: a program always drives its own timing,
+                      // so the switch sitting there on read as if it were
+                      // doing something.
+                      if (smartActive)
+                        const Text(
+                          'A Smart Program sets its own timing per zone — the Step Speed above '
+                          'follows the music, and the Fade slider edits the zone that is playing.',
+                          style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Override saved timing',
+                                    style: TextStyle(fontWeight: FontWeight.w600),
+                                  ),
+                                  Text(
+                                    tempo.overrideTiming
+                                        ? 'Chases run at the Hold/Fade set here, not their own'
+                                        : 'Chases keep their own per-step timing (banks always follow this)',
+                                    style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: tempo.overrideTiming,
+                              onChanged: (value) {
+                                ref.read(tempoProvider.notifier).setOverrideTiming(value);
+                                _restartActiveTriggerIfPlaying();
+                              },
+                            ),
+                          ],
+                        ),
                       const Divider(height: 26),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1010,6 +1145,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             ),
                           ],
                         ),
+                      // Flash is the one rate with a length of its own: the
+                      // others derive their off-beat step from the measured
+                      // tempo, this one holds for a fixed stab.
+                      if (beatSync && ref.watch(beatRateProvider) == BeatRate.flash) ...[
+                        const Text(
+                          'Flash length — how long the lit step stays up. Fades are off in this mode.',
+                          style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                        ),
+                        Slider(
+                          value: ref.watch(flashLengthProvider).inMilliseconds.toDouble(),
+                          min: 20,
+                          max: 500,
+                          activeColor: AppColors.accent2,
+                          onChanged: (value) => ref.read(flashLengthProvider.notifier).state =
+                              Duration(milliseconds: value.round()),
+                        ),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            '${ref.watch(flashLengthProvider).inMilliseconds} ms',
+                            style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
+                          ),
+                        ),
+                      ],
                       if (beatSync) ...[
                         const SizedBox(height: 10),
                         BeatMeter(service: ref.read(beatDetectorProvider)),

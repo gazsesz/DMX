@@ -47,13 +47,26 @@ enum BeatRate {
 
   /// Two steps per beat: one on the beat, one halfway to the next, timed
   /// off the last measured interval.
-  doubled;
+  doubled,
+
+  /// A stab: step on the beat, then straight on to the next step after a
+  /// fixed short time rather than half a beat.
+  ///
+  /// With a two-scene bank — lamps up, lamps out — that's one flash per
+  /// beat whose length you set, instead of the square wave [doubled] gives
+  /// (its off-step always lands at 50% duty, however fast the music is).
+  /// Fades are forced off here: a flash with a fade isn't a flash.
+  flash;
 
   String get label => switch (this) {
     BeatRate.half => '½×',
     BeatRate.normal => '1×',
     BeatRate.doubled => '2×',
+    BeatRate.flash => 'Flash',
   };
+
+  /// Whether this rate inserts a second step between beats.
+  bool get hasOffBeatStep => this == doubled || this == flash;
 }
 
 /// Drives a [Chase] (or a single [Bank] treated as one) in real time.
@@ -116,6 +129,14 @@ class ChasePlayer {
     Stream<DateTime>? beatStream,
     BeatRate beatRate = BeatRate.normal,
     void Function(int instantIndex)? onStep,
+    Duration? Function()? fadeOverride,
+    Duration flashLength = const Duration(milliseconds: 80),
+    // Both read per step when given, for the same reason the fade is:
+    // changing the beat rate used to need a restart, so switching away from
+    // Flash anywhere that doesn't restart (the control dock) left the chase
+    // flashing on regardless.
+    BeatRate Function()? liveBeatRate,
+    Duration Function()? liveFlashLength,
   }) async {
     stop();
     final instants = _flatten(chase, scenes, banks);
@@ -135,10 +156,17 @@ class ChasePlayer {
     var stepIsOffBeat = false;
 
     while (_isCurrent(myGeneration)) {
+      final rate = liveBeatRate?.call() ?? beatRate;
       onStep?.call(_index);
       await _crossfadeTo(
         instants[_index].scene,
-        fade: instants[_index].fade,
+        // Asked per step rather than baked in at play() time, so auto-fade
+        // can track the tempo without restarting the chase — restarting is
+        // what used to make a beat-synced bank stutter. Flash overrides
+        // everything: a stab that fades in is just a short fade.
+        fade: useBeat && rate == BeatRate.flash
+            ? Duration.zero
+            : fadeOverride?.call() ?? instants[_index].fade,
         service: service,
         patchedFixtures: patchedFixtures,
         universes: universes,
@@ -147,10 +175,15 @@ class ChasePlayer {
       if (!_isCurrent(myGeneration)) break;
       if (useBeat) {
         if (stepIsOffBeat) {
-          await _holdFor(beatInterval ~/ 2, myGeneration);
+          // Flash holds the lit step for a fixed short time; doubled splits
+          // the measured beat in half.
+          await _holdFor(
+            rate == BeatRate.flash ? (liveFlashLength?.call() ?? flashLength) : beatInterval ~/ 2,
+            myGeneration,
+          );
           stepIsOffBeat = false;
         } else {
-          final beatAt = await _waitForBeat(beatStream, myGeneration, beatRate == BeatRate.half ? 2 : 1);
+          final beatAt = await _waitForBeat(beatStream, myGeneration, rate == BeatRate.half ? 2 : 1);
           if (beatAt != null) {
             final measured = previousBeatAt == null ? null : beatAt.difference(previousBeatAt);
             // Ignore a gap that means the music stopped rather than a tempo
@@ -160,7 +193,7 @@ class ChasePlayer {
             }
             previousBeatAt = beatAt;
           }
-          stepIsOffBeat = beatRate == BeatRate.doubled;
+          stepIsOffBeat = rate.hasOffBeatStep;
         }
       } else {
         await _holdFor(instants[_index].hold, myGeneration);

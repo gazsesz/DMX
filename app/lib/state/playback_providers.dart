@@ -32,6 +32,46 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
   return player;
 });
 
+/// The running Smart Program's zone and live tempo, for anything that isn't
+/// the Dashboard — the control dock shows which part of a program is
+/// playing, which is the thing you actually want to know from another tab.
+final smartProgramStatusProvider = StreamProvider<SmartProgramStatus>((ref) {
+  return ref.watch(smartProgramPlayerProvider).statusStream;
+});
+
+/// The last thing that played, remembered after it stops.
+///
+/// [nowPlayingProvider] goes null on stop, which is correct for "what is
+/// running" but leaves the dock's Start button with nothing to resume. This
+/// shadows it and simply never clears.
+///
+/// It has to be *alive* before the first trigger fires, or it misses it —
+/// Riverpod builds a provider on first read, and by then the thing to
+/// remember may already have stopped. [watchLastPlayed] does that once at
+/// startup; don't rely on the dock being on screen to bring it into
+/// existence.
+final lastPlayedProvider = StateNotifierProvider<LastPlayedNotifier, NowPlaying?>((ref) {
+  final notifier = LastPlayedNotifier();
+  ref.listen<NowPlaying?>(
+    nowPlayingProvider,
+    (_, next) {
+      if (next != null) notifier.remember(next);
+    },
+    fireImmediately: true,
+  );
+  return notifier;
+});
+
+class LastPlayedNotifier extends StateNotifier<NowPlaying?> {
+  LastPlayedNotifier() : super(null);
+
+  void remember(NowPlaying playing) => state = playing;
+}
+
+/// Brings [lastPlayedProvider] into existence so it starts listening.
+/// Called once at startup — see that provider for why it can't wait.
+void watchLastPlayed(ReadProvider read) => read(lastPlayedProvider);
+
 /// Which bottom-nav/rail section is currently visible. AppShell keeps every
 /// section's screen mounted (via IndexedStack) so switching tabs doesn't
 /// reset their state — but that means a screen owning a "preview while
