@@ -120,7 +120,33 @@ class ControlDock extends ConsumerWidget {
             for (final child in children) Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: child),
           ]);
 
-    return Material(
+    final expanded = ref.watch(controlDockProvider).expanded;
+    // The tab that opens the tempo and beat controls. A real affordance
+    // rather than a menu item, because it's the thing you reach for while
+    // something is running and you're on some other tab.
+    final handle = InkWell(
+      onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
+      child: Container(
+        width: _vertical ? 22 : 44,
+        height: _vertical ? 44 : 20,
+        decoration: BoxDecoration(
+          color: AppColors.panel2,
+          border: Border.all(color: AppColors.border),
+          borderRadius: _vertical
+              ? const BorderRadius.horizontal(left: Radius.circular(6))
+              : const BorderRadius.vertical(top: Radius.circular(6)),
+        ),
+        child: Icon(
+          _vertical
+              ? (expanded ? Icons.chevron_right : Icons.chevron_left)
+              : (expanded ? Icons.expand_more : Icons.expand_less),
+          size: 17,
+          color: AppColors.textDim,
+        ),
+      ),
+    );
+
+    final bar = Material(
       color: AppColors.panel2,
       child: SafeArea(
         top: false,
@@ -139,6 +165,31 @@ class ControlDock extends ConsumerWidget {
         ),
       ),
     );
+
+    // The handle hangs off the dock's outer edge rather than sitting inside
+    // it, so it reads as "there's more behind this" and doesn't eat a slot.
+    // No Expanded/Flexible here: the dock sits in a Row beside the page
+    // content, so it's handed unbounded width and has to size itself from
+    // what's in it.
+    return _vertical
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(padding: const EdgeInsets.only(top: 12), child: handle),
+              bar,
+            ],
+          )
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Align(alignment: Alignment.centerRight, child: Padding(
+                padding: const EdgeInsets.only(right: 16),
+                child: handle,
+              )),
+              bar,
+            ],
+          );
   }
 }
 
@@ -366,12 +417,12 @@ class ControlDockAction extends ConsumerWidget {
           onPressed: () => ref.read(controlDockProvider.notifier).toggleStageVisible(),
         ),
         IconButton(
-          tooltip: dock.visible ? 'Hide control dock' : 'Show control dock',
+          tooltip: dock.expanded ? 'Hide tempo controls' : 'Show tempo controls',
           icon: Icon(
-            dock.visible ? Icons.dashboard_customize : Icons.dashboard_customize_outlined,
-            color: dock.visible ? AppColors.accent : null,
+            dock.expanded ? Icons.tune : Icons.tune_outlined,
+            color: dock.expanded ? AppColors.accent : null,
           ),
-          onPressed: () => ref.read(controlDockProvider.notifier).toggleVisible(),
+          onPressed: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
         ),
       ],
     );

@@ -49,7 +49,7 @@ Future<void> main() async {
   );
 
   final initialDock = controlDockFromPrefs(
-    visible: prefs.getBool(prefDockVisible),
+    expanded: prefs.getBool(prefDockExpanded),
     position: prefs.getString(prefDockPosition),
     stageVisible: prefs.getBool(prefStageVisible),
   );

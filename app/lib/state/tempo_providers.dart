@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/audio/beat_detector.dart';
+import '../core/audio/tempo_estimator.dart';
 import '../core/widgets/log_scale.dart';
+import 'audio_providers.dart';
+import 'provider_reader.dart';
 
 /// The Dashboard's live timing: what a bank steps at, how long looks
 /// cross-fade, and whether that overrides a chase's own saved per-step
@@ -109,3 +115,59 @@ class TempoNotifier extends StateNotifier<TempoState> {
 }
 
 final tempoProvider = StateNotifierProvider<TempoNotifier, TempoState>((ref) => TempoNotifier());
+
+/// Keeps [TempoState.stepSeconds] following the detected beat while beat
+/// sync is armed, so the BPM readout and auto-fade track the music.
+///
+/// App-level rather than owned by the control panel: the panel only exists
+/// while it's open, and the tempo has to keep up whether or not anyone is
+/// looking at it. Beats are ignored while beat sync is off — the mic also
+/// runs for Smart Programs, and those beats must not drag the manual step
+/// speed around behind the user's back.
+final beatTempoTrackerProvider = Provider<BeatTempoTracker>((ref) {
+  final tracker = BeatTempoTracker(
+    service: ref.watch(beatDetectorProvider),
+    armed: () => ref.read(beatSyncEnabledProvider),
+    onTempo: (bpm) => ref.read(tempoProvider.notifier).setBpm(bpm),
+  );
+  ref.onDispose(tracker.dispose);
+  return tracker;
+});
+
+class BeatTempoTracker {
+  final bool Function() armed;
+  final void Function(double bpm) onTempo;
+
+  final List<DateTime> _beats = [];
+  StreamSubscription<DateTime>? _sub;
+
+  BeatTempoTracker({
+    required BeatDetectorService service,
+    required this.armed,
+    required this.onTempo,
+  }) {
+    _sub = service.beatEvents.listen(_onBeat);
+  }
+
+  void _onBeat(DateTime now) {
+    if (!armed()) {
+      _beats.clear();
+      return;
+    }
+    // A long gap means a new song (or the music stopped) — starting over
+    // beats folding the old tempo into the new one.
+    if (_beats.isNotEmpty && now.difference(_beats.last) > const Duration(seconds: 2)) {
+      _beats.clear();
+    }
+    _beats.add(now);
+    if (_beats.length > 12) _beats.removeAt(0);
+    final estimate = estimateTempo(_beats);
+    if (estimate != null && estimate.isConfident) onTempo(estimate.bpm);
+  }
+
+  void dispose() => _sub?.cancel();
+}
+
+/// Brings [beatTempoTrackerProvider] to life at startup — it can't follow
+/// anything until it exists.
+void watchBeatTempo(ReadProvider read) => read(beatTempoTrackerProvider);

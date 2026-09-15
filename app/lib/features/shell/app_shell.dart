@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/control_panel.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
@@ -18,7 +19,6 @@ import '../settings/settings_screen.dart';
 /// side-nav-rail breakpoint).
 const _tabletBreakpoint = 700.0;
 
-const _dashboardSectionIndex = 0;
 
 class _NavSection {
   final String label;
@@ -53,76 +53,72 @@ class _AppShellState extends ConsumerState<AppShell> {
     ref.read(activeSectionIndexProvider.notifier).state = value;
   }
 
-  Widget _buildNowPlayingBanner() {
-    final nowPlaying = ref.watch(nowPlayingProvider);
-    if (nowPlaying == null || _index == _dashboardSectionIndex) return const SizedBox.shrink();
-    // The dock already says what's running — and says more, since it shows
-    // which zone of a Smart Program is playing. Two banners for the same
-    // fact is one too many, and the top one costs a strip of screen.
-    if (ref.watch(controlDockProvider).visible) return const SizedBox.shrink();
-    return Material(
-      color: AppColors.panel2,
-      // The OS status bar (clock/battery/notification icons) can sit right
-      // on top of this banner on phones without a safe-area inset — SafeArea
-      // pushes it below that, and centering the row keeps the readable text
-      // away from the corners where those icons live either way.
-      child: SafeArea(
-        bottom: false,
-        child: InkWell(
-          onTap: () => _select(_dashboardSectionIndex),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-            decoration: const BoxDecoration(
-              border: Border(bottom: BorderSide(color: AppColors.border)),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const _PulsingDot(),
-                const SizedBox(width: 8),
-                Icon(
-                  switch (nowPlaying.kind) {
-                    PlaybackKind.bank => Icons.grid_view_outlined,
-                    PlaybackKind.chase => Icons.fast_forward_outlined,
-                    PlaybackKind.smartProgram => Icons.auto_graph,
-                  },
-                  size: 15,
-                  color: AppColors.accent,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    'Running: ${nowPlaying.name} — tap to return to Dashboard',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                const Icon(Icons.chevron_right, size: 16, color: AppColors.textFaint),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
   /// The tab content with the docks around it — outside the IndexedStack, so
   /// they stay put across tabs. The Live Stage strip always sits along the
   /// bottom of the content; the control dock then takes the outermost edge
   /// the user picked for it.
+  ///
+  /// The dock is always present: it holds the only copy of the tempo and
+  /// beat controls now, and a control you can lose is worse than a strip of
+  /// edge. Its panel opens *over* the content rather than squeezing it —
+  /// reflowing a bank grid while you're reaching into it is disorienting.
   Widget _withDocks(Widget content) {
     final dock = ref.watch(controlDockProvider);
     var body = content;
     if (dock.stageVisible) {
       body = Column(children: [Expanded(child: body), const LiveStageDock()]);
     }
-    if (!dock.visible) return body;
     final bar = ControlDock(position: dock.position);
-    return switch (dock.position) {
+    final withBar = switch (dock.position) {
       ControlDockPosition.bottom => Column(children: [Expanded(child: body), bar]),
       ControlDockPosition.right => Row(children: [Expanded(child: body), bar]),
+    };
+    if (!dock.expanded) return withBar;
+
+    return Stack(
+      children: [
+        Positioned.fill(child: withBar),
+        // Tapping the page behind puts the panel away, the way any sheet
+        // behaves. No scrim: you're reading levels off the rig, not a form.
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => ref.read(controlDockProvider.notifier).collapse(),
+            child: const SizedBox.shrink(),
+          ),
+        ),
+        _panelFor(dock.position),
+      ],
+    );
+  }
+
+  Widget _panelFor(ControlDockPosition position) {
+    final narrow = MediaQuery.sizeOf(context).width < _tabletBreakpoint;
+    final panel = Material(
+      color: AppColors.panel,
+      elevation: 8,
+      child: SafeArea(top: false, child: const ControlPanel()),
+    );
+    // On a phone a side panel would leave nothing beside it, so the same
+    // content comes up from the bottom instead.
+    if (narrow) {
+      return Positioned(
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: MediaQuery.sizeOf(context).height * 0.72,
+        child: panel,
+      );
+    }
+    return switch (position) {
+      ControlDockPosition.right => Positioned(top: 0, bottom: 0, right: 0, width: 340, child: panel),
+      ControlDockPosition.bottom => Positioned(
+        left: 0,
+        right: 0,
+        bottom: 0,
+        height: 420,
+        child: panel,
+      ),
     };
   }
 
@@ -151,7 +147,6 @@ class _AppShellState extends ConsumerState<AppShell> {
                 Expanded(
                   child: Column(
                     children: [
-                      _buildNowPlayingBanner(),
                       Expanded(
                         child: _withDocks(
                           IndexedStack(
@@ -171,7 +166,6 @@ class _AppShellState extends ConsumerState<AppShell> {
         return Scaffold(
           body: Column(
             children: [
-              _buildNowPlayingBanner(),
               Expanded(
                 child: _withDocks(
                   IndexedStack(
@@ -192,35 +186,6 @@ class _AppShellState extends ConsumerState<AppShell> {
           ),
         );
       },
-    );
-  }
-}
-
-/// A small pulsing dot marking the now-playing banner as live.
-class _PulsingDot extends StatefulWidget {
-  const _PulsingDot({super.key});
-
-  @override
-  State<_PulsingDot> createState() => __PulsingDotState();
-}
-
-class __PulsingDotState extends State<_PulsingDot> with SingleTickerProviderStateMixin {
-  late final AnimationController _controller = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 800),
-  )..repeat(reverse: true);
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: Tween(begin: 0.3, end: 1.0).animate(_controller),
-      child: const Icon(Icons.circle, size: 8, color: AppColors.accent),
     );
   }
 }

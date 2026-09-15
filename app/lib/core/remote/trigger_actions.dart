@@ -154,6 +154,39 @@ Future<String> toggleSmartProgramById(ReadProvider read, String programId) async
   return 'Started ${program.name}';
 }
 
+/// Re-fires whatever bank or chase is playing so it picks up a changed
+/// timing setting straight away.
+///
+/// Shared rather than owned by the Dashboard, because the controls that
+/// need it moved into the control panel and both have to behave the same.
+///
+/// [timingOnly] marks the Hold/Fade sliders as the caller: those don't
+/// touch a saved chase at all while "Override saved timing" is off, so
+/// restarting for them would kick the chase back to step 1 for nothing.
+/// A Smart Program is never restarted from here — it drives its own timing.
+Future<void> restartActiveTrigger(ReadProvider read, {bool timingOnly = false}) async {
+  final player = read(playbackControllerProvider);
+  final current = read(nowPlayingProvider);
+  if (!player.isPlaying || current == null || current.kind == PlaybackKind.smartProgram) return;
+
+  final Chase chase;
+  if (current.kind == PlaybackKind.bank) {
+    final banks = read(banksProvider).where((b) => b.id == current.id);
+    if (banks.isEmpty) return;
+    chase = bankChase(read, bankId: current.id, name: banks.first.name);
+  } else {
+    if (timingOnly && !read(tempoProvider).overrideTiming) return;
+    final saved = read(chasesProvider).where((c) => c.id == current.id);
+    if (saved.isEmpty) return;
+    chase = chaseAsDashboardPlaysIt(read, saved.first);
+  }
+  await startChase(
+    read,
+    chase,
+    dashboardTiming: current.kind == PlaybackKind.bank || read(tempoProvider).overrideTiming,
+  );
+}
+
 /// Starts whatever played last again — what the control dock's Start
 /// button does, so you can stop for a moment and pick the show back up
 /// without hunting for the tile you fired it from.

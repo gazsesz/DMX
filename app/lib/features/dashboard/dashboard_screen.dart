@@ -8,19 +8,13 @@ import '../../core/playback/smart_program_player.dart';
 import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/audio/beat_detector.dart';
-import '../../core/audio/tempo_estimator.dart';
-import '../../core/widgets/beat_meter.dart';
-import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
-import '../../models/chase.dart';
 import '../../models/dashboard_prefs.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../models/smart_program.dart';
 import '../../state/artnet_providers.dart';
-import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/control_dock_providers.dart';
@@ -28,7 +22,6 @@ import '../../state/dashboard_prefs_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
-import '../../state/tempo_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
 import '../manual_control/manual_control_screen.dart';
 import 'live_stage_view.dart';
@@ -59,15 +52,6 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  final List<DateTime> _taps = [];
-  bool _useBpm = false;
-  bool _tempoExpanded = true;
-  double _sensitivity = 0.6;
-  BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
-  BeatAdaptSpeed _adaptSpeed = BeatAdaptSpeed.normal;
-  StreamSubscription<DateTime>? _beatSub;
-  late final TextEditingController _bpmController;
-
   late final ChasePlayer _player;
   late final SmartProgramPlayer _smartPlayer;
   SmartProgramStatus? _smartStatus;
@@ -81,127 +65,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     _smartStatusSub = _smartPlayer.statusStream.listen((status) {
       if (mounted) setState(() => _smartStatus = status);
     });
-    _bpmController = TextEditingController(text: ref.read(tempoProvider).bpm.round().toString());
-    final beatService = ref.read(beatDetectorProvider);
-    _sensitivity = beatService.sensitivity;
-    _frequencyBand = beatService.frequencyBand;
-    _adaptSpeed = beatService.adaptSpeed;
-    // Always subscribed, but only *acted on* while beat sync is armed: the
-    // mic also runs for Smart Programs and for beat-synced chases started
-    // elsewhere, and those beats must not quietly drag the tap-tempo (and
-    // with it the Step Speed) around behind the user's back.
-    _beatSub = beatService.beatEvents.listen((_) {
-      if (ref.read(beatSyncEnabledProvider)) _onTap();
-    });
-  }
-
-  bool get _beatSync => ref.read(beatSyncEnabledProvider);
-
-  /// The Smart Program currently on the shared player, if any.
-  SmartProgram? get _runningProgram {
-    final id = _smartPlayer.activeProgramId;
-    if (id == null) return null;
-    final matches = ref.read(smartProgramsProvider).where((p) => p.id == id);
-    return matches.isEmpty ? null : matches.first;
-  }
-
-  SmartProgramZone get _runningZone => _smartStatus?.zone ?? SmartProgramZone.base;
-
-  String _smartZoneLabel() => switch (_runningZone) {
-    SmartProgramZone.faster => 'Faster',
-    SmartProgramZone.slower => 'Slower',
-    SmartProgramZone.base => 'Base',
-  };
-
-  double _runningZoneFadeSeconds() {
-    final program = _runningProgram;
-    if (program == null) return ref.read(tempoProvider).fadeSeconds;
-    final fade = switch (_runningZone) {
-      SmartProgramZone.faster => program.fasterFade,
-      SmartProgramZone.slower => program.slowerFade,
-      SmartProgramZone.base => program.baseFade,
-    };
-    return fade.inMilliseconds / 1000;
-  }
-
-  /// Writes the fade back onto the running program's current zone and hands
-  /// the change to the player, so it takes effect on this run rather than
-  /// the next one.
-  void _setRunningZoneFade(double seconds) {
-    final program = _runningProgram;
-    if (program == null) return;
-    final fade = Duration(milliseconds: (seconds * 1000).round());
-    final updated = switch (_runningZone) {
-      SmartProgramZone.faster => program.copyWith(fasterFade: fade),
-      SmartProgramZone.slower => program.copyWith(slowerFade: fade),
-      SmartProgramZone.base => program.copyWith(baseFade: fade),
-    };
-    ref.read(smartProgramsProvider.notifier).upsert(updated);
-    syncRunningSmartProgram(ref.read);
-    setState(() {});
   }
 
   @override
   void dispose() {
     _smartStatusSub?.cancel();
-    _beatSub?.cancel();
-    _bpmController.dispose();
     super.dispose();
-  }
-
-  Future<void> _setBeatSync(bool value) async {
-    final beatService = ref.read(beatDetectorProvider);
-    if (value) {
-      beatService.sensitivity = _sensitivity;
-      beatService.frequencyBand = _frequencyBand;
-      beatService.adaptSpeed = _adaptSpeed;
-    }
-    final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
-    if (error != null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
-      }
-      return;
-    }
-    await _restartActiveTriggerIfPlaying();
-  }
-
-  void _onTap() {
-    final now = DateTime.now();
-    if (_taps.isNotEmpty && now.difference(_taps.last) > const Duration(seconds: 2)) {
-      _taps.clear();
-    }
-    _taps.add(now);
-    if (_taps.length > 8) _taps.removeAt(0);
-
-    // Two taps is still just "the gap between these two" — nothing to
-    // cross-check, so take it at face value. From three on, the estimator
-    // can throw out a mistimed tap (or a missed beat, when this is being
-    // driven by the detector) instead of averaging it in.
-    if (_taps.length == 2) {
-      final ms = _taps[1].difference(_taps[0]).inMilliseconds;
-      if (ms > 0 && mounted) _setBpm(60000 / ms, updateController: true);
-      return;
-    }
-    final estimate = estimateTempo(_taps);
-    if (estimate != null && mounted) {
-      _setBpm(estimate.bpm, updateController: true);
-    }
-  }
-
-  /// Sets tempo from a BPM value, keeping [TempoState.stepSeconds] (what actually
-  /// drives bank playback) and the BPM text field in sync with each other
-  /// regardless of which one the user is interacting with.
-  void _setBpm(double bpm, {required bool updateController}) {
-    ref.read(tempoProvider.notifier).setBpm(bpm);
-    if (updateController) _bpmController.text = ref.read(tempoProvider).bpm.round().toString();
-    // While beat sync is armed the steps are driven by the beats themselves,
-    // so a new BPM reading changes nothing about playback — restarting here
-    // would kick a running chase back to step 1 on *every single beat*,
-    // which is exactly what made a Dashboard-fired bank stutter against the
-    // music while the same bank run from the Banks tab kept perfect time.
-    if (_beatSync) return;
-    _restartActiveTriggerIfPlaying();
   }
 
   List<_DashboardTrigger> _triggers() {
@@ -361,43 +230,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
-  /// Called when the user adjusts the Fade/Hold sliders (or beat sync) while
-  /// something is actively playing from the Dashboard — live-applies the new
-  /// timing to whatever's running (bank or chase) instead of only affecting
-  /// the *next* time it's fired.
-  ///
-  /// [timingOnly] marks the Hold/Fade sliders as the caller: those don't
-  /// touch a chase at all while "Override saved timing" is off, so there's
-  /// nothing to re-apply and restarting it from step 1 mid-show would be
-  /// pure harm.
-  Future<void> _restartActiveTriggerIfPlaying({bool timingOnly = false}) async {
-    final current = ref.read(nowPlayingProvider);
-    if (!_player.isPlaying || current == null || current.kind == PlaybackKind.smartProgram) return;
-    final id = current.id;
-    final matches = _triggers().where((t) => t.id == id);
-    if (matches.isEmpty) return;
-    final trigger = matches.first;
-
-    final Chase chase;
-    if (trigger.kind == TriggerKind.bank) {
-      chase = bankChase(ref.read, bankId: trigger.id, name: trigger.name);
-    } else {
-      if (timingOnly && !ref.read(tempoProvider).overrideTiming) return;
-      final saved = ref.read(chasesProvider).where((c) => c.id == trigger.id);
-      if (saved.isEmpty) return;
-      chase = chaseAsDashboardPlaysIt(ref.read, saved.first);
-    }
-    await startChase(ref.read, chase);
-  }
-
-  Future<void> _blackout() async {
-    await blackoutEverything(ref.read);
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Blackout sent to all universes')));
-    }
-  }
 
   Color _kindColor(TriggerKind kind) => kind == TriggerKind.bank ? AppColors.accent2 : AppColors.accent;
 
@@ -592,12 +424,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final triggers = _triggers();
     final smartPrograms = ref.watch(smartProgramsProvider);
-    final smartActive = _smartPlayer.isRunning;
-    final beatSync = ref.watch(beatSyncEnabledProvider);
-    // Flash forces the fade to zero, so anything fade-related is inert.
-    final flashActive = beatSync && ref.watch(beatRateProvider) == BeatRate.flash;
     final nowPlaying = ref.watch(nowPlayingProvider);
-    final tempo = ref.watch(tempoProvider);
     // Derived straight from the shared NowPlaying state — not a local flag —
     // so a trigger fired from the Banks or Chase tab shows as active here
     // too, and vice versa.
@@ -816,428 +643,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       },
                   ],
                 ),
-              const SizedBox(height: 22),
-              InkWell(
-                onTap: () => setState(() => _tempoExpanded = !_tempoExpanded),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'TEMPO & CHASE SPEED',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1,
-                        color: AppColors.textFaint,
-                      ),
-                    ),
-                    Icon(
-                      _tempoExpanded ? Icons.expand_less : Icons.expand_more,
-                      size: 20,
-                      color: AppColors.textFaint,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              if (_tempoExpanded)
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Row(
-                        children: [
-                          OutlinedButton(
-                            onPressed: _onTap,
-                            style: OutlinedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              side: const BorderSide(color: AppColors.accent, width: 1.5),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                            ),
-                            child: Column(
-                              children: [
-                                const Text(
-                                  'TAP',
-                                  style: TextStyle(
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.accent,
-                                    letterSpacing: 1,
-                                  ),
-                                ),
-                                Text(tempo.bpm.round().toString(), style: appMonoStyle(fontWeight: FontWeight.w700)),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        smartActive
-                                            ? 'Step Speed (Smart Program active)'
-                                            : beatSync
-                                                ? 'Step Speed (synced to beat)'
-                                                : tempo.overrideTiming
-                                                    ? 'Step Speed (Bank + Chase triggers)'
-                                                    : 'Step Speed (Bank triggers)',
-                                        style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
-                                      ),
-                                    ),
-                                    if (!beatSync && !smartActive)
-                                      SegmentedButton<bool>(
-                                        segments: const [
-                                          ButtonSegment(value: false, label: Text('Sec')),
-                                          ButtonSegment(value: true, label: Text('BPM')),
-                                        ],
-                                        selected: {_useBpm},
-                                        showSelectedIcon: false,
-                                        style: const ButtonStyle(
-                                          visualDensity: VisualDensity.compact,
-                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                        ),
-                                        onSelectionChanged: (s) => setState(() => _useBpm = s.first),
-                                      ),
-                                  ],
-                                ),
-                                if (_useBpm && !beatSync && !smartActive) ...[
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      IconButton(
-                                        icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                        onPressed: () => _setBpm(tempo.bpm - 1, updateController: true),
-                                      ),
-                                      Expanded(
-                                        child: TextField(
-                                          controller: _bpmController,
-                                          textAlign: TextAlign.center,
-                                          keyboardType: TextInputType.number,
-                                          style: appMonoStyle(fontWeight: FontWeight.w700),
-                                          decoration: const InputDecoration(
-                                            isDense: true,
-                                            suffixText: 'BPM',
-                                          ),
-                                          onChanged: (text) {
-                                            final value = double.tryParse(text);
-                                            if (value != null) _setBpm(value, updateController: false);
-                                          },
-                                        ),
-                                      ),
-                                      IconButton(
-                                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                                        onPressed: () => _setBpm(tempo.bpm + 1, updateController: true),
-                                      ),
-                                    ],
-                                  ),
-                                ] else ...[
-                                  // Logarithmic and running the other way:
-                                  // pushing the slider up speeds the chase
-                                  // up, and the quick end — where a tenth
-                                  // of a second changes the whole look —
-                                  // gets real travel instead of the last
-                                  // few pixels.
-                                  Slider(
-                                    value: stepSpeedScale.positionOf(tempo.stepSeconds),
-                                    onChanged: (beatSync || smartActive)
-                                        ? null
-                                        : (position) => ref
-                                            .read(tempoProvider.notifier)
-                                            .setStepSeconds(stepSpeedScale.valueAt(position)),
-                                    onChangeEnd: (beatSync || smartActive)
-                                        ? null
-                                        : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
-                                  ),
-                                ],
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: Text(
-                                    '${tempo.stepSeconds.toStringAsFixed(2)}s / step · ${(60 / tempo.stepSeconds).clamp(0, 999).toStringAsFixed(0)} BPM',
-                                    style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        smartActive
-                            ? 'Fade Time (${_smartZoneLabel().toLowerCase()} zone of the running program)'
-                            : tempo.autoFade
-                                ? 'Fade Time (following the tempo)'
-                                : tempo.overrideTiming
-                                    ? 'Fade Time (Bank + Chase triggers)'
-                                    : 'Fade Time (Bank triggers)',
-                        style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
-                      ),
-                      // Logarithmic: everything worth setting lives under a
-                      // second, and on a linear 0-5s slider that was the
-                      // first tenth of the travel.
-                      //
-                      // While a Smart Program runs this drives *that
-                      // program's* fade for the zone currently playing,
-                      // saved back to the program — it used to be dead,
-                      // which left no way to adjust a fade mid-show.
-                      Slider(
-                        value: fadeTimeScale.positionOf(
-                          smartActive
-                              ? _runningZoneFadeSeconds()
-                              : tempo.autoFade
-                                  ? tempo.effectiveFadeSeconds
-                                  : tempo.fadeSeconds,
-                        ),
-                        activeColor: AppColors.accent2,
-                        // Auto-fade computes the value from the tempo, so
-                        // the slider becomes a readout — the Amount below
-                        // is the control.
-                        onChanged: (!smartActive && tempo.autoFade)
-                            ? null
-                            : (position) {
-                                final seconds = fadeTimeScale.valueAt(position);
-                                if (smartActive) {
-                                  _setRunningZoneFade(seconds);
-                                } else {
-                                  ref.read(tempoProvider.notifier).setFadeSeconds(seconds);
-                                }
-                              },
-                        onChangeEnd: smartActive ? null : (_) => _restartActiveTriggerIfPlaying(timingOnly: true),
-                      ),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: Text(
-                          '${(smartActive ? _runningZoneFadeSeconds() : tempo.effectiveFadeSeconds).toStringAsFixed(2)}s fade',
-                          style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
-                        ),
-                      ),
-                      if (!smartActive) ...[
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Auto fade',
-                                    style: TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                  Text(
-                                    flashActive
-                                        ? 'Not in play: the Flash beat rate snaps, so fades are off'
-                                        : tempo.autoFade
-                                            ? 'Fade follows the tempo — slower music fades longer, faster snaps tighter'
-                                            : 'Set the fade by hand',
-                                    style: TextStyle(
-                                      fontSize: 10.5,
-                                      color: flashActive ? AppColors.accent : AppColors.textFaint,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch(
-                              value: tempo.autoFade,
-                              onChanged: (value) => ref.read(tempoProvider.notifier).setAutoFade(value),
-                            ),
-                          ],
-                        ),
-                        if (tempo.autoFade) ...[
-                          Slider(
-                            value: tempo.autoFadeAmount,
-                            activeColor: AppColors.accent2,
-                            onChanged: (value) => ref.read(tempoProvider.notifier).setAutoFadeAmount(value),
-                          ),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: Text(
-                              'Amount ${(tempo.autoFadeAmount * 100).round()}% · '
-                              '${(tempo.autoFadeRatio * 100).round()}% of each step',
-                              style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
-                            ),
-                          ),
-                        ],
-                      ],
-                      const Divider(height: 26),
-                      // Hidden while a Smart Program runs rather than shown
-                      // greyed out: a program always drives its own timing,
-                      // so the switch sitting there on read as if it were
-                      // doing something.
-                      if (smartActive)
-                        const Text(
-                          'A Smart Program sets its own timing per zone — the Step Speed above '
-                          'follows the music, and the Fade slider edits the zone that is playing.',
-                          style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-                        )
-                      else
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Override saved timing',
-                                    style: TextStyle(fontWeight: FontWeight.w600),
-                                  ),
-                                  Text(
-                                    tempo.overrideTiming
-                                        ? 'Chases run at the Hold/Fade set here, not their own'
-                                        : 'Chases keep their own per-step timing (banks always follow this)',
-                                    style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Switch(
-                              value: tempo.overrideTiming,
-                              onChanged: (value) {
-                                ref.read(tempoProvider.notifier).setOverrideTiming(value);
-                                _restartActiveTriggerIfPlaying();
-                              },
-                            ),
-                          ],
-                        ),
-                      const Divider(height: 26),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Row(
-                            children: [
-                              Icon(Icons.mic_none, size: 18, color: AppColors.textDim),
-                              SizedBox(width: 8),
-                              Text('Beat Sync (Mic)', style: TextStyle(fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                          Switch(
-                            value: beatSync,
-                            onChanged: (value) => _setBeatSync(value),
-                          ),
-                        ],
-                      ),
-                      if (beatSync)
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Expanded(
-                              child: Text(
-                                'Beat Rate — steps per beat',
-                                style: TextStyle(fontSize: 12, color: AppColors.textDim),
-                              ),
-                            ),
-                            SegmentedButton<BeatRate>(
-                              segments: [
-                                for (final rate in BeatRate.values)
-                                  ButtonSegment(value: rate, label: Text(rate.label)),
-                              ],
-                              selected: {ref.watch(beatRateProvider)},
-                              showSelectedIcon: false,
-                              style: const ButtonStyle(
-                                visualDensity: VisualDensity.compact,
-                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                              ),
-                              onSelectionChanged: (selection) {
-                                ref.read(beatRateProvider.notifier).state = selection.first;
-                                _restartActiveTriggerIfPlaying();
-                              },
-                            ),
-                          ],
-                        ),
-                      // Flash is the one rate with a length of its own: the
-                      // others derive their off-beat step from the measured
-                      // tempo, this one holds for a fixed stab.
-                      if (beatSync && ref.watch(beatRateProvider) == BeatRate.flash) ...[
-                        const Text(
-                          'Flash length — how long the lit step stays up. Fades are off in this mode.',
-                          style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-                        ),
-                        Slider(
-                          value: ref.watch(flashLengthProvider).inMilliseconds.toDouble(),
-                          min: 20,
-                          max: 500,
-                          activeColor: AppColors.accent2,
-                          onChanged: (value) => ref.read(flashLengthProvider.notifier).state =
-                              Duration(milliseconds: value.round()),
-                        ),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: Text(
-                            '${ref.watch(flashLengthProvider).inMilliseconds} ms',
-                            style: appMonoStyle(fontSize: 11, color: AppColors.textDim),
-                          ),
-                        ),
-                      ],
-                      if (beatSync) ...[
-                        const SizedBox(height: 10),
-                        BeatMeter(service: ref.read(beatDetectorProvider)),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Sensitivity',
-                          style: TextStyle(fontSize: 11, color: AppColors.textFaint),
-                        ),
-                        Slider(
-                          value: _sensitivity,
-                          activeColor: AppColors.accent2,
-                          onChanged: (value) {
-                            setState(() => _sensitivity = value);
-                            ref.read(beatDetectorProvider).sensitivity = value;
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'Baseline memory — how far back the detector averages before deciding '
-                          'what counts as a spike. Try Fast when beats are being missed in a '
-                          'loud, busy mix.',
-                          style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-                        ),
-                        const SizedBox(height: 6),
-                        SegmentedButton<BeatAdaptSpeed>(
-                          segments: [
-                            for (final speed in BeatAdaptSpeed.values)
-                              ButtonSegment(value: speed, label: Text(speed.label)),
-                          ],
-                          selected: {_adaptSpeed},
-                          showSelectedIcon: false,
-                          style: const ButtonStyle(
-                            visualDensity: VisualDensity.compact,
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          onSelectionChanged: (selection) {
-                            setState(() => _adaptSpeed = selection.first);
-                            ref.read(beatDetectorProvider).adaptSpeed = selection.first;
-                          },
-                        ),
-                        const SizedBox(height: 10),
-                        const Text(
-                          'React to',
-                          style: TextStyle(fontSize: 11, color: AppColors.textFaint),
-                        ),
-                        const SizedBox(height: 6),
-                        SegmentedButton<BeatFrequencyBand>(
-                          segments: [
-                            for (final band in BeatFrequencyBand.values)
-                              ButtonSegment(value: band, label: Text(band.label)),
-                          ],
-                          selected: {_frequencyBand},
-                          onSelectionChanged: (selection) {
-                            setState(() => _frequencyBand = selection.first);
-                            ref.read(beatDetectorProvider).frequencyBand = selection.first;
-                          },
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
               // Skipped when the stage dock is up: it draws the same view
               // right underneath, and two of them stacked is just the
               // Dashboard scrolled twice as far for nothing.
@@ -1269,18 +674,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ],
             ],
           ),
-          // The control dock carries its own Blackout, so two of them on
-          // screen would just be a bigger target for the wrong one.
-          if (!ref.watch(controlDockProvider).visible)
-            Positioned(
-              right: 16,
-              bottom: 24,
-              child: FloatingActionButton(
-                backgroundColor: AppColors.danger,
-                onPressed: _blackout,
-                child: const Icon(Icons.power_settings_new, color: Colors.white),
-              ),
-            ),
         ],
       ),
     );

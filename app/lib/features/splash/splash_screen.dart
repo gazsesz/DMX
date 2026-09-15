@@ -11,6 +11,7 @@ import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/remote_providers.dart';
+import '../../state/tempo_providers.dart';
 import '../shell/app_shell.dart';
 
 /// A brief branded launch screen shown while the app boots, before handing
@@ -45,6 +46,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     // Same reason: it keeps the grand master's channel mask in step with
     // the patch, and can't do that until it exists.
     watchGrandMaster(ref.read);
+    // And this one follows the detected beat into the tempo, which has to
+    // keep happening whether or not the control panel is open.
+    watchBeatTempo(ref.read);
     await _loadLastProject();
     await _connectToNode();
     // Bring the remote-control endpoint up before the UI, so a watch macro

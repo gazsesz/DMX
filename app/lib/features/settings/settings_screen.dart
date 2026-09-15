@@ -532,11 +532,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ref.read(controlDockProvider.notifier).setPosition(selection.first),
                   ),
                   const SizedBox(height: 10),
+                  // No "show the dock" switch any more: the dock holds the
+                  // only copy of the tempo and beat controls, so hiding it
+                  // would hide them. The chevron on its edge opens and
+                  // closes the panel instead.
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Show the dock'),
-                    value: ref.watch(controlDockProvider).visible,
-                    onChanged: (_) => ref.read(controlDockProvider.notifier).toggleVisible(),
+                    title: const Text('Open the control panel'),
+                    subtitle: const Text(
+                      'Tempo, fade and beat sync — also reachable from the chevron on the dock',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
+                    value: ref.watch(controlDockProvider).expanded,
+                    onChanged: (_) => ref.read(controlDockProvider.notifier).toggleExpanded(),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
