@@ -8,6 +8,7 @@ import '../../models/smart_program.dart';
 import '../../models/universe_config.dart';
 import '../artnet/artnet_service.dart';
 import '../audio/beat_detector.dart';
+import '../audio/tempo_estimator.dart';
 import 'chase_player.dart';
 
 enum SmartProgramZone { base, faster, slower }
@@ -210,16 +211,18 @@ class SmartProgramPlayer {
     }
 
     _beatTimes.add(now);
-    if (_beatTimes.length > 8) _beatTimes.removeAt(0);
-    if (_beatTimes.length < 3) return;
+    // A longer window than the old 8: the estimator throws out gaps that
+    // don't fit, so it needs enough of them left to be sure of the ones
+    // that do. Twelve beats is about six seconds of music at club tempo.
+    if (_beatTimes.length > 12) _beatTimes.removeAt(0);
 
-    final intervals = <int>[];
-    for (var i = 1; i < _beatTimes.length; i++) {
-      intervals.add(_beatTimes[i].difference(_beatTimes[i - 1]).inMilliseconds);
-    }
-    final avgMs = intervals.reduce((a, b) => a + b) / intervals.length;
-    if (avgMs <= 0) return;
-    final liveBpm = 60000 / avgMs;
+    final estimate = estimateTempo(_beatTimes);
+    // No agreement means the detector is picking up noise rather than a
+    // pulse. Holding the current zone beats acting on a number we don't
+    // believe — this is what used to strand the program in "slower" for a
+    // whole set after a few missed beats dragged the average down.
+    if (estimate == null || !estimate.isConfident) return;
+    final liveBpm = estimate.bpm;
 
     final zone = _classify(program, liveBpm);
     _statusController.add(SmartProgramStatus(zone: _confirmedZone, liveBpm: liveBpm));

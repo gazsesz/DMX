@@ -9,6 +9,7 @@ import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/audio/beat_detector.dart';
+import '../../core/audio/tempo_estimator.dart';
 import '../../core/widgets/beat_meter.dart';
 import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/control_dock.dart';
@@ -63,6 +64,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   bool _tempoExpanded = true;
   double _sensitivity = 0.6;
   BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
+  BeatAdaptSpeed _adaptSpeed = BeatAdaptSpeed.normal;
   StreamSubscription<DateTime>? _beatSub;
   late final TextEditingController _bpmController;
 
@@ -83,6 +85,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final beatService = ref.read(beatDetectorProvider);
     _sensitivity = beatService.sensitivity;
     _frequencyBand = beatService.frequencyBand;
+    _adaptSpeed = beatService.adaptSpeed;
     // Always subscribed, but only *acted on* while beat sync is armed: the
     // mic also runs for Smart Programs and for beat-synced chases started
     // elsewhere, and those beats must not quietly drag the tap-tempo (and
@@ -151,6 +154,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     if (value) {
       beatService.sensitivity = _sensitivity;
       beatService.frequencyBand = _frequencyBand;
+      beatService.adaptSpeed = _adaptSpeed;
     }
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null) {
@@ -168,17 +172,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       _taps.clear();
     }
     _taps.add(now);
-    if (_taps.length > 5) _taps.removeAt(0);
+    if (_taps.length > 8) _taps.removeAt(0);
 
-    if (_taps.length >= 2) {
-      final intervals = <int>[];
-      for (var i = 1; i < _taps.length; i++) {
-        intervals.add(_taps[i].difference(_taps[i - 1]).inMilliseconds);
-      }
-      final avgMs = intervals.reduce((a, b) => a + b) / intervals.length;
-      if (avgMs > 0 && mounted) {
-        _setBpm(60000 / avgMs, updateController: true);
-      }
+    // Two taps is still just "the gap between these two" — nothing to
+    // cross-check, so take it at face value. From three on, the estimator
+    // can throw out a mistimed tap (or a missed beat, when this is being
+    // driven by the detector) instead of averaging it in.
+    if (_taps.length == 2) {
+      final ms = _taps[1].difference(_taps[0]).inMilliseconds;
+      if (ms > 0 && mounted) _setBpm(60000 / ms, updateController: true);
+      return;
+    }
+    final estimate = estimateTempo(_taps);
+    if (estimate != null && mounted) {
+      _setBpm(estimate.bpm, updateController: true);
     }
   }
 
@@ -1183,6 +1190,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           onChanged: (value) {
                             setState(() => _sensitivity = value);
                             ref.read(beatDetectorProvider).sensitivity = value;
+                          },
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'Baseline memory — how far back the detector averages before deciding '
+                          'what counts as a spike. Try Fast when beats are being missed in a '
+                          'loud, busy mix.',
+                          style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                        ),
+                        const SizedBox(height: 6),
+                        SegmentedButton<BeatAdaptSpeed>(
+                          segments: [
+                            for (final speed in BeatAdaptSpeed.values)
+                              ButtonSegment(value: speed, label: Text(speed.label)),
+                          ],
+                          selected: {_adaptSpeed},
+                          showSelectedIcon: false,
+                          style: const ButtonStyle(
+                            visualDensity: VisualDensity.compact,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          onSelectionChanged: (selection) {
+                            setState(() => _adaptSpeed = selection.first);
+                            ref.read(beatDetectorProvider).adaptSpeed = selection.first;
                           },
                         ),
                         const SizedBox(height: 10),

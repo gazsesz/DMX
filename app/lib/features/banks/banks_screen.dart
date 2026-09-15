@@ -6,6 +6,7 @@ import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
@@ -18,6 +19,7 @@ import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
+import '../../state/tempo_providers.dart';
 import 'program_generator_screen.dart';
 
 class BanksScreen extends ConsumerStatefulWidget {
@@ -90,6 +92,13 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       flashLength: ref.read(flashLengthProvider),
       liveBeatRate: () => ref.read(beatRateProvider),
       liveFlashLength: () => ref.read(flashLengthProvider),
+      // Auto-fade is app-wide, so it governs a bank run from here too. It
+      // used to be ignored on this screen, which made the local Fade
+      // slider look like it was beating auto-fade in a fight.
+      fadeOverride: () {
+        final tempo = ref.read(tempoProvider);
+        return tempo.autoFade ? tempo.fade : null;
+      },
       onStep: (index) {
         if (mounted) setState(() => _runningSlot = index);
       },
@@ -234,6 +243,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final isRunningThisBank =
         _player.isPlaying && nowPlaying?.kind == PlaybackKind.bank && nowPlaying?.id == selected.id;
     final beatSync = ref.watch(beatSyncEnabledProvider);
+    final tempo = ref.watch(tempoProvider);
+    final autoFade = tempo.autoFade;
 
     return Scaffold(
       appBar: AppBar(
@@ -283,15 +294,20 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       ),
       body: Column(
         children: [
-          SizedBox(
-            height: 52,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          Padding(
+            // Wraps rather than scrolling sideways: once a show has a dozen
+            // banks the ones past the edge are invisible, and a horizontal
+            // strip inside a vertically scrolling page is awkward to reach
+            // for anyway. No fixed height — the rows have to be free to
+            // stack.
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final bank in banks)
                   Padding(
-                    padding: const EdgeInsets.only(right: 8),
+                    padding: EdgeInsets.zero,
                     child: ChoiceChip(
                       label: Text(bank.name),
                       selected: bank.id == selected.id,
@@ -393,28 +409,36 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        'Hold ${_runHoldSeconds.toStringAsFixed(2)}s · Fade ${_runFadeSeconds.toStringAsFixed(2)}s',
+                        autoFade
+                            ? 'Hold ${_runHoldSeconds.toStringAsFixed(2)}s · Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s (auto)'
+                            : 'Hold ${_runHoldSeconds.toStringAsFixed(2)}s · Fade ${_runFadeSeconds.toStringAsFixed(2)}s',
                         style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
                       ),
                       Row(
                         children: [
                           Expanded(
+                            // Logarithmic and inverted, like the Dashboard's:
+                            // up is faster, and the quick end gets real
+                            // travel.
                             child: Slider(
-                              value: _runHoldSeconds,
-                              min: 0,
-                              max: 5,
-                              onChanged: (v) => setState(() => _runHoldSeconds = v),
+                              value: stepSpeedScale.positionOf(_runHoldSeconds),
+                              onChanged: (p) =>
+                                  setState(() => _runHoldSeconds = stepSpeedScale.valueAt(p)),
                               onChangeEnd: (_) => _restartRunIfPlaying(selected),
                             ),
                           ),
                           Expanded(
+                            // Dead while auto-fade drives it — the two used
+                            // to disagree silently, with this one winning.
                             child: Slider(
-                              value: _runFadeSeconds,
-                              min: 0,
-                              max: 5,
+                              value: fadeTimeScale.positionOf(
+                                autoFade ? tempo.effectiveFadeSeconds : _runFadeSeconds,
+                              ),
                               activeColor: AppColors.accent2,
-                              onChanged: (v) => setState(() => _runFadeSeconds = v),
-                              onChangeEnd: (_) => _restartRunIfPlaying(selected),
+                              onChanged: autoFade
+                                  ? null
+                                  : (p) => setState(() => _runFadeSeconds = fadeTimeScale.valueAt(p)),
+                              onChangeEnd: autoFade ? null : (_) => _restartRunIfPlaying(selected),
                             ),
                           ),
                         ],

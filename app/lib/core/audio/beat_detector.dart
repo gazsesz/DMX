@@ -5,6 +5,44 @@ import 'dart:typed_data';
 import 'package:fftea/fftea.dart';
 import 'package:record/record.dart';
 
+/// How fast the detector's rolling baseline chases the music.
+///
+/// The threshold is "mean + k·stddev" of recent onset strength, and this is
+/// how recent "recent" means. It's exposed because there is no single right
+/// answer: a short memory keeps the bar low between beats and catches a
+/// dense mix that a long one averages into a plateau, while a long memory
+/// is steadier and less likely to latch onto a noisy room.
+enum BeatAdaptSpeed {
+  /// ~0.3s. Reacts within a bar — the one to try when beats are being lost
+  /// in loud, busy music.
+  fast,
+
+  /// ~1.2s. The original behaviour.
+  normal,
+
+  /// ~3s. Rides over a passage that changes texture a lot.
+  slow,
+
+  /// Effectively no moving average: a 30-second memory, so the baseline is
+  /// the whole song rather than the last few bars. Steadiest, but it can't
+  /// follow a set that changes volume.
+  off;
+
+  double get tauMs => switch (this) {
+    BeatAdaptSpeed.fast => 300,
+    BeatAdaptSpeed.normal => 1200,
+    BeatAdaptSpeed.slow => 3000,
+    BeatAdaptSpeed.off => 30000,
+  };
+
+  String get label => switch (this) {
+    BeatAdaptSpeed.fast => 'Fast',
+    BeatAdaptSpeed.normal => 'Normal',
+    BeatAdaptSpeed.slow => 'Slow',
+    BeatAdaptSpeed.off => 'Off',
+  };
+}
+
 /// Which part of the audio spectrum the detector reacts to — lets a kick
 /// drum (bass), snare/vocals (mid), or hi-hats/cymbals (high) drive the
 /// sync instead of only overall loudness.
@@ -87,13 +125,6 @@ class BeatDetectorService {
   static const _bassHighHz = 250.0;
   static const _midHighHz = 2000.0;
 
-  // The rolling mean/variance are tracked as an exponential moving average
-  // rather than a plain sliding-window average — a window average visibly
-  // "jitters" as individual old samples drop out and new ones enter (each
-  // one swings the average by its own full weight); an EMA blends every new
-  // frame in by a small amount instead, so the displayed sensitivity/
-  // threshold reading moves smoothly rather than jumping every ~12ms.
-  static const _emaTauMs = 1200.0;
   static const _warmupMs = 600.0;
 
   static final FFT _fft = FFT(_fftSize);
@@ -119,6 +150,9 @@ class BeatDetectorService {
 
   /// Which frequency band [sensitivity]/detection reacts to.
   BeatFrequencyBand frequencyBand = BeatFrequencyBand.overall;
+
+  /// How quickly the rolling baseline follows the music.
+  BeatAdaptSpeed adaptSpeed = BeatAdaptSpeed.normal;
 
   /// Set when [start] fails, so the UI can show *why* instead of just "no".
   String? lastError;
@@ -279,6 +313,8 @@ class BeatDetectorService {
     return levels;
   }
 
+  static double _square(double value) => value * value;
+
   static double _toDb(double linear) => linear > 1e-9 ? 20 * math.log(linear) / math.ln10 : -200.0;
 
   void _handleFluxSample(Map<BeatFrequencyBand, double> fluxes) {
@@ -286,7 +322,13 @@ class BeatDetectorService {
     // Detection follows the selected band; the rest are carried along
     // purely so the meter can draw them.
     final flux = fluxes[frequencyBand] ?? 0;
-    final alpha = 1 - math.exp(-_hopMs / _emaTauMs);
+    // The rolling mean/variance are an exponential moving average rather
+    // than a sliding window: a window average visibly jitters as old
+    // samples drop out (each swings it by its own full weight), while an
+    // EMA blends each new frame in by `alpha`, so the threshold reading
+    // moves smoothly rather than stepping every ~12ms. How much memory it
+    // has is [adaptSpeed] — see there for why that's a setting.
+    final alpha = 1 - math.exp(-_hopMs / adaptSpeed.tauMs);
     final bands = _bandLevels(fluxes, alpha);
 
     final mean = _emaMean;
@@ -332,12 +374,17 @@ class BeatDetectorService {
     final stddev = math.sqrt(_emaVariance);
 
     // Higher sensitivity -> fewer standard deviations above the mean are
-    // enough to count as a beat. The top of the range (2.5) is calibrated
-    // against synthetic click tracks: it still reliably catches real
-    // onsets. The bottom was 6.0 and turned out not to be strict enough in
-    // a loud room, where a busy mix crosses it constantly — 9.0 leaves
-    // room to wind it right down to "only the hardest hits".
-    final k = 9.0 - sensitivity * 6.5;
+    // enough to count as a beat.
+    //
+    // The curve is quadratic rather than straight, and that matters. It was
+    // `6.0 - s*3.5`; widening the quiet end to 9.0 by straightening it to
+    // `9.0 - s*6.5` also dragged the *middle* up — the default 0.6 went
+    // from 3.9 to 5.1 standard deviations, which is why the first live gig
+    // kept losing beats the meter could plainly see. Squaring the distance
+    // from full sensitivity keeps the working range where it was (0.6 now
+    // gives 3.5) while still reaching 9.0 at the very bottom for a room
+    // loud enough to need it.
+    final k = 2.5 + 6.5 * _square(1 - sensitivity.clamp(0.0, 1.0));
     final thresholdFlux = _emaMean! + k * stddev;
 
     final now = DateTime.now();
