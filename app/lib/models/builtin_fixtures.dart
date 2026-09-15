@@ -75,19 +75,28 @@ final builtInFixtureProfiles = <FixtureProfile>[
 ];
 
 /// Named colour presets shown in the Scene editor's quick-color palette.
+///
+/// The first six are the fixture's own primaries and secondaries — one or
+/// two emitters at full and nothing else. On a screen a blend like
+/// `30,70,220` reads as a nicer blue, but on a par can it lights the red
+/// and green emitters too and comes out washed out and pale; the deep
+/// saturated colours a rig is bought for are the pure ones. The blends
+/// that used to hold those names are still here under their own.
 const colorPresets = <String, List<int>>{
   'Red': [255, 0, 0],
+  'Green': [0, 255, 0],
+  'Blue': [0, 0, 255],
+  'Yellow': [255, 255, 0],
+  'Cyan': [0, 255, 255],
+  'Magenta': [255, 0, 255],
   'Orange': [255, 100, 0],
   'Amber': [255, 160, 20],
-  'Yellow': [255, 220, 0],
   'Lime': [140, 255, 40],
-  'Green': [0, 200, 60],
-  'Cyan': [0, 210, 220],
+  'Grass': [0, 200, 60],
   'Sky': [20, 140, 230],
-  'Blue': [30, 70, 220],
+  'Royal': [30, 70, 220],
   'Indigo': [90, 60, 220],
   'Purple': [160, 40, 220],
-  'Magenta': [220, 40, 200],
   'Pink': [230, 60, 130],
   'White': [255, 255, 255],
   'Warm White': [255, 200, 150],

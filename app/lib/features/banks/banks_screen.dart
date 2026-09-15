@@ -5,6 +5,7 @@ import '../../core/playback/chase_player.dart';
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/node_status_action.dart';
@@ -15,6 +16,7 @@ import '../../models/dashboard_trigger.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
+import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
@@ -180,6 +182,44 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       universes: ref.read(universesProvider),
     );
     setState(() => _manualSlot = slotIndex);
+  }
+
+  /// Deletes a bank, asking first what should happen to its scenes.
+  ///
+  /// Scenes belong to the project rather than to the bank — a bank only
+  /// holds references — so the default is simply to let them go unsorted.
+  /// Deleting them is offered, but only for the ones nothing else uses.
+  Future<void> _deleteBank(Bank bank) async {
+    final inBank = {for (final id in bank.sceneSlots) ?id};
+    final usedElsewhere = <String>{
+      for (final other in ref.read(banksProvider))
+        if (other.id != bank.id)
+          for (final id in other.sceneSlots) ?id,
+      for (final chase in ref.read(chasesProvider))
+        for (final step in chase.steps) ?step.sceneId,
+    };
+    final exclusive = inBank.difference(usedElsewhere);
+
+    final choice = await askBankDelete(
+      context,
+      bankName: bank.name,
+      sceneCount: inBank.length,
+      exclusiveSceneCount: exclusive.length,
+    );
+    if (choice == BankDeleteChoice.cancel || !mounted) return;
+
+    if (_isThisBankRunning(bank)) {
+      _player.stop();
+      ref.read(nowPlayingProvider.notifier).state = null;
+    }
+    if (choice == BankDeleteChoice.deleteScenes) {
+      final scenes = ref.read(scenesProvider.notifier);
+      for (final id in exclusive) {
+        scenes.remove(id);
+      }
+    }
+    ref.read(banksProvider.notifier).remove(bank.id);
+    setState(() => _selectedBankId = null);
   }
 
   Future<void> _renameBank(Bank bank) async {
@@ -554,12 +594,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: banks.length <= 1
-                        ? null
-                        : () {
-                            ref.read(banksProvider.notifier).remove(selected.id);
-                            setState(() => _selectedBankId = null);
-                          },
+                    onPressed: banks.length <= 1 ? null : () => _deleteBank(selected),
                     style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
                     child: const Text('Delete Bank'),
                   ),

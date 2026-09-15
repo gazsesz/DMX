@@ -42,6 +42,47 @@ class ArtNetService {
   /// What a console shows in its list of sACN sources.
   static const _sourceName = 'SmART DMX Controller';
 
+  double _master = 1.0;
+  Map<String, Set<int>> _masterChannels = const {};
+
+  /// Grand master, 0..1 — scales intensity on the way out *only*.
+  ///
+  /// Deliberately applied at send time rather than to the buffers: the
+  /// buffers keep the levels the show actually programmed, so pulling the
+  /// master down and back up restores exactly what was there. Writing the
+  /// scaled values into the buffers instead would quietly destroy the
+  /// original levels the first time anyone touched it.
+  double get master => _master;
+
+  set master(double value) {
+    final clamped = value.clamp(0.0, 1.0);
+    if (clamped == _master) return;
+    _master = clamped;
+    _refreshAll();
+  }
+
+  /// Which channels [master] scales, per universe — see `masterChannelsFor`.
+  /// Everything not listed goes out untouched, so pan/tilt, gobo and strobe
+  /// are never dimmed.
+  void setMasterChannels(Map<String, Set<int>> byUniverse) {
+    _masterChannels = byUniverse;
+    if (_master < 1.0) _refreshAll();
+  }
+
+  /// The buffer as it should leave the device. Returns the buffer itself at
+  /// full master, so the normal case allocates nothing.
+  Uint8List _withMaster(UniverseConfig universe, Uint8List buffer) {
+    if (_master >= 1.0) return buffer;
+    final channels = _masterChannels[universe.id];
+    if (channels == null || channels.isEmpty) return buffer;
+    final scaled = Uint8List.fromList(buffer);
+    for (final channel in channels) {
+      if (channel < 0 || channel > 511) continue;
+      scaled[channel] = (buffer[channel] * _master).round().clamp(0, 255);
+    }
+    return scaled;
+  }
+
   static Uint8List _randomCid() {
     final random = Random.secure();
     return Uint8List.fromList([for (var i = 0; i < 16; i++) random.nextInt(256)]);
@@ -180,7 +221,7 @@ class ArtNetService {
     if (socket == null) return;
     final nextSequence = ((_sequences[universe.id] ?? 0) % 255) + 1;
     _sequences[universe.id] = nextSequence;
-    final data = _buffers[universe.id]!;
+    final data = _withMaster(universe, _buffers[universe.id]!);
     final protocol = _settings.protocol;
 
     if (protocol.sendsArtNet) {

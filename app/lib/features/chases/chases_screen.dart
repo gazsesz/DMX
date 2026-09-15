@@ -7,6 +7,7 @@ import '../../core/playback/chase_player.dart';
 import '../../core/playback/smart_program_player.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
@@ -153,6 +154,40 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     return matches.isEmpty ? 'Missing chase' : matches.first.name;
   }
 
+  Future<void> _deleteChase(Chase chase) async {
+    final usedBy = [
+      for (final program in ref.read(smartProgramsProvider))
+        if (program.baseChaseId == chase.id ||
+            program.fasterChaseId == chase.id ||
+            program.slowerChaseId == chase.id)
+          program.name,
+    ];
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete "${chase.name}"?',
+      message: [
+        'Its ${chase.steps.length} ${chase.steps.length == 1 ? 'step' : 'steps'} go with it. '
+            'The scenes and banks it stepped through stay in the project.',
+        if (usedBy.isNotEmpty)
+          'Used by ${usedBy.length == 1 ? 'the smart program' : 'smart programs'} '
+              '${usedBy.join(', ')} — that zone will fall back to the base one.',
+      ].join('\n\n'),
+    );
+    if (!confirmed) return;
+    ref.read(chasesProvider.notifier).remove(chase.id);
+  }
+
+  Future<void> _deleteProgram(SmartProgram program) async {
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete "${program.name}"?',
+      message: 'The chases and banks it switches between stay in the project.',
+    );
+    if (!confirmed) return;
+    if (_smartPlayer.activeProgramId == program.id) _smartPlayer.stop();
+    ref.read(smartProgramsProvider.notifier).remove(program.id);
+  }
+
   @override
   Widget build(BuildContext context) {
     final chases = ref.watch(chasesProvider);
@@ -255,7 +290,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed: () => ref.read(smartProgramsProvider.notifier).remove(program.id),
+                            onPressed: () => _deleteProgram(program),
                             tooltip: 'Delete',
                           ),
                         ],
@@ -357,7 +392,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed: () => ref.read(chasesProvider.notifier).remove(chase.id),
+                            onPressed: () => _deleteChase(chase),
                             tooltip: 'Delete',
                           ),
                         ],

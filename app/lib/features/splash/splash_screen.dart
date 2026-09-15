@@ -42,6 +42,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     // Has to be listening before anything can play, or the dock's Start
     // button has nothing to resume the first time it's needed.
     watchLastPlayed(ref.read);
+    // Same reason: it keeps the grand master's channel mask in step with
+    // the patch, and can't do that until it exists.
+    watchGrandMaster(ref.read);
     await _loadLastProject();
     await _connectToNode();
     // Bring the remote-control endpoint up before the UI, so a watch macro

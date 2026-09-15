@@ -4,8 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/artnet/artnet_service.dart';
+import '../core/playback/master_channels.dart';
 import '../models/artnet_settings.dart';
+import '../models/patched_fixture.dart';
 import '../models/universe_config.dart';
+import 'fixture_providers.dart';
+import 'provider_reader.dart';
 
 /// The single shared UDP sender for the whole app.
 final artNetServiceProvider = Provider<ArtNetService>((ref) {
@@ -96,6 +100,46 @@ class UniversesNotifier extends StateNotifier<List<UniverseConfig>> {
     state = const [UniverseConfig(id: 'u1', name: 'Universe 1', universe: 0)];
   }
 }
+
+/// The grand master, 0..1. Lives in a provider so the dock can drive it and
+/// anything else can read the current level.
+///
+/// Like [lastPlayedProvider] it has to be *alive* to do its job — it keeps
+/// the service's channel mask in step with the patch — so [watchGrandMaster]
+/// brings it up at startup rather than waiting for the dock to be shown.
+final grandMasterProvider = StateNotifierProvider<GrandMasterNotifier, double>((ref) {
+  final notifier = GrandMasterNotifier(ref.watch(artNetServiceProvider));
+  ref.listen<List<PatchedFixture>>(
+    patchedFixturesProvider,
+    (_, next) => notifier.refreshChannels(next, ref.read(universesProvider)),
+    fireImmediately: true,
+  );
+  ref.listen<List<UniverseConfig>>(
+    universesProvider,
+    (_, next) => notifier.refreshChannels(ref.read(patchedFixturesProvider), next),
+  );
+  return notifier;
+});
+
+class GrandMasterNotifier extends StateNotifier<double> {
+  final ArtNetService _service;
+
+  GrandMasterNotifier(this._service) : super(_service.master);
+
+  void set(double level) {
+    final clamped = level.clamp(0.0, 1.0);
+    _service.master = clamped;
+    state = clamped;
+  }
+
+  void refreshChannels(List<PatchedFixture> fixtures, List<UniverseConfig> universes) {
+    _service.setMasterChannels(masterChannelsFor(fixtures, universes));
+  }
+}
+
+/// Brings [grandMasterProvider] into existence so it starts tracking the
+/// patch. Called once at startup.
+void watchGrandMaster(ReadProvider read) => read(grandMasterProvider);
 
 class ConnectionStatus {
   final bool attempted;

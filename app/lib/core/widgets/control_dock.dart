@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/dashboard/live_stage_view.dart';
 import '../../models/control_dock_prefs.dart';
+import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
@@ -100,6 +101,9 @@ class ControlDock extends ConsumerWidget {
         enabled: !(beatSync && ref.watch(beatRateProvider) == BeatRate.flash),
         onTap: () => ref.read(tempoProvider.notifier).setAutoFade(!tempo.autoFade),
       ),
+      // Sits next to Blackout on purpose: Blackout is this taken to zero
+      // for a moment, and grouping them says so.
+      _MasterFader(vertical: _vertical),
       _DockButton(
         icon: Icons.power_settings_new,
         label: 'Blackout',
@@ -208,6 +212,60 @@ class _NowPlayingChip extends StatelessWidget {
                 color: status.isSilent ? AppColors.textFaint : AppColors.accent2,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The grand master: one fader that takes the whole rig down without
+/// touching what's programmed.
+///
+/// It scales intensity only — dimmer channels, or the colour emitters on a
+/// fixture that has no dimmer — so pulling it down dims the stage instead
+/// of swinging moving heads around or changing gobos.
+class _MasterFader extends ConsumerWidget {
+  final bool vertical;
+
+  const _MasterFader({required this.vertical});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final level = ref.watch(grandMasterProvider);
+    final percent = (level * 100).round();
+    final readout = Text(
+      '$percent%',
+      style: appMonoStyle(
+        fontSize: 10.5,
+        color: percent == 100 ? AppColors.textDim : AppColors.accent,
+      ),
+    );
+    const label = Text('Master', style: TextStyle(fontSize: 10.5, color: AppColors.textDim));
+
+    return SizedBox(
+      width: vertical ? 60 : 124,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Side by side only where there's room. In the narrow right-hand
+          // dock the label and the percentage stack, or they overflow.
+          if (vertical)
+            label
+          else
+            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [label, readout]),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 4,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+            ),
+            child: Slider(
+              value: level,
+              activeColor: AppColors.accent,
+              onChanged: (value) => ref.read(grandMasterProvider.notifier).set(value),
+            ),
+          ),
+          if (vertical) readout,
         ],
       ),
     );

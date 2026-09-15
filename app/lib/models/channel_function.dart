@@ -62,7 +62,10 @@ enum ChannelFunction {
     }
   }
 
-  bool get isColorMix => this == red || this == green || this == blue || this == white || this == amber;
+  bool get isDimmer => this == dimmer;
+
+  bool get isColorMix =>
+      this == red || this == green || this == blue || this == white || this == amber || this == uv;
   bool get isPanTilt => this == pan || this == panFine || this == tilt || this == tiltFine;
   bool get isGobo => this == gobo || this == goboRotation;
 }
