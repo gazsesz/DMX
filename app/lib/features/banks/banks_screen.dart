@@ -7,21 +7,24 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
-import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
+import '../../models/scene.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
+import '../../state/control_dock_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/tempo_providers.dart';
+import '../scenes/scene_editor_screen.dart';
+import '../scenes/scenes_screen.dart';
 import 'program_generator_screen.dart';
 
 class BanksScreen extends ConsumerStatefulWidget {
@@ -34,8 +37,6 @@ class BanksScreen extends ConsumerStatefulWidget {
 class _BanksScreenState extends ConsumerState<BanksScreen> {
   String? _selectedBankId;
   late final ChasePlayer _player;
-  double _runHoldSeconds = 0.8;
-  double _runFadeSeconds = 0.3;
   int? _runningSlot;
 
   /// The slot the user last fired by hand — so tapping a scene shows which
@@ -69,14 +70,17 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     }
     ref.read(smartProgramPlayerProvider).stop();
     final beatSync = ref.read(beatSyncEnabledProvider);
+    // One set of timing for the whole app — this screen's own Hold/Fade
+    // sliders are gone, and the dock's panel is where they live now.
+    final tempo = ref.read(tempoProvider);
     final chase = Chase(
       id: 'bank-run-${bank.id}',
       name: bank.name,
       steps: [
         ChaseStep(
           bankId: bank.id,
-          hold: Duration(milliseconds: (_runHoldSeconds * 1000).round()),
-          fade: Duration(milliseconds: (_runFadeSeconds * 1000).round()),
+          hold: tempo.hold,
+          fade: tempo.fade,
         ),
       ],
       direction: ChaseDirection.forward,
@@ -136,25 +140,37 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     _toggleRun(bank);
   }
 
+  static const _newSceneSentinel = '__new__';
+
+  /// Fills a slot: pick an existing scene, or build one right here.
+  ///
+  /// Creating from the slot is the point of folding the Scenes screen into
+  /// this one — a new scene lands in the slot you started from instead of
+  /// in a list you then have to go and drag from.
   Future<void> _pickScene(Bank bank, int slotIndex) async {
     final scenes = ref.read(scenesProvider);
-    if (scenes.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Create a scene first')),
-      );
-      return;
-    }
     final chosen = await showDialog<String?>(
       context: context,
       builder: (context) => SimpleDialog(
         backgroundColor: AppColors.panel,
         title: Text('Slot ${slotIndex + 1}'),
         children: [
+          SimpleDialogOption(
+            onPressed: () => Navigator.pop(context, _newSceneSentinel),
+            child: const Row(
+              children: [
+                Icon(Icons.add, size: 18, color: AppColors.accent),
+                SizedBox(width: 8),
+                Text('New scene…', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
           if (bank.sceneSlots[slotIndex] != null)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, ''),
               child: const Text('Clear slot', style: TextStyle(color: AppColors.danger)),
             ),
+          if (scenes.isNotEmpty) const Divider(height: 8),
           for (final scene in scenes)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, scene.id),
@@ -163,8 +179,32 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         ],
       ),
     );
-    if (chosen == null) return;
+    if (chosen == null || !mounted) return;
+
+    if (chosen == _newSceneSentinel) {
+      final created = await Navigator.of(context).push<Scene>(
+        MaterialPageRoute(builder: (_) => const SceneEditorScreen()),
+      );
+      if (created == null) return;
+      ref.read(banksProvider.notifier).setSlot(bank.id, slotIndex, created.id);
+      return;
+    }
     ref.read(banksProvider.notifier).setSlot(bank.id, slotIndex, chosen.isEmpty ? null : chosen);
+  }
+
+  /// Opens the scene sitting in a slot for editing — long-press, so a plain
+  /// tap still fires it.
+  Future<void> _editSlotScene(Bank bank, int slotIndex) async {
+    final sceneId = bank.sceneSlots[slotIndex];
+    if (sceneId == null) {
+      await _pickScene(bank, slotIndex);
+      return;
+    }
+    final matches = ref.read(scenesProvider).where((s) => s.id == sceneId);
+    if (matches.isEmpty) return;
+    await Navigator.of(context).push<Scene>(
+      MaterialPageRoute(builder: (_) => SceneEditorScreen(existing: matches.first)),
+    );
   }
 
   void _playSlot(Bank bank, int slotIndex) {
@@ -271,7 +311,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final scenes = ref.watch(scenesProvider);
     if (banks.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Banks'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
+        appBar: AppBar(title: const Text('Banks'), actions: const [_SceneLibraryAction(), NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
         body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
       );
     }
@@ -290,6 +330,13 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       appBar: AppBar(
         title: const Text('Banks'),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_mosaic_outlined),
+            tooltip: 'Scene library',
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const ScenesScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.auto_awesome),
             tooltip: 'Generate Program',
@@ -443,47 +490,32 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   ),
                 ],
                 const SizedBox(width: 8),
+                // A readout, not a control. This screen used to carry its
+                // own Hold/Fade sliders that quietly disagreed with the
+                // Dashboard's — which is how auto-fade ended up looking
+                // like it was losing a fight with a slider. One set of
+                // timing now, in the dock's panel, and this says what it
+                // currently is and where to change it.
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        autoFade
-                            ? 'Hold ${_runHoldSeconds.toStringAsFixed(2)}s · Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s (auto)'
-                            : 'Hold ${_runHoldSeconds.toStringAsFixed(2)}s · Fade ${_runFadeSeconds.toStringAsFixed(2)}s',
-                        style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
-                      ),
-                      Row(
+                  child: InkWell(
+                    onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
+                    borderRadius: BorderRadius.circular(6),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                      child: Row(
                         children: [
                           Expanded(
-                            // Logarithmic and inverted, like the Dashboard's:
-                            // up is faster, and the quick end gets real
-                            // travel.
-                            child: Slider(
-                              value: stepSpeedScale.positionOf(_runHoldSeconds),
-                              onChanged: (p) =>
-                                  setState(() => _runHoldSeconds = stepSpeedScale.valueAt(p)),
-                              onChangeEnd: (_) => _restartRunIfPlaying(selected),
+                            child: Text(
+                              'Hold ${tempo.stepSeconds.toStringAsFixed(2)}s · '
+                              'Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s'
+                              '${autoFade ? ' (auto)' : ''}',
+                              style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
                             ),
                           ),
-                          Expanded(
-                            // Dead while auto-fade drives it — the two used
-                            // to disagree silently, with this one winning.
-                            child: Slider(
-                              value: fadeTimeScale.positionOf(
-                                autoFade ? tempo.effectiveFadeSeconds : _runFadeSeconds,
-                              ),
-                              activeColor: AppColors.accent2,
-                              onChanged: autoFade
-                                  ? null
-                                  : (p) => setState(() => _runFadeSeconds = fadeTimeScale.valueAt(p)),
-                              onChangeEnd: autoFade ? null : (_) => _restartRunIfPlaying(selected),
-                            ),
-                          ),
+                          const Icon(Icons.tune, size: 15, color: AppColors.textFaint),
                         ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
               ],
@@ -523,7 +555,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     InkWell(
                   borderRadius: BorderRadius.circular(8),
                   onTap: () => scene == null ? _pickScene(selected, index) : _playSlot(selected, index),
-                  onLongPress: () => _pickScene(selected, index),
+                  // Long-press edits the scene in the slot; the swap menu
+                  // moved to the pencil on the tile, so the gesture that
+                  // used to just re-pick now does the thing you actually
+                  // came for.
+                  onLongPress: () => _editSlotScene(selected, index),
                   child: Container(
                     decoration: BoxDecoration(
                       color: isRunning ? AppColors.accent.withValues(alpha: 0.14) : AppColors.panel,
@@ -610,4 +646,24 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+/// The Scenes list is a second-level screen now, reachable from here.
+///
+/// Scenes stopped being a top-level tab once slots could create and edit
+/// them in place — but a scene that isn't in any bank still has to be
+/// findable, so the library stays one tap away.
+class _SceneLibraryAction extends StatelessWidget {
+  const _SceneLibraryAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.auto_awesome_mosaic_outlined),
+      tooltip: 'Scene library',
+      onPressed: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const ScenesScreen()),
+      ),
+    );
+  }
 }

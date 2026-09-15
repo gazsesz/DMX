@@ -18,4 +18,19 @@ void main() {
     expect(find.text('Dashboard'), findsOneWidget);
     expect(find.text('QUICK TRIGGERS'), findsOneWidget);
   });
+
+  // Scenes folded into Banks: a slot picks, creates and edits scenes in
+  // place, so the library is a second-level screen behind the Banks app bar
+  // rather than a tab of its own. If a 'Scene' destination comes back, the
+  // two ways of reaching the same list have drifted apart again.
+  testWidgets('the shell has no Scene tab', (WidgetTester tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(theme: buildAppTheme(), home: const AppShell()),
+      ),
+    );
+
+    expect(find.text('Bank'), findsWidgets);
+    expect(find.text('Scene'), findsNothing);
+  });
 }

@@ -274,16 +274,23 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     return counts.entries.map((e) => '${e.value} ${e.key}').join(', ');
   }
 
+  /// Saves and hands the scene back to whoever opened the editor.
+  ///
+  /// The Banks screen relies on that return value: creating a scene from an
+  /// empty slot should drop it straight into that slot, rather than making
+  /// you go and find it in a list afterwards.
   void _save() {
     if (_selectedFixtureIds.isEmpty || _nameController.text.trim().isEmpty) return;
     final fixtureValues = _buildFixtureValues();
     final notifier = ref.read(scenesProvider.notifier);
+    final Scene saved;
     if (widget.existing != null) {
-      notifier.upsert(widget.existing!.copyWith(name: _nameController.text.trim(), fixtureValues: fixtureValues));
+      saved = widget.existing!.copyWith(name: _nameController.text.trim(), fixtureValues: fixtureValues);
+      notifier.upsert(saved);
     } else {
-      notifier.create(_nameController.text.trim(), fixtureValues);
+      saved = notifier.create(_nameController.text.trim(), fixtureValues);
     }
-    Navigator.of(context).pop();
+    Navigator.of(context).pop(saved);
   }
 
   Future<void> _assignToBank() async {
