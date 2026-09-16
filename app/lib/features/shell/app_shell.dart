@@ -69,36 +69,42 @@ class _AppShellState extends ConsumerState<AppShell> {
     if (dock.stageVisible) {
       body = Column(children: [Expanded(child: body), const LiveStageDock()]);
     }
-    if (!dock.expanded) {
-      final bar = ControlDock(position: dock.position);
-      // Stretched across its edge, not sized to its buttons: a strip that
-      // stops where the last button does reads as a floating island rather
-      // than as the app's dock.
-      return switch (dock.position) {
-        ControlDockPosition.bottom => Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [Expanded(child: body), bar],
-        ),
-        ControlDockPosition.right => Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [Expanded(child: body), bar],
-        ),
-      };
-    }
+    // Stretched across its edge, not sized to its buttons: a strip that
+    // stops where the last button does reads as a floating island rather
+    // than as the app's dock.
+    final bar = [if (!dock.expanded) ControlDock(position: dock.position)];
+    final withBar = switch (dock.position) {
+      ControlDockPosition.bottom => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [Expanded(child: body), ...bar],
+      ),
+      ControlDockPosition.right => Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [Expanded(child: body), ...bar],
+      ),
+    };
 
+    // One shape whether the panel is open or shut, and the content always
+    // the Stack's first child. Swapping between a Column and a Stack here
+    // rebuilt everything below from scratch every time the panel opened or
+    // closed: the rig kept running, but each screen lost what it knew about
+    // the show — which slot was lit, which zone a smart program was in — so
+    // the Dashboard sat there looking idle mid-song.
     return Stack(
       children: [
-        Positioned.fill(child: body),
+        Positioned.fill(child: withBar),
         // Tapping the page behind puts the panel away, the way any sheet
         // behaves. No scrim: you're reading levels off the rig, not a form.
-        Positioned.fill(
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () => ref.read(controlDockProvider.notifier).collapse(),
-            child: const SizedBox.shrink(),
+        if (dock.expanded) ...[
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () => ref.read(controlDockProvider.notifier).collapse(),
+              child: const SizedBox.shrink(),
+            ),
           ),
-        ),
-        _panelFor(dock.position),
+          _panelFor(dock.position),
+        ],
       ],
     );
   }

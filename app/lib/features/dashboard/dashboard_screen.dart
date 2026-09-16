@@ -62,6 +62,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     super.initState();
     _player = ref.read(playbackControllerProvider);
     _smartPlayer = ref.read(smartProgramPlayerProvider);
+    // Seeded from the last status rather than started blank: the stream
+    // only reports changes, so a screen built while a program is already
+    // running would otherwise show no zone and no tempo until the music
+    // next crossed a threshold — which reads as "it isn't running".
+    _smartStatus = ref.read(smartProgramStatusProvider).valueOrNull;
     _smartStatusSub = _smartPlayer.statusStream.listen((status) {
       if (mounted) setState(() => _smartStatus = status);
     });

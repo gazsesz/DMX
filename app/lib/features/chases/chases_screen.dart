@@ -43,6 +43,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     super.initState();
     _player = ref.read(playbackControllerProvider);
     _smartPlayer = ref.read(smartProgramPlayerProvider);
+    // The stream only carries changes — see the Dashboard, which shows the
+    // same zone readout.
+    _smartStatus = ref.read(smartProgramStatusProvider).valueOrNull;
     _smartStatusSub = _smartPlayer.statusStream.listen((status) {
       if (mounted) setState(() => _smartStatus = status);
     });
