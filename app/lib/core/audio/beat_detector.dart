@@ -137,6 +137,12 @@ class BeatDetectorService {
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
   final OnsetBaseline _baseline = OnsetBaseline();
+
+  /// A ~300ms level of the selected band, the "is anything happening in
+  /// here" reading the escape hatch needs.
+  static const _fastLevelMs = 300.0;
+  double _fastLevel = 0;
+  DateTime? _listeningSince;
   int _frameCount = 0;
   DateTime? _lastBeat;
 
@@ -186,6 +192,8 @@ class BeatDetectorService {
       _baseline.reset();
       _frameCount = 0;
       _lastBeat = null;
+      _fastLevel = 0;
+      _listeningSince = DateTime.now();
       _ring = Float64List(_fftSize);
       _ringWrite = 0;
       _samplesBuffered = 0;
@@ -331,11 +339,30 @@ class BeatDetectorService {
     final alpha = 1 - math.exp(-_hopMs / adaptSpeed.tauMs);
     final bands = _bandLevels(fluxes, alpha);
 
+    // A short level, purely to answer "is this room still making noise" for
+    // the escape hatch below.
+    _fastLevel += (1 - math.exp(-_hopMs / _fastLevelMs)) * (flux - _fastLevel);
+
+    final now = DateTime.now();
+    // The bar can be left somewhere nothing musical will ever reach — see
+    // [shouldForgetBaseline]. Forgetting re-runs the warmup, so no beats go
+    // out while the statistics re-form.
+    final since = now.difference(_lastBeat ?? _listeningSince ?? now);
+    if (shouldForgetBaseline(
+      memoryMs: adaptSpeed.tauMs,
+      secondsSinceBeat: since.inMilliseconds / 1000,
+      fastLevel: _fastLevel,
+      mean: _baseline.mean,
+    )) {
+      _baseline.reset();
+      _frameCount = 1;
+      _lastBeat = now;
+    }
+
     // Exponential moving average/variance rather than a sliding window:
     // each new frame nudges the running mean by `alpha` instead of a sample
     // dropping out and yanking the average by its own full weight, so the
     // meter's avg/threshold move smoothly rather than stepping every ~12ms.
-    // Outliers are clipped on the way in — see [OnsetBaseline].
     _baseline.learn(flux, alpha);
 
     final warmupFrames = (_warmupMs / _hopMs).round();
@@ -376,7 +403,6 @@ class BeatDetectorService {
     final k = 2.5 + 6.5 * _square(1 - sensitivity.clamp(0.0, 1.0));
     final thresholdFlux = _baseline.thresholdAt(k);
 
-    final now = DateTime.now();
     final pastRefractoryPeriod =
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
     final isBeat = flux > thresholdFlux && pastRefractoryPeriod;
