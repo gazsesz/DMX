@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/bank_picker_dialog.dart';
 import '../../core/widgets/channel_slider.dart';
+import '../../core/widgets/color_picker_dialog.dart';
 import '../../models/builtin_fixtures.dart';
 import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
@@ -11,6 +12,7 @@ import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/color_palette_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
 
@@ -195,6 +197,39 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     _pushLiveOutput();
   }
 
+  /// Opens the full picker — presets, your saved colours, and a palette to
+  /// mix a new one.
+  ///
+  /// The rig follows the sliders while it's open, so you pick by looking at
+  /// the lamps; dismissing it puts the group back exactly as it was, live
+  /// output included, rather than leaving the last colour you dragged past.
+  Future<void> _openColorPicker(_Group group) async {
+    final snapshot = Map.of(group.values);
+    final picked = await showColorPickerDialog(
+      context,
+      initial: [
+        _valueForInGroup(group, ChannelFunction.red),
+        _valueForInGroup(group, ChannelFunction.green),
+        _valueForInGroup(group, ChannelFunction.blue),
+      ],
+      onPreview: (rgb) => _applyColorToGroup(group, rgb),
+    );
+    if (!mounted) return;
+    if (picked != null) {
+      _applyColorToGroup(group, picked);
+      return;
+    }
+    setState(() {
+      group.values
+        ..clear()
+        ..addAll(snapshot);
+      for (final id in group.fixtureIds) {
+        _lastKnownValues[id] = Map.of(group.values);
+      }
+    });
+    _pushLiveOutput();
+  }
+
   void _pushLiveOutput() {
     final service = ref.read(artNetServiceProvider);
     if (!service.isConnected) return;
@@ -361,19 +396,38 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                       runSpacing: 8,
                       children: [
                         for (final entry in colorPresets.entries)
-                          InkWell(
-                            borderRadius: BorderRadius.circular(10),
+                          _ColorSwatch(
+                            rgb: entry.value,
+                            tooltip: entry.key,
                             onTap: () => _applyColorToGroup(group, entry.value),
+                          ),
+                        // Your own colours sit in the same grid as the
+                        // presets rather than in a drawer of their own —
+                        // once saved, a house colour is just a colour.
+                        for (final rgb in ref.watch(customColorsProvider))
+                          _ColorSwatch(
+                            rgb: rgb,
+                            tooltip: '#${hexOf(rgb)}',
+                            onTap: () => _applyColorToGroup(group, rgb),
+                          ),
+                        Tooltip(
+                          message: 'Mix a colour',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () => _openColorPicker(group),
                             child: Container(
                               width: 46,
                               height: 46,
+                              alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
+                                color: AppColors.panel2,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: AppColors.border, width: 1.5),
+                                border: Border.all(color: AppColors.accent, width: 1.5),
                               ),
+                              child: const Icon(Icons.palette_outlined, size: 20, color: AppColors.accent),
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -584,4 +638,33 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+/// One tappable colour in the group's swatch grid.
+class _ColorSwatch extends StatelessWidget {
+  final List<int> rgb;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _ColorSwatch({required this.rgb, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: Color.fromARGB(255, rgb[0], rgb[1], rgb[2]),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
 }

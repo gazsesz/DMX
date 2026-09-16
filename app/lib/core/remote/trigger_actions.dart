@@ -163,11 +163,28 @@ Future<String> toggleSmartProgramById(ReadProvider read, String programId) async
 /// [timingOnly] marks the Hold/Fade sliders as the caller: those don't
 /// touch a saved chase at all while "Override saved timing" is off, so
 /// restarting for them would kick the chase back to step 1 for nothing.
-/// A Smart Program is never restarted from here — it drives its own timing.
+///
+/// A running Smart Program isn't restarted for a timing change — it drives
+/// its own — but it *is* re-fired for anything else, beat sync being the
+/// one that matters: whether the steps follow the beats is decided when a
+/// zone is fired, so without this the switch did nothing to the bank a
+/// program was already running.
 Future<void> restartActiveTrigger(ReadProvider read, {bool timingOnly = false}) async {
   final player = read(playbackControllerProvider);
   final current = read(nowPlayingProvider);
-  if (!player.isPlaying || current == null || current.kind == PlaybackKind.smartProgram) return;
+  if (!player.isPlaying || current == null) return;
+  if (current.kind == PlaybackKind.smartProgram) {
+    if (timingOnly) return;
+    read(smartProgramPlayerProvider).replayCurrentZone(
+      chases: read(chasesProvider),
+      scenes: read(scenesProvider),
+      banks: read(banksProvider),
+      patchedFixtures: read(patchedFixturesProvider),
+      universes: read(universesProvider),
+      service: read(artNetServiceProvider),
+    );
+    return;
+  }
 
   final Chase chase;
   if (current.kind == PlaybackKind.bank) {
@@ -232,6 +249,9 @@ Future<String> setBeatSync(ReadProvider read, {bool? on}) async {
   if (target == current) return 'Beat sync already ${target ? 'on' : 'off'}';
   final error = await read(beatSyncEnabledProvider.notifier).setEnabled(target);
   if (error != null) return error;
+  // Whatever is playing has to be re-fired to pick the switch up — see
+  // [restartActiveTrigger].
+  await restartActiveTrigger(read);
   return 'Beat sync ${target ? 'on' : 'off'}';
 }
 

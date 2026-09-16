@@ -27,6 +27,11 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
   final player = SmartProgramPlayer(
     chasePlayer: ref.watch(playbackControllerProvider),
     beatService: ref.watch(beatDetectorProvider),
+    // Read, not watched: the program is driven from callbacks, and a
+    // rebuilt player would drop the running show on the floor.
+    beatSyncEnabled: () => ref.read(beatSyncEnabledProvider),
+    beatRate: () => ref.read(beatRateProvider),
+    flashLength: () => ref.read(flashLengthProvider),
   );
   ref.onDispose(player.dispose);
   return player;

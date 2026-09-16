@@ -534,13 +534,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 10),
                   // No "show the dock" switch any more: the dock holds the
                   // only copy of the tempo and beat controls, so hiding it
-                  // would hide them. The chevron on its edge opens and
+                  // would hide them. The Tempo button on it opens and
                   // closes the panel instead.
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Open the control panel'),
                     subtitle: const Text(
-                      'Tempo, fade and beat sync — also reachable from the chevron on the dock',
+                      'Tempo, fade and beat sync — also on the Tempo button in the dock',
                       style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                     value: ref.watch(controlDockProvider).expanded,

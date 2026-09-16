@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/theme/app_colors.dart';
 import '../../core/widgets/control_dock.dart';
-import '../../core/widgets/control_panel.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
@@ -60,22 +58,37 @@ class _AppShellState extends ConsumerState<AppShell> {
   /// beat controls now, and a control you can lose is worse than a strip of
   /// edge. Its panel opens *over* the content rather than squeezing it —
   /// reflowing a bank grid while you're reaching into it is disorienting.
+  ///
+  /// Open, the dock grows into [ExpandedControlDock] in the strip's place
+  /// rather than a sheet laid over it: the strip's buttons come along, as a
+  /// rail down the panel's side. The strip isn't drawn underneath as well —
+  /// one set of Stop/Blackout buttons, not two.
   Widget _withDocks(Widget content) {
     final dock = ref.watch(controlDockProvider);
     var body = content;
     if (dock.stageVisible) {
       body = Column(children: [Expanded(child: body), const LiveStageDock()]);
     }
-    final bar = ControlDock(position: dock.position);
-    final withBar = switch (dock.position) {
-      ControlDockPosition.bottom => Column(children: [Expanded(child: body), bar]),
-      ControlDockPosition.right => Row(children: [Expanded(child: body), bar]),
-    };
-    if (!dock.expanded) return withBar;
+    if (!dock.expanded) {
+      final bar = ControlDock(position: dock.position);
+      // Stretched across its edge, not sized to its buttons: a strip that
+      // stops where the last button does reads as a floating island rather
+      // than as the app's dock.
+      return switch (dock.position) {
+        ControlDockPosition.bottom => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [Expanded(child: body), bar],
+        ),
+        ControlDockPosition.right => Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [Expanded(child: body), bar],
+        ),
+      };
+    }
 
     return Stack(
       children: [
-        Positioned.fill(child: withBar),
+        Positioned.fill(child: body),
         // Tapping the page behind puts the panel away, the way any sheet
         // behaves. No scrim: you're reading levels off the rig, not a form.
         Positioned.fill(
@@ -90,31 +103,41 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
   }
 
+  /// The open dock, floated off the edge it docks to.
+  ///
+  /// Inset on every side rather than edge-to-edge: full-bleed it read as a
+  /// new page rather than as a panel belonging to the dock, and there was
+  /// nothing to tell you the dock was what you'd opened.
   Widget _panelFor(ControlDockPosition position) {
-    final narrow = MediaQuery.sizeOf(context).width < _tabletBreakpoint;
-    final panel = Material(
-      color: AppColors.panel,
-      elevation: 8,
-      child: SafeArea(top: false, child: const ControlPanel()),
-    );
+    final size = MediaQuery.sizeOf(context);
+    final safeBottom = MediaQuery.paddingOf(context).bottom;
+    final narrow = size.width < _tabletBreakpoint;
+    const panel = ExpandedControlDock();
+
     // On a phone a side panel would leave nothing beside it, so the same
     // content comes up from the bottom instead.
     if (narrow) {
       return Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: MediaQuery.sizeOf(context).height * 0.72,
+        left: 8,
+        right: 8,
+        bottom: 8 + safeBottom,
+        height: (size.height * 0.78).clamp(320.0, size.height - 24),
         child: panel,
       );
     }
     return switch (position) {
-      ControlDockPosition.right => Positioned(top: 0, bottom: 0, right: 0, width: 340, child: panel),
+      ControlDockPosition.right => Positioned(
+        top: 10,
+        bottom: 10 + safeBottom,
+        right: 10,
+        width: 460,
+        child: panel,
+      ),
       ControlDockPosition.bottom => Positioned(
-        left: 0,
-        right: 0,
-        bottom: 0,
-        height: 420,
+        right: 10,
+        bottom: 10 + safeBottom,
+        width: (size.width - 20).clamp(320.0, 640.0),
+        height: (size.height * 0.8).clamp(320.0, 520.0),
         child: panel,
       ),
     };

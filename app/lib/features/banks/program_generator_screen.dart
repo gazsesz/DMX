@@ -29,7 +29,10 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
   String _applyTo = 'all';
   String? _destinationBankId;
   int _sceneCount = 6;
-  bool _alsoCreateChase = true;
+  // Off by default: what a generated program is for is the bank, and a
+  // chase wrapping that one bank is something you ask for, not something
+  // that should quietly pile up in the Chase list on every generate.
+  bool _alsoCreateChase = false;
   double _size = 1.0;
   double _fan = 0.0;
   double _shift = 0.0;
