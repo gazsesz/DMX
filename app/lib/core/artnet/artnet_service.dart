@@ -8,6 +8,10 @@ import '../../models/universe_config.dart';
 import 'artnet_packet.dart';
 import 'sacn_packet.dart';
 
+/// A momentary effect layered over a universe's frame on its way out — see
+/// `momentary_fx.dart`. Returning the frame it was handed means "unchanged".
+typedef OutputOverride = Uint8List Function(UniverseConfig universe, Uint8List frame);
+
 class ArtPollResult {
   final bool success;
   final Duration latency;
@@ -60,6 +64,35 @@ class ArtNetService {
     _master = clamped;
     _refreshAll();
   }
+
+  OutputOverride? _override;
+
+  /// The momentary layer — strobe, blinder, freeze — applied to every frame
+  /// on its way out.
+  ///
+  /// Held *outside* the buffers for the same reason [master] is: the buffers
+  /// keep the levels the show programmed, so letting go of a momentary button
+  /// puts the previous look straight back instead of having to rebuild it.
+  /// It sits under the master, so pulling the master down still takes a
+  /// blinded or frozen stage with it.
+  ///
+  /// Setting it re-sends every universe: an effect has to reach the rig the
+  /// moment the finger lands, not on the next keep-alive.
+  OutputOverride? get outputOverride => _override;
+
+  set outputOverride(OutputOverride? override) {
+    _override = override;
+    _refreshAll();
+  }
+
+  /// Re-sends every known universe. What a momentary effect calls when its
+  /// own layer changed — a strobe's phase flipping — and the show itself
+  /// has written nothing to flush.
+  void refreshOutput() => _refreshAll();
+
+  /// A copy of [universe]'s current buffer, for an effect that has to hold on
+  /// to the look it started from.
+  Uint8List snapshotFrame(UniverseConfig universe) => Uint8List.fromList(_bufferFor(universe));
 
   /// Which channels [master] scales, per universe — see `masterChannelsFor`.
   /// Everything not listed goes out untouched, so pan/tilt, gobo and strobe
@@ -221,7 +254,8 @@ class ArtNetService {
     if (socket == null) return;
     final nextSequence = ((_sequences[universe.id] ?? 0) % 255) + 1;
     _sequences[universe.id] = nextSequence;
-    final data = _withMaster(universe, _buffers[universe.id]!);
+    final buffer = _buffers[universe.id]!;
+    final data = _withMaster(universe, _override?.call(universe, buffer) ?? buffer);
     final protocol = _settings.protocol;
 
     if (protocol.sendsArtNet) {

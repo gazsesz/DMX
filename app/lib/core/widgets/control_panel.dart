@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/smart_program.dart';
 import '../../state/audio_providers.dart';
+import '../../state/momentary_fx_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../../state/tempo_providers.dart';
@@ -15,6 +16,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import 'beat_meter.dart';
 import 'log_scale.dart';
+import 'momentary_fx_buttons.dart';
 
 /// Everything that used to be the Dashboard's "Tempo & Chase Speed" card,
 /// in one narrow column that the control dock can slide open over any tab.
@@ -421,6 +423,32 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             },
           ),
         ],
+
+        // Last, and deliberately: the momentary buttons are a copy, not the
+        // place you reach for them. They live on the dock's strip, which
+        // gives them up on a narrow screen — this is where they come back,
+        // so nothing is ever only on the strip. The open dock's rail leaves
+        // them out entirely: three more tiles down it would push Blackout
+        // off the bottom of a phone held sideways.
+        const Divider(height: 22),
+        _label('Momentary — hold one, let go to drop back'),
+        Row(
+          children: [
+            for (final entry in momentaryFxStyles.entries) ...[
+              MomentaryFxButton(fx: entry.key, icon: entry.value.icon, color: entry.value.color),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+        _label('Strobe rate'),
+        Slider(
+          value: ref.watch(strobeRateProvider).clamp(minStrobeHz, maxStrobeHz),
+          min: minStrobeHz,
+          max: maxStrobeHz,
+          activeColor: AppColors.accent,
+          onChanged: (value) => ref.read(strobeRateProvider.notifier).state = value,
+        ),
+        _readout('${ref.watch(strobeRateProvider).toStringAsFixed(1)} flashes a second'),
       ],
     );
   }

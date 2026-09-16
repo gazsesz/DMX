@@ -15,6 +15,7 @@ import '../theme/app_theme.dart';
 import 'control_panel.dart';
 import 'dock_layout.dart';
 import 'master_fader.dart';
+import 'momentary_fx_buttons.dart';
 
 /// The live controls that are worth reaching from *any* screen: what's
 /// running (and a way to stop it), beat sync with its rate, blackout — and
@@ -92,10 +93,16 @@ class ExpandedControlDock extends ConsumerWidget {
                   color: AppColors.panel2,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   child: const SingleChildScrollView(
-                    // The panel beside it already carries the beat rate, so
-                    // the rail leaves that one out rather than showing it
-                    // twice.
-                    child: _DockControls(vertical: true, showBeatRate: false),
+                    // The panel beside it already carries the beat rate and
+                    // the momentary buttons, so the rail leaves those out
+                    // rather than showing them twice — and stays short
+                    // enough that Blackout is still on screen without a
+                    // scroll on a phone held sideways.
+                    child: _DockControls(
+                      vertical: true,
+                      showBeatRate: false,
+                      showMomentaryFx: false,
+                    ),
                   ),
                 ),
               ],
@@ -141,8 +148,13 @@ class _PanelHeader extends ConsumerWidget {
 class _DockControls extends ConsumerWidget {
   final bool vertical;
   final bool showBeatRate;
+  final bool showMomentaryFx;
 
-  const _DockControls({required this.vertical, this.showBeatRate = true});
+  const _DockControls({
+    required this.vertical,
+    this.showBeatRate = true,
+    this.showMomentaryFx = true,
+  });
 
   /// Restarts whatever played last. Reports back, because the common
   /// failure — no node on the network — is silent otherwise.
@@ -233,12 +245,23 @@ class _DockControls extends ConsumerWidget {
         _dockButtonWidth,
         giveUpAt: 2,
       ),
+      // The momentary three. Given up before the master fader but after
+      // everything else: the fader is how you save a look that's gone wrong,
+      // while these are things you reach for on purpose. Strobe outlives the
+      // other two — it's the one you grab without looking.
+      if (showMomentaryFx)
+        for (final entry in momentaryFxStyles.entries)
+          _DockItem(
+            MomentaryFxButton(fx: entry.key, icon: entry.value.icon, color: entry.value.color),
+            _dockButtonWidth,
+            giveUpAt: entry.value.giveUpAt,
+          ),
       // Sits next to Blackout on purpose: Blackout is this taken to zero
       // for a moment, and grouping them says so.
       _DockItem(
         MasterFader(vertical: vertical, width: vertical ? 62 : 124),
         vertical ? 62 : 124,
-        giveUpAt: 3,
+        giveUpAt: 6,
       ),
       _DockItem(
         _DockButton(
@@ -441,7 +464,6 @@ class _NowPlayingChip extends StatelessWidget {
   }
 }
 
-
 class _DockButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -461,31 +483,15 @@ class _DockButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = enabled ? color : AppColors.textFaint;
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: enabled ? onTap : null,
-      child: Container(
-        width: 62,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        decoration: BoxDecoration(
-          color: active ? color.withValues(alpha: 0.18) : AppColors.panel,
-          border: Border.all(color: active ? color : AppColors.border, width: active ? 2 : 1.5),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: tint),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: tint),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+      child: DockButtonFace(
+        icon: icon,
+        label: label,
+        color: color,
+        active: active,
+        enabled: enabled,
       ),
     );
   }

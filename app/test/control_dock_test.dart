@@ -201,6 +201,14 @@ void main() {
     // Auto fade is the one given up — a switch you set once, and the panel
     // has it.
     expect(find.text('AutoFade'), findsNothing);
+    // With a name in the now-playing chip there is no room left on a phone
+    // for the momentary three either, and they go before the fader does:
+    // the fader is how you save a look that's gone wrong. They're in the
+    // panel, and on a tablet — where the strip is twice this wide — they're
+    // on the strip where they belong.
+    expect(find.text('Strobe'), findsNothing);
+    expect(find.text('Blinder'), findsNothing);
+    expect(find.text('Freeze'), findsNothing);
   });
 
   // The rail eats ~80px of the panel's width, and the narrowest phone this

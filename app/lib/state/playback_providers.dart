@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/playback/chase_player.dart';
 import '../core/playback/smart_program_player.dart';
 import 'artnet_providers.dart';
+import 'momentary_fx_providers.dart';
 import 'provider_reader.dart';
 import 'audio_providers.dart';
 
@@ -109,6 +110,9 @@ final nowPlayingProvider = StateProvider<NowPlaying?>((ref) => null);
 /// now-playing state. Shared by the Dashboard's panic button, the control
 /// dock and the remote endpoint so they can't drift apart.
 Future<void> blackoutEverything(ReadProvider read) async {
+  // First: a held Freeze pushes its own frame over the top of everything
+  // else on the way out, blackout included. The panic button has to win.
+  read(momentaryFxProvider.notifier).releaseAll();
   read(playbackControllerProvider).stop();
   read(smartProgramPlayerProvider).stop();
   final service = read(artNetServiceProvider);
