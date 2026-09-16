@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/dashboard/live_stage_view.dart';
 import '../../models/control_dock_prefs.dart';
-import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
@@ -14,6 +13,8 @@ import '../remote/trigger_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import 'control_panel.dart';
+import 'dock_layout.dart';
+import 'master_fader.dart';
 
 /// The live controls that are worth reaching from *any* screen: what's
 /// running (and a way to stop it), beat sync with its rate, blackout — and
@@ -45,9 +46,10 @@ class ControlDock extends ConsumerWidget {
               left: _vertical ? const BorderSide(color: AppColors.border) : BorderSide.none,
             ),
           ),
-          child: _vertical
-              ? SingleChildScrollView(child: controls)
-              : SingleChildScrollView(scrollDirection: Axis.horizontal, child: controls),
+          // Only the side dock scrolls, and only along its own length. The
+          // bottom strip lays itself out to fit instead — a control you
+          // have to swipe sideways for is a control you don't have.
+          child: _vertical ? SingleChildScrollView(child: controls) : controls,
         ),
       ),
     );
@@ -176,98 +178,153 @@ class _DockControls extends ConsumerWidget {
         ? ref.watch(smartProgramStatusProvider).valueOrNull
         : null;
 
-    final children = <Widget>[
-      _NowPlayingChip(nowPlaying: nowPlaying, zone: zone, vertical: vertical),
-      if (nowPlaying == null)
-        _DockButton(
-          icon: Icons.play_arrow_rounded,
-          label: 'Start',
-          color: AppColors.success,
-          enabled: lastPlayed != null,
-          onTap: () => _resume(context, ref),
-        )
-      else
-        _DockButton(
-          icon: Icons.stop_rounded,
-          label: 'Stop',
-          color: AppColors.accent,
-          onTap: () => stopPlayback(ref.read),
-        ),
-      _DockButton(
-        icon: Icons.mic_none,
-        label: 'Beat',
-        color: AppColors.accent2,
-        active: beatSync,
-        onTap: () => _setBeatSync(context, ref, !beatSync),
+    // Width is declared alongside each control rather than measured: the
+    // strip has to know what fits *before* laying anything out, and every
+    // one of these is a fixed size anyway.
+    final items = <_DockItem>[
+      _DockItem(
+        _NowPlayingChip(nowPlaying: nowPlaying, zone: zone, vertical: vertical),
+        vertical ? 62 : (nowPlaying == null ? 96 : 150),
       ),
-      if (beatSync && showBeatRate) _BeatRateControl(vertical: vertical),
+      _DockItem(
+        nowPlaying == null
+            ? _DockButton(
+                icon: Icons.play_arrow_rounded,
+                label: 'Start',
+                color: AppColors.success,
+                enabled: lastPlayed != null,
+                onTap: () => _resume(context, ref),
+              )
+            : _DockButton(
+                icon: Icons.stop_rounded,
+                label: 'Stop',
+                color: AppColors.accent,
+                onTap: () => stopPlayback(ref.read),
+              ),
+        _dockButtonWidth,
+      ),
+      _DockItem(
+        _DockButton(
+          icon: Icons.mic_none,
+          label: 'Beat',
+          color: AppColors.accent2,
+          active: beatSync,
+          onTap: () => _setBeatSync(context, ref, !beatSync),
+        ),
+        _dockButtonWidth,
+      ),
+      if (beatSync && showBeatRate)
+        // First to go when the strip is short of room: it's a setting
+        // rather than a control you grab, and the panel has it too.
+        _DockItem(const _BeatRateControl(), _dockButtonWidth, giveUpAt: 1),
       // Greyed out while Flash is the beat rate — Flash snaps by
       // definition, so it forces the fade to zero and auto-fade has
       // nothing to do. Showing it dimmed rather than hiding it keeps the
       // toggle's own state visible.
-      _DockButton(
-        icon: Icons.blur_on,
-        label: 'AutoFade',
-        color: AppColors.accent2,
-        active: tempo.autoFade,
-        enabled: !(beatSync && ref.watch(beatRateProvider) == BeatRate.flash),
-        onTap: () => ref.read(tempoProvider.notifier).setAutoFade(!tempo.autoFade),
+      _DockItem(
+        _DockButton(
+          icon: Icons.blur_on,
+          label: 'AutoFade',
+          color: AppColors.accent2,
+          active: tempo.autoFade,
+          enabled: !(beatSync && ref.watch(beatRateProvider) == BeatRate.flash),
+          onTap: () => ref.read(tempoProvider.notifier).setAutoFade(!tempo.autoFade),
+        ),
+        _dockButtonWidth,
+        giveUpAt: 2,
       ),
       // Sits next to Blackout on purpose: Blackout is this taken to zero
       // for a moment, and grouping them says so.
-      _MasterFader(vertical: vertical),
-      _DockButton(
-        icon: Icons.power_settings_new,
-        label: 'Blackout',
-        color: AppColors.danger,
-        onTap: () => blackoutEverything(ref.read),
+      _DockItem(
+        MasterFader(vertical: vertical, width: vertical ? 62 : 124),
+        vertical ? 62 : 124,
+        giveUpAt: 3,
+      ),
+      _DockItem(
+        _DockButton(
+          icon: Icons.power_settings_new,
+          label: 'Blackout',
+          color: AppColors.danger,
+          onTap: () => blackoutEverything(ref.read),
+        ),
+        _dockButtonWidth,
       ),
       // Part of the row rather than a tab hanging off the dock's outer
       // edge: the old handle sat at the far end of the screen, nowhere
       // near the controls, and read as belonging to the page instead.
-      _DockButton(
-        icon: expanded ? Icons.keyboard_arrow_down : Icons.tune,
-        label: expanded ? 'Close' : 'Tempo',
-        color: AppColors.accent,
-        active: expanded,
-        onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
+      _DockItem(
+        _DockButton(
+          icon: expanded ? Icons.keyboard_arrow_down : Icons.tune,
+          label: expanded ? 'Close' : 'Tempo',
+          color: AppColors.accent,
+          active: expanded,
+          onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
+        ),
+        _dockButtonWidth,
       ),
     ];
 
-    return vertical
-        ? Column(mainAxisSize: MainAxisSize.min, children: [
-            for (final child in children) Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: child),
-          ])
-        : Row(children: [
-            for (final child in children) Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: child),
-          ]);
+    if (vertical) {
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        for (final item in items)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: item.widget),
+      ]);
+    }
+
+    // Wrapping rather than scrolling sideways: see dock_layout.dart.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keep = dockItemsThatFit(
+          widths: [for (final item in items) item.width],
+          dropOrder: _dropOrder(items),
+          available: constraints.maxWidth,
+        );
+        return Wrap(
+          spacing: dockItemSpacing,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [for (final i in keep) items[i].widget],
+        );
+      },
+    );
+  }
+
+  /// The indices of the controls that may be given up, worst first.
+  static List<int> _dropOrder(List<_DockItem> items) {
+    final droppable = [
+      for (var i = 0; i < items.length; i++)
+        if (items[i].giveUpAt != null) i,
+    ];
+    droppable.sort((a, b) => items[a].giveUpAt!.compareTo(items[b].giveUpAt!));
+    return droppable;
   }
 }
 
-/// Steps per beat. A segmented button fits fine along a row; down the
-/// narrow rail its four labels don't, so there they wrap two by two.
-class _BeatRateControl extends ConsumerWidget {
-  final bool vertical;
+const _dockButtonWidth = 62.0;
 
-  const _BeatRateControl({required this.vertical});
+/// One control in the strip, with the width it occupies and how readily the
+/// strip gives it up — null meaning never.
+class _DockItem {
+  final Widget widget;
+  final double width;
+  final int? giveUpAt;
+
+  const _DockItem(this.widget, this.width, {this.giveUpAt});
+}
+
+/// Steps per beat, as a 2×2 block the width of a dock button.
+///
+/// It used to be a segmented button along the strip, which is four labels
+/// wide and was a good part of why the strip ran off a narrow screen. The
+/// panel still spells it out in full.
+class _BeatRateControl extends ConsumerWidget {
+  const _BeatRateControl();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(beatRateProvider);
     void select(BeatRate rate) => ref.read(beatRateProvider.notifier).state = rate;
-
-    if (!vertical) {
-      return SegmentedButton<BeatRate>(
-        segments: [for (final rate in BeatRate.values) ButtonSegment(value: rate, label: Text(rate.label))],
-        selected: {selected},
-        showSelectedIcon: false,
-        style: const ButtonStyle(
-          visualDensity: VisualDensity.compact,
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        ),
-        onSelectionChanged: (selection) => select(selection.first),
-      );
-    }
 
     return SizedBox(
       width: 62,
@@ -384,59 +441,6 @@ class _NowPlayingChip extends StatelessWidget {
   }
 }
 
-/// The grand master: one fader that takes the whole rig down without
-/// touching what's programmed.
-///
-/// It scales intensity only — dimmer channels, or the colour emitters on a
-/// fixture that has no dimmer — so pulling it down dims the stage instead
-/// of swinging moving heads around or changing gobos.
-class _MasterFader extends ConsumerWidget {
-  final bool vertical;
-
-  const _MasterFader({required this.vertical});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final level = ref.watch(grandMasterProvider);
-    final percent = (level * 100).round();
-    final readout = Text(
-      '$percent%',
-      style: appMonoStyle(
-        fontSize: 10.5,
-        color: percent == 100 ? AppColors.textDim : AppColors.accent,
-      ),
-    );
-    const label = Text('Master', style: TextStyle(fontSize: 10.5, color: AppColors.textDim));
-
-    return SizedBox(
-      width: vertical ? 62 : 124,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Side by side only where there's room. In the narrow rail the
-          // label and the percentage stack, or they overflow.
-          if (vertical)
-            label
-          else
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [label, readout]),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-            ),
-            child: Slider(
-              value: level,
-              activeColor: AppColors.accent,
-              onChanged: (value) => ref.read(grandMasterProvider.notifier).set(value),
-            ),
-          ),
-          if (vertical) readout,
-        ],
-      ),
-    );
-  }
-}
 
 class _DockButton extends StatelessWidget {
   final IconData icon;

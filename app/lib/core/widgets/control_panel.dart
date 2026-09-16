@@ -336,6 +336,8 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
           ),
         ],
 
+        // No grand master here: the panel never shows without the dock's
+        // rail beside it, and that carries the fader.
         const Divider(height: 22),
 
         SwitchListTile(

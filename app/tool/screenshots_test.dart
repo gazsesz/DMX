@@ -42,6 +42,9 @@ void main() {
       const MethodChannel('com.llfbandit.record/messages'),
       (call) async => null,
     );
+    // This file is a test; it just lives in tool/ so the suite doesn't pick
+    // it up, which is why the analyzer doesn't believe the mock belongs.
+    // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues({});
   });
 
@@ -111,6 +114,22 @@ void main() {
 
   testWidgets('the open control dock on a phone', (tester) async {
     await shoot(tester, size: const Size(392, 760), name: 'control-dock-open-phone');
+  });
+
+  // The Tab S6 Lite stood on its end: 600x1000 logical, i.e. below the
+  // tablet breakpoint, so it gets the phone layout on a screen that isn't
+  // one.
+  testWidgets('the dock on a tablet held upright', (tester) async {
+    await shoot(tester, size: const Size(600, 1000), name: 'control-dock-open-tablet-portrait');
+  });
+
+  testWidgets('the closed dock on a tablet held upright', (tester) async {
+    await shoot(
+      tester,
+      size: const Size(600, 1000),
+      name: 'control-dock-closed-tablet-portrait',
+      expanded: false,
+    );
   });
 
   testWidgets('the closed dock strip, with the panel button on the end of it', (tester) async {

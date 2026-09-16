@@ -145,6 +145,64 @@ void main() {
     expect(container.read(controlDockProvider).expanded, isFalse);
   });
 
+  // A tablet stood upright is 600dp wide, which the strip used to solve by
+  // scrolling sideways — leaving Tempo off the screen entirely and half of
+  // Blackout with it. It has to wrap instead.
+  testWidgets('the strip wraps rather than running off an upright tablet', (tester) async {
+    tester.view.physicalSize = const Size(1200, 2000);
+    tester.view.devicePixelRatio = 2;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _host(
+        ControlDockPosition.bottom,
+        overrides: [
+          nowPlayingProvider.overrideWith(
+            (ref) => const NowPlaying(id: 'b1', kind: PlaybackKind.bank, name: 'Front Wash'),
+          ),
+        ],
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    final screen = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+    for (final label in ['Front Wash', 'Stop', 'Beat', 'AutoFade', 'Master', 'Blackout', 'Tempo']) {
+      final rect = tester.getRect(find.text(label));
+      expect(rect.left, greaterThanOrEqualTo(0), reason: '$label runs off the left');
+      expect(rect.right, lessThanOrEqualTo(screen), reason: '$label runs off the right');
+    }
+  });
+
+  // 360dp can't hold all of it on two rows, so the strip gives up auto
+  // fade — which is why the panel carries that switch too.
+  testWidgets('a 360dp phone keeps the controls that matter', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(
+      _host(
+        ControlDockPosition.bottom,
+        overrides: [
+          nowPlayingProvider.overrideWith(
+            (ref) => const NowPlaying(id: 'b1', kind: PlaybackKind.bank, name: 'Front Wash'),
+          ),
+        ],
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Blackout'), findsOneWidget);
+    expect(find.text('Tempo'), findsOneWidget);
+    expect(find.text('Stop'), findsOneWidget);
+    expect(find.text('Master'), findsOneWidget);
+    // Auto fade is the one given up — a switch you set once, and the panel
+    // has it.
+    expect(find.text('AutoFade'), findsNothing);
+  });
+
   // The rail eats ~80px of the panel's width, and the narrowest phone this
   // has to run on is 360dp wide — so the tempo controls beside it get about
   // 260. If that overflows, the panel is unusable on that device.
