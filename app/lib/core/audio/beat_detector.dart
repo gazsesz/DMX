@@ -5,6 +5,8 @@ import 'dart:typed_data';
 import 'package:fftea/fftea.dart';
 import 'package:record/record.dart';
 
+import 'onset_baseline.dart';
+
 /// How fast the detector's rolling baseline chases the music.
 ///
 /// The threshold is "mean + k·stddev" of recent onset strength, and this is
@@ -134,8 +136,7 @@ class BeatDetectorService {
   StreamSubscription<Uint8List>? _pcmSub;
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
-  double? _emaMean;
-  double _emaVariance = 0;
+  final OnsetBaseline _baseline = OnsetBaseline();
   int _frameCount = 0;
   DateTime? _lastBeat;
 
@@ -182,8 +183,7 @@ class BeatDetectorService {
       final stream = await _recorder.startStream(
         const RecordConfig(encoder: AudioEncoder.pcm16bits, numChannels: 1, sampleRate: 44100),
       );
-      _emaMean = null;
-      _emaVariance = 0;
+      _baseline.reset();
       _frameCount = 0;
       _lastBeat = null;
       _ring = Float64List(_fftSize);
@@ -331,22 +331,12 @@ class BeatDetectorService {
     final alpha = 1 - math.exp(-_hopMs / adaptSpeed.tauMs);
     final bands = _bandLevels(fluxes, alpha);
 
-    final mean = _emaMean;
-    if (mean == null) {
-      _emaMean = flux;
-      _emaVariance = 0;
-    } else {
-      // Exponential moving average/variance: each new frame nudges the
-      // running mean by `alpha`, rather than a sample dropping out of a
-      // window and yanking the average by its own full weight — this is
-      // what keeps the meter's avg/threshold display smooth instead of
-      // visibly stepping every ~12ms.
-      final delta = flux - mean;
-      final newMean = mean + alpha * delta;
-      _emaMean = newMean;
-      final delta2 = flux - newMean;
-      _emaVariance = (1 - alpha) * (_emaVariance + alpha * delta * delta2);
-    }
+    // Exponential moving average/variance rather than a sliding window:
+    // each new frame nudges the running mean by `alpha` instead of a sample
+    // dropping out and yanking the average by its own full weight, so the
+    // meter's avg/threshold move smoothly rather than stepping every ~12ms.
+    // Outliers are clipped on the way in — see [OnsetBaseline].
+    _baseline.learn(flux, alpha);
 
     final warmupFrames = (_warmupMs / _hopMs).round();
     if (_frameCount < warmupFrames) {
@@ -371,8 +361,7 @@ class BeatDetectorService {
     // almost any residual noise would count as a huge relative rise. A
     // statistical outlier test (mean + k·standard deviation) stays correctly
     // calibrated to how noisy/eventful the recent audio has actually been.
-    final stddev = math.sqrt(_emaVariance);
-
+    //
     // Higher sensitivity -> fewer standard deviations above the mean are
     // enough to count as a beat.
     //
@@ -385,7 +374,7 @@ class BeatDetectorService {
     // gives 3.5) while still reaching 9.0 at the very bottom for a room
     // loud enough to need it.
     final k = 2.5 + 6.5 * _square(1 - sensitivity.clamp(0.0, 1.0));
-    final thresholdFlux = _emaMean! + k * stddev;
+    final thresholdFlux = _baseline.thresholdAt(k);
 
     final now = DateTime.now();
     final pastRefractoryPeriod =
@@ -396,7 +385,7 @@ class BeatDetectorService {
       _beatController.add(now);
     }
 
-    final avgDb = _toDb(_emaMean!);
+    final avgDb = _toDb(_baseline.mean ?? 0);
     final thresholdDb = _toDb(thresholdFlux);
     _meterController.add(
       BeatMeterSample(
