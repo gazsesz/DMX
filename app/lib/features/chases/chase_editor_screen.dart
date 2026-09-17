@@ -476,16 +476,22 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                       style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                     const SizedBox(height: 6),
-                    SegmentedButton<BeatFrequencyBand>(
-                      segments: [
-                        for (final band in BeatFrequencyBand.values)
-                          ButtonSegment(value: band, label: Text(band.label)),
-                      ],
-                      selected: {_frequencyBand},
-                      onSelectionChanged: (selection) {
-                        setState(() => _frequencyBand = selection.first);
-                        ref.read(beatDetectorProvider).frequencyBand = selection.first;
-                      },
+                    // Six bands of labelled segments are wider than a phone
+                    // — and a SegmentedButton overflows rather than shrinks
+                    // — so let the row scroll.
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<BeatFrequencyBand>(
+                        segments: [
+                          for (final band in BeatFrequencyBand.values)
+                            ButtonSegment(value: band, label: Text(band.label)),
+                        ],
+                        selected: {_frequencyBand},
+                        onSelectionChanged: (selection) {
+                          setState(() => _frequencyBand = selection.first);
+                          ref.read(beatDetectorProvider).frequencyBand = selection.first;
+                        },
+                      ),
                     ),
                   ],
                   const SizedBox(height: 12),

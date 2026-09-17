@@ -406,21 +406,27 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             },
           ),
           _label('React to'),
-          SegmentedButton<BeatFrequencyBand>(
-            segments: [
-              for (final band in BeatFrequencyBand.values)
-                ButtonSegment(value: band, label: Text(band.label)),
-            ],
-            selected: {_frequencyBand},
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          // Scrolls sideways: six bands of labelled segments don't fit a
+          // phone's panel, and a SegmentedButton that doesn't fit doesn't
+          // shrink — it overflows and takes the last band with it.
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SegmentedButton<BeatFrequencyBand>(
+              segments: [
+                for (final band in BeatFrequencyBand.values)
+                  ButtonSegment(value: band, label: Text(band.label)),
+              ],
+              selected: {_frequencyBand},
+              showSelectedIcon: false,
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onSelectionChanged: (s) {
+                setState(() => _frequencyBand = s.first);
+                ref.read(beatDetectorProvider).frequencyBand = s.first;
+              },
             ),
-            onSelectionChanged: (s) {
-              setState(() => _frequencyBand = s.first);
-              ref.read(beatDetectorProvider).frequencyBand = s.first;
-            },
           ),
         ],
 

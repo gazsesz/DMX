@@ -51,6 +51,14 @@ enum BeatAdaptSpeed {
 enum BeatFrequencyBand {
   overall,
   kick,
+
+  /// A narrow 60-120Hz window around where a kick drum's fundamental
+  /// actually sits. [kick] is 40-150Hz, wide enough to also take in a bass
+  /// guitar's low notes and a floor tom — fine in most rooms, but on a
+  /// dense mix those keep the baseline up between kicks and the detector
+  /// starts losing them. This band trades that tolerance for a signal that
+  /// is very nearly only the kick.
+  kickTight,
   bass,
   mid,
   high;
@@ -58,6 +66,7 @@ enum BeatFrequencyBand {
   String get label => switch (this) {
     BeatFrequencyBand.overall => 'Volume',
     BeatFrequencyBand.kick => 'Kick/Drum',
+    BeatFrequencyBand.kickTight => 'Kick Tight',
     BeatFrequencyBand.bass => 'Bass',
     BeatFrequencyBand.mid => 'Mid',
     BeatFrequencyBand.high => 'High',
@@ -124,6 +133,11 @@ class BeatDetectorService {
   static const _subBassHz = 20.0; // skip the DC/near-DC bin
   static const _kickLowHz = 40.0;
   static const _kickHighHz = 150.0;
+  // The tight kick window: above the sub-bass rumble a PA puts out more or
+  // less continuously, below the low mids where a bass guitar's body and a
+  // snare's weight start.
+  static const _kickTightLowHz = 60.0;
+  static const _kickTightHighHz = 120.0;
   static const _bassHighHz = 250.0;
   static const _midHighHz = 2000.0;
 
@@ -186,9 +200,7 @@ class BeatDetectorService {
         return false;
       }
 
-      final stream = await _recorder.startStream(
-        const RecordConfig(encoder: AudioEncoder.pcm16bits, numChannels: 1, sampleRate: 44100),
-      );
+      final stream = await _openStream();
       _baseline.reset();
       _frameCount = 0;
       _lastBeat = null;
@@ -222,6 +234,72 @@ class BeatDetectorService {
     }
   }
 
+  /// Android input sources, best first.
+  ///
+  /// [AndroidAudioSource.unprocessed] is the one we actually want: it's the
+  /// source Android defines as raw — no automatic gain control, no noise
+  /// suppression, no echo canceller. All of that processing exists to
+  /// flatter a voice, and all of it works against onset detection: AGC
+  /// pumps the level back up between beats so the kick stops standing out
+  /// from its own baseline, and noise suppression treats a steady loud room
+  /// as the thing to remove. It's optional, though — a device only honours
+  /// it if it reports PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED, and plenty
+  /// of phones (the P20 Pro among them) don't.
+  ///
+  /// [AndroidAudioSource.camcorder] is the fallback because it's the other
+  /// source meant for recording the room rather than the user — it points
+  /// at the mic that faces away from the face and skips voice processing —
+  /// and it's far more widely implemented, though a device without a camera
+  /// mic can still refuse it.
+  ///
+  /// [AndroidAudioSource.mic] is last because it always exists. It's the
+  /// old behaviour, processing and all.
+  static const _androidSources = [
+    AndroidAudioSource.unprocessed,
+    AndroidAudioSource.camcorder,
+    AndroidAudioSource.mic,
+  ];
+
+  static RecordConfig _configFor(AndroidAudioSource source) => RecordConfig(
+    encoder: AudioEncoder.pcm16bits,
+    numChannels: 1,
+    sampleRate: 44100,
+    androidConfig: AndroidRecordConfig(
+      audioSource: source,
+      // Don't let the recorder open a Bluetooth SCO link. It would move
+      // capture to whatever headset is paired and drop the whole stream to
+      // narrowband — 8 or 16kHz, which throws away the spectrum the mid and
+      // high bands live in — and on the way it mutes the A2DP audio the
+      // music is playing over. We want the device's own mic, in the room.
+      manageBluetooth: false,
+    ),
+  );
+
+  /// Opens the capture stream, walking [_androidSources] until one opens.
+  ///
+  /// A source the device won't give us throws out of `startStream`, and the
+  /// next one gets its turn. The chain ends at plain `mic`, so this only
+  /// throws if capture is impossible at all — and the error that surfaces
+  /// is `mic`'s, which is the one worth showing. On every other platform
+  /// the Android block is ignored and the first attempt is the only one.
+  Future<Stream<Uint8List>> _openStream() async {
+    for (var i = 0; i < _androidSources.length; i++) {
+      try {
+        return await _recorder.startStream(_configFor(_androidSources[i]));
+      } catch (_) {
+        if (i == _androidSources.length - 1) rethrow;
+        // Leave nothing half-open behind before asking for the next source.
+        try {
+          await _recorder.stop();
+        } catch (_) {
+          // Never got far enough to need stopping.
+        }
+      }
+    }
+    // Unreachable: the loop either returns or rethrows on its last pass.
+    throw StateError('No audio source to try');
+  }
+
   void _onPcmChunk(Uint8List chunk) {
     final byteData = ByteData.sublistView(chunk);
     for (var i = 0; i + 1 < chunk.length; i += 2) {
@@ -253,6 +331,10 @@ class BeatDetectorService {
       case BeatFrequencyBand.kick:
         loHz = _kickLowHz;
         hiHz = _kickHighHz;
+        break;
+      case BeatFrequencyBand.kickTight:
+        loHz = _kickTightLowHz;
+        hiHz = _kickTightHighHz;
         break;
       case BeatFrequencyBand.bass:
         loHz = _subBassHz;
