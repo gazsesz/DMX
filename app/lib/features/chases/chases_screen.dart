@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/playback/chase_player.dart';
 import '../../core/playback/smart_program_player.dart';
+import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/confirm_dialog.dart';
@@ -15,6 +16,7 @@ import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../models/smart_program.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
@@ -22,6 +24,7 @@ import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/smart_program_providers.dart';
+import '../../state/tempo_providers.dart';
 import 'chase_editor_screen.dart';
 import 'smart_program_editor_screen.dart';
 
@@ -78,16 +81,29 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       );
       return;
     }
-    _smartPlayer.stop();
-    _player.play(
-      chase: chase,
-      scenes: ref.read(scenesProvider),
-      banks: ref.read(banksProvider),
-      patchedFixtures: ref.read(patchedFixturesProvider),
-      universes: ref.read(universesProvider),
-      service: service,
-      onStep: (_) {},
+    // This screen used to call the player raw — no beat stream, no beat
+    // rate, no flash length — so Beat Sync and the Flash rate did nothing
+    // to a chase fired from the list, while the very same chase beat-synced
+    // fine from the Dashboard or the Banks screen. It goes through the one
+    // shared start now, like every other trigger in the app.
+    if (chase.beatSync && !ref.read(beatSyncEnabledProvider)) {
+      // The chase asks for the beat itself: arm the app-wide switch rather
+      // than run the mic behind the dock's back, so what the dock shows and
+      // what the rig does stay the same thing.
+      final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(true);
+      if (error != null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$error — falling back to timed steps')),
+        );
+      }
+    }
+    if (!mounted) return;
+    await startChase(
+      ref.read,
+      chaseAsDashboardPlaysIt(ref.read, chase),
+      dashboardTiming: ref.read(tempoProvider).overrideTiming,
     );
+    if (!mounted) return;
     ref.read(nowPlayingProvider.notifier).state = NowPlaying(
       id: chase.id,
       kind: PlaybackKind.chase,

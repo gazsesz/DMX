@@ -224,6 +224,13 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       service: service,
       beatStream: beatStream,
       beatRate: beatRateOf(ref),
+      // Read live, so changing the rate or the flash length in the dock
+      // while the preview runs reaches the rig — the preview is where you
+      // dial those in, and a value captured at play() time meant stopping
+      // and starting again after every nudge.
+      flashLength: ref.read(flashLengthProvider),
+      liveBeatRate: () => ref.read(beatRateProvider),
+      liveFlashLength: () => ref.read(flashLengthProvider),
       onStep: (index) {
         if (mounted) setState(() => _playingIndex = index);
       },
