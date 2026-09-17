@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../core/generator/program_generator.dart';
 import '../../core/playback/chase_player.dart';
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
@@ -26,6 +28,8 @@ import '../../state/tempo_providers.dart';
 import '../scenes/scene_editor_screen.dart';
 import '../scenes/scenes_screen.dart';
 import 'program_generator_screen.dart';
+
+const _uuid = Uuid();
 
 class BanksScreen extends ConsumerStatefulWidget {
   const BanksScreen({super.key});
@@ -132,6 +136,52 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       _player.stop();
       _toggleRun(bank);
     }
+  }
+
+  /// Builds the ready-made beat-flash program: a two-scene bank — rig out,
+  /// rig at full — armed for Beat Sync at the Flash rate, which is the one
+  /// combination that gives a stab on each beat instead of a square wave
+  /// sitting at 50% duty. One tap, rather than building two scenes by hand
+  /// and then remembering which of the four beat rates does this.
+  Future<void> _addBeatFlashBank() async {
+    final fixtures = ref.read(patchedFixturesProvider);
+    if (fixtures.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No patched fixtures — patch your lamps first')),
+      );
+      return;
+    }
+
+    final scenes = buildBeatFlashScenes(fixtures: fixtures, idGenerator: () => _uuid.v4());
+    final sceneNotifier = ref.read(scenesProvider.notifier);
+    for (final scene in scenes) {
+      sceneNotifier.upsert(scene);
+    }
+
+    final banksNotifier = ref.read(banksProvider.notifier);
+    final taken = {for (final b in ref.read(banksProvider)) b.name};
+    var name = 'Beat Flash';
+    for (var n = 2; taken.contains(name); n++) {
+      name = 'Beat Flash $n';
+    }
+    final bank = banksNotifier.addBank(name: name, slots: scenes.length);
+    for (var i = 0; i < scenes.length; i++) {
+      banksNotifier.setSlot(bank.id, i, scenes[i].id);
+    }
+
+    ref.read(beatRateProvider.notifier).state = BeatRate.flash;
+    setState(() {
+      _selectedBankId = bank.id;
+      _runningSlot = null;
+      _manualSlot = null;
+    });
+    // Arms the mic through the same path as the switch below, so a denied
+    // or busy microphone reports itself the way it does everywhere else.
+    await _setBeatSync(true);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('"$name" ready — hit Run Bank and it flashes on every beat')),
+    );
   }
 
   void _restartRunIfPlaying(Bank bank) {
@@ -424,6 +474,12 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     final newBank = ref.read(banksProvider.notifier).addBank();
                     setState(() => _selectedBankId = newBank.id);
                   },
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.flash_on, size: 16, color: AppColors.accent),
+                  label: const Text('Beat Flash'),
+                  tooltip: 'Every lamp, full, on every beat',
+                  onPressed: _addBeatFlashBank,
                 ),
               ],
             ),

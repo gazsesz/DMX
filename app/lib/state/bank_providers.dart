@@ -16,11 +16,14 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
         Bank(id: _uuid.v4(), name: 'Bank 1', sceneSlots: List.filled(defaultBankSize, null)),
       ]);
 
-  Bank addBank() {
+  /// [name] and [slots] let a preset mint a bank that is already the right
+  /// size and called the right thing, instead of an empty "Bank N" the
+  /// caller then has to rename and resize in two more state updates.
+  Bank addBank({String? name, int? slots}) {
     final bank = Bank(
       id: _uuid.v4(),
-      name: 'Bank ${state.length + 1}',
-      sceneSlots: List.filled(defaultBankSize, null),
+      name: name ?? 'Bank ${state.length + 1}',
+      sceneSlots: List.filled(slots ?? defaultBankSize, null),
     );
     state = [...state, bank];
     return bank;
