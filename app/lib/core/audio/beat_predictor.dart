@@ -1,19 +1,19 @@
 import 'dart:async';
 
-import 'beat_detector.dart';
 import 'tempo_estimator.dart';
 
 /// Fills in the beats the detector never heard.
 ///
-/// [BeatDetectorService] only reports a beat once its onset actually crosses
-/// the threshold — a quiet passage, a bass note buried under the mix, or
-/// just an unlucky microphone position can drop one, and every consumer
-/// downstream (a beat-synced chase waiting for the next event) simply stalls
-/// until the next real onset arrives. That stall is audible: the rig holds
-/// a look a beat and a half too long, then double-steps to catch up.
+/// A `BeatDetectorService`'s beat stream only reports a beat once its onset
+/// actually crosses the threshold — a quiet passage, a bass note buried
+/// under the mix, or just an unlucky microphone position can drop one, and
+/// every consumer downstream (a beat-synced chase waiting for the next
+/// event) simply stalls until the next real onset arrives. That stall is
+/// audible: the rig holds a look a beat and a half too long, then
+/// double-steps to catch up.
 ///
-/// This sits between the detector and its consumers. It relays every real
-/// beat straight through, and — once a handful of them agree on a tempo —
+/// This wraps that raw stream. It relays every real beat straight through,
+/// and — once a handful of them agree on a tempo —
 /// also locks onto that tempo's period and keeps emitting synthetic beats on
 /// schedule for as long as real ones stop arriving. A real beat, whenever it
 /// does show up, immediately re-phases the lock to it rather than averaging
@@ -30,7 +30,7 @@ class BeatPredictor {
   static const _maxConsecutivePredictions = 4;
 
   /// A gap this large between real beats means a new song (or silence)
-  /// rather than a slow tempo — matches [BeatTempoTracker]'s own cutoff, so
+  /// rather than a slow tempo — matches `BeatTempoTracker`'s own cutoff, so
   /// the two never disagree about when the old tempo stopped applying.
   static const _staleAfter = Duration(seconds: 2);
 
@@ -42,8 +42,12 @@ class BeatPredictor {
   int _consecutivePredictions = 0;
   bool _enabled = false;
 
-  BeatPredictor(BeatDetectorService service) {
-    _sub = service.beatEvents.listen(_onRealBeat);
+  /// Wraps [realBeats] — typically a `BeatDetectorService.beatEvents` —
+  /// rather than the service itself, so this has no idea a microphone is
+  /// even involved and can be driven by anything (a test, a future non-mic
+  /// clock source) that produces a beat timeline.
+  BeatPredictor(Stream<DateTime> realBeats) {
+    _sub = realBeats.listen(_onRealBeat);
   }
 
   /// Real beats, plus — while [enabled] and locked onto a tempo — the

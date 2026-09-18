@@ -33,6 +33,10 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
     beatSyncEnabled: () => ref.read(beatSyncEnabledProvider),
     beatRate: () => ref.read(beatRateProvider),
     flashLength: () => ref.read(flashLengthProvider),
+    // Routed through the shared predictor so a Smart Program's tempo
+    // tracking rides out a missed beat the same way a beat-synced chase
+    // does, instead of the classifier alone having to fold it back in.
+    beatEvents: ref.watch(beatPredictorProvider).events,
   );
   ref.onDispose(player.dispose);
   return player;

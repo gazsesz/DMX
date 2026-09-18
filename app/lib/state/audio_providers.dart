@@ -17,7 +17,7 @@ final beatDetectorProvider = Provider<BeatDetectorService>((ref) {
 /// the same missed beats the same way instead of each screen guessing on
 /// its own.
 final beatPredictorProvider = Provider<BeatPredictor>((ref) {
-  final predictor = BeatPredictor(ref.watch(beatDetectorProvider));
+  final predictor = BeatPredictor(ref.watch(beatDetectorProvider).beatEvents);
   ref.onDispose(predictor.dispose);
   return predictor;
 });

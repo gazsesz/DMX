@@ -34,6 +34,14 @@ class SmartProgramPlayer {
   final ChasePlayer chasePlayer;
   final BeatDetectorService beatService;
 
+  /// What actually drives [_onBeat] and an embedded chase/bank's own beat
+  /// sync (below) — the raw detector by default, or a [BeatPredictor]'s
+  /// stream when the caller wants missed beats filled in. Kept separate
+  /// from [beatService] because that one still owns starting/stopping the
+  /// microphone itself; a predictor only ever sits in front of it, never
+  /// replaces it.
+  final Stream<DateTime> beatEvents;
+
   /// The app-wide beat-sync switch, and the rate it's set to — read live
   /// rather than captured, so flipping either from the dock lands on the
   /// running program.
@@ -51,10 +59,12 @@ class SmartProgramPlayer {
   SmartProgramPlayer({
     required this.chasePlayer,
     required this.beatService,
+    Stream<DateTime>? beatEvents,
     bool Function()? beatSyncEnabled,
     BeatRate Function()? beatRate,
     Duration Function()? flashLength,
-  })  : beatSyncEnabled = beatSyncEnabled ?? (() => false),
+  })  : beatEvents = beatEvents ?? beatService.beatEvents,
+        beatSyncEnabled = beatSyncEnabled ?? (() => false),
         beatRate = beatRate ?? (() => BeatRate.normal),
         flashLength = flashLength ?? (() => const Duration(milliseconds: 80));
 
@@ -110,7 +120,7 @@ class SmartProgramPlayer {
     _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.base));
     _resetSilenceTimer(service: service, universes: universes);
 
-    _beatSub = beatService.beatEvents.listen((now) {
+    _beatSub = beatEvents.listen((now) {
       _onBeat(
         now,
         chases: chases,
@@ -373,7 +383,7 @@ class SmartProgramPlayer {
       patchedFixtures: patchedFixtures,
       universes: universes,
       service: service,
-      beatStream: onBeat ? beatService.beatEvents : null,
+      beatStream: onBeat ? beatEvents : null,
       beatRate: beatRate(),
       flashLength: flashLength(),
       liveBeatRate: beatRate,
