@@ -97,7 +97,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       patchedFixtures: ref.read(patchedFixturesProvider),
       universes: ref.read(universesProvider),
       service: service,
-      beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
+      beatStream: beatSync ? ref.read(beatPredictorProvider).events : null,
       beatRate: beatRateOf(ref),
       flashLength: ref.read(flashLengthProvider),
       liveBeatRate: () => ref.read(beatRateProvider),

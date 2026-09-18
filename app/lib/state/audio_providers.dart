@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/audio/beat_detector.dart';
+import '../core/audio/beat_predictor.dart';
 import '../core/playback/chase_player.dart';
 
 /// One shared beat detector for the whole app, so a chase started from any
@@ -10,6 +11,36 @@ final beatDetectorProvider = Provider<BeatDetectorService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
+
+/// One shared predictor sitting in front of [beatDetectorProvider], so every
+/// beat-synced chase (Dashboard, Banks, the Chase editor's preview) fills
+/// the same missed beats the same way instead of each screen guessing on
+/// its own.
+final beatPredictorProvider = Provider<BeatPredictor>((ref) {
+  final predictor = BeatPredictor(ref.watch(beatDetectorProvider));
+  ref.onDispose(predictor.dispose);
+  return predictor;
+});
+
+/// Whether the predictor is filling in missed beats. Off by default —
+/// same reasoning as [beatSyncEnabledProvider] starting false: it's a
+/// listening mode you opt into, not one that should surprise you by already
+/// being on. Only meaningful (and only shown in the UI) while beat sync
+/// itself is armed.
+final beatPredictionEnabledProvider = StateNotifierProvider<BeatPredictionNotifier, bool>((ref) {
+  return BeatPredictionNotifier(ref.watch(beatPredictorProvider));
+});
+
+class BeatPredictionNotifier extends StateNotifier<bool> {
+  final BeatPredictor _predictor;
+
+  BeatPredictionNotifier(this._predictor) : super(false);
+
+  void setEnabled(bool value) {
+    _predictor.enabled = value;
+    state = value;
+  }
+}
 
 /// Whether mic beat-sync is armed, shared by every screen that can start
 /// playback. It has to be one flag: a bank fired from the Dashboard used to

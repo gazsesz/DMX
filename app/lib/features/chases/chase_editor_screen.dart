@@ -212,7 +212,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
           );
         }
       } else {
-        beatStream = beatService.beatEvents;
+        beatStream = ref.read(beatPredictorProvider).events;
       }
     }
     _player.play(

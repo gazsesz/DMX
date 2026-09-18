@@ -181,6 +181,7 @@ class _DockControls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final nowPlaying = ref.watch(nowPlayingProvider);
     final beatSync = ref.watch(beatSyncEnabledProvider);
+    final beatPrediction = ref.watch(beatPredictionEnabledProvider);
     final lastPlayed = ref.watch(lastPlayedProvider);
     final tempo = ref.watch(tempoProvider);
     final expanded = ref.watch(controlDockProvider).expanded;
@@ -225,6 +226,20 @@ class _DockControls extends ConsumerWidget {
         ),
         _dockButtonWidth,
       ),
+      // Only worth showing once there's something to predict from — beat
+      // sync off means the mic (and so the predictor) isn't even running.
+      if (beatSync)
+        _DockItem(
+          _DockButton(
+            icon: Icons.online_prediction,
+            label: 'Predict',
+            color: AppColors.accent2,
+            active: beatPrediction,
+            onTap: () => ref.read(beatPredictionEnabledProvider.notifier).setEnabled(!beatPrediction),
+          ),
+          _dockButtonWidth,
+          giveUpAt: 1,
+        ),
       if (beatSync && showBeatRate)
         // First to go when the strip is short of room: it's a setting
         // rather than a control you grab, and the panel has it too.

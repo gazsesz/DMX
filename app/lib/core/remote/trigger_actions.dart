@@ -28,7 +28,7 @@ Future<void> startChase(ReadProvider read, Chase chase, {bool dashboardTiming = 
   Stream<DateTime>? beatStream;
   if (chase.beatSync) {
     final beatService = read(beatDetectorProvider);
-    if (await beatService.start()) beatStream = beatService.beatEvents;
+    if (await beatService.start()) beatStream = read(beatPredictorProvider).events;
   }
   read(playbackControllerProvider).play(
     chase: chase,
