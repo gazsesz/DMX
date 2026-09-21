@@ -6,6 +6,7 @@ import 'artnet_providers.dart';
 import 'momentary_fx_providers.dart';
 import 'provider_reader.dart';
 import 'audio_providers.dart';
+import 'tempo_providers.dart';
 
 /// A single player shared by every screen that can start a bank/chase
 /// (Dashboard triggers, the Banks "Run Bank" preview, the Chase editor's
@@ -37,6 +38,11 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
     // tracking rides out a missed beat the same way a beat-synced chase
     // does, instead of the classifier alone having to fold it back in.
     beatEvents: ref.watch(beatPredictorProvider).events,
+    // Lets the player suspend the app-wide Auto-Fade switch for as long as
+    // a Beat Flash bank is the active zone, and put it back once the
+    // program moves off it — see `SmartProgramPlayer._updateAutoFadeSuppression`.
+    isAutoFadeOn: () => ref.read(tempoProvider).autoFade,
+    setAutoFade: (value) => ref.read(tempoProvider.notifier).setAutoFade(value),
   );
   ref.onDispose(player.dispose);
   return player;

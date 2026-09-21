@@ -19,11 +19,13 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
   /// [name] and [slots] let a preset mint a bank that is already the right
   /// size and called the right thing, instead of an empty "Bank N" the
   /// caller then has to rename and resize in two more state updates.
-  Bank addBank({String? name, int? slots}) {
+  /// [isBeatFlash] tags a bank built by the Beat Flash preset — see [Bank].
+  Bank addBank({String? name, int? slots, bool isBeatFlash = false}) {
     final bank = Bank(
       id: _uuid.v4(),
       name: name ?? 'Bank ${state.length + 1}',
       sceneSlots: List.filled(slots ?? defaultBankSize, null),
+      isBeatFlash: isBeatFlash,
     );
     state = [...state, bank];
     return bank;
@@ -50,6 +52,15 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     state = [
       for (final b in state)
         if (b.id == id) b.resized(newSize) else b,
+    ];
+  }
+
+  /// Sets the lit→dark fade-out for a Beat Flash bank's [BeatRate.flash]
+  /// playback — see [Bank.flashFadeOutMs].
+  void setFlashFadeOut(String id, int ms) {
+    state = [
+      for (final b in state)
+        if (b.id == id) b.copyWith(flashFadeOutMs: ms.clamp(0, 5000)) else b,
     ];
   }
 

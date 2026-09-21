@@ -154,4 +154,82 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     expect(steps.length, greaterThan(2), reason: 'no beat stream means the hold times drive it');
   });
+
+  group('Bank.flashFadeOutMs', () {
+    test('a flash bank with no fade-out set still cuts instantly, both ways', () async {
+      var counter = 0;
+      final scenes = buildBeatFlashScenes(fixtures: fixtures, idGenerator: () => 'scene-${counter++}');
+      final bank = Bank(
+        id: 'bank-0',
+        name: 'Beat Flash',
+        sceneSlots: [scenes.first.id, scenes.last.id],
+        isBeatFlash: true,
+      );
+
+      unawaited(player.play(
+        chase: Chase(id: 'c1', name: 'Flash', steps: [const ChaseStep(bankId: 'bank-0')], beatSync: true),
+        scenes: scenes,
+        banks: [bank],
+        patchedFixtures: fixtures,
+        universes: [universe],
+        service: service,
+        beatStream: beats.stream,
+        beatRate: BeatRate.flash,
+        flashLength: const Duration(milliseconds: 40),
+      ));
+
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      beats.add(DateTime.now());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(dimmers(), [255, 255, 255, 255]);
+
+      await Future<void>.delayed(const Duration(milliseconds: 60));
+      expect(dimmers(), [0, 0, 0, 0], reason: 'no fade-out configured means the release is still a hard cut');
+    });
+
+    test('a configured fade-out fades the lit→dark step, never the dark→lit attack', () async {
+      var counter = 0;
+      final scenes = buildBeatFlashScenes(fixtures: fixtures, idGenerator: () => 'scene-${counter++}');
+      final bank = Bank(
+        id: 'bank-0',
+        name: 'Beat Flash',
+        sceneSlots: [scenes.first.id, scenes.last.id],
+        isBeatFlash: true,
+        flashFadeOutMs: 320,
+      );
+
+      unawaited(player.play(
+        chase: Chase(id: 'c1', name: 'Flash', steps: [const ChaseStep(bankId: 'bank-0')], beatSync: true),
+        scenes: scenes,
+        banks: [bank],
+        patchedFixtures: fixtures,
+        universes: [universe],
+        service: service,
+        beatStream: beats.stream,
+        beatRate: BeatRate.flash,
+        flashLength: const Duration(milliseconds: 80),
+      ));
+
+      // Let the player settle on the (already-dark, so visually harmless)
+      // initial dark step and start waiting for a beat.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      beats.add(DateTime.now());
+
+      // The attack is always instant, whatever the configured release is —
+      // well inside the 80ms flash hold that follows it.
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(dimmers(), [255, 255, 255, 255]);
+
+      // Past the flash hold and partway into the 320ms release.
+      await Future<void>.delayed(const Duration(milliseconds: 170));
+      final mid = dimmers();
+      expect(mid.toSet(), hasLength(1), reason: 'every lamp fades together');
+      expect(mid.first, greaterThan(0));
+      expect(mid.first, lessThan(255));
+
+      // Comfortably past hold (80ms) + release (320ms).
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(dimmers(), [0, 0, 0, 0]);
+    });
+  });
 }
