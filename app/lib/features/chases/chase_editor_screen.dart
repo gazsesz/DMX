@@ -203,7 +203,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     ref.read(smartProgramPlayerProvider).stop();
     Stream<DateTime>? beatStream;
     if (_beatSync) {
-      final beatService = ref.read(beatDetectorProvider);
+      final beatService = ref.read(activeBeatSourceProvider);
       final started = await beatService.start();
       if (!started) {
         if (mounted) {
@@ -212,7 +212,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
           );
         }
       } else {
-        beatStream = beatService.beatEvents;
+        beatStream = ref.read(beatPredictorProvider).events;
       }
     }
     _player.play(
@@ -224,10 +224,27 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       service: service,
       beatStream: beatStream,
       beatRate: beatRateOf(ref),
+      // Read live, so changing the rate or the flash length in the dock
+      // while the preview runs reaches the rig — the preview is where you
+      // dial those in, and a value captured at play() time meant stopping
+      // and starting again after every nudge.
+      flashLength: ref.read(flashLengthProvider),
+      liveBeatRate: () => ref.read(beatRateProvider),
+      liveFlashLength: () => ref.read(flashLengthProvider),
       onStep: (index) {
         if (mounted) setState(() => _playingIndex = index);
       },
     );
+    // A step whose scene or bank doesn't exist flattens to nothing, and the
+    // player quietly declines to run zero steps.
+    if (!_player.isPlaying) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nothing to preview — add a step with a valid scene or bank first')),
+        );
+      }
+      return;
+    }
     ref.read(nowPlayingProvider.notifier).state = NowPlaying(
       id: widget.existing.id,
       kind: PlaybackKind.chase,
@@ -476,16 +493,22 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                       style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                     const SizedBox(height: 6),
-                    SegmentedButton<BeatFrequencyBand>(
-                      segments: [
-                        for (final band in BeatFrequencyBand.values)
-                          ButtonSegment(value: band, label: Text(band.label)),
-                      ],
-                      selected: {_frequencyBand},
-                      onSelectionChanged: (selection) {
-                        setState(() => _frequencyBand = selection.first);
-                        ref.read(beatDetectorProvider).frequencyBand = selection.first;
-                      },
+                    // Six bands of labelled segments are wider than a phone
+                    // — and a SegmentedButton overflows rather than shrinks
+                    // — so let the row scroll.
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: SegmentedButton<BeatFrequencyBand>(
+                        segments: [
+                          for (final band in BeatFrequencyBand.values)
+                            ButtonSegment(value: band, label: Text(band.label)),
+                        ],
+                        selected: {_frequencyBand},
+                        onSelectionChanged: (selection) {
+                          setState(() => _frequencyBand = selection.first);
+                          ref.read(beatDetectorProvider).frequencyBand = selection.first;
+                        },
+                      ),
                     ),
                   ],
                   const SizedBox(height: 12),

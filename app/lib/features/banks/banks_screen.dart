@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
+import '../../core/generator/program_generator.dart';
 import '../../core/playback/chase_player.dart';
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/color_picker_dialog.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/node_status_action.dart';
@@ -27,6 +30,8 @@ import '../scenes/scene_editor_screen.dart';
 import '../scenes/scenes_screen.dart';
 import 'program_generator_screen.dart';
 
+const _uuid = Uuid();
+
 class BanksScreen extends ConsumerStatefulWidget {
   const BanksScreen({super.key});
 
@@ -35,7 +40,6 @@ class BanksScreen extends ConsumerStatefulWidget {
 }
 
 class _BanksScreenState extends ConsumerState<BanksScreen> {
-  String? _selectedBankId;
   late final ChasePlayer _player;
   int? _runningSlot;
 
@@ -93,7 +97,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       patchedFixtures: ref.read(patchedFixturesProvider),
       universes: ref.read(universesProvider),
       service: service,
-      beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
+      beatStream: beatSync ? ref.read(beatPredictorProvider).events : null,
       beatRate: beatRateOf(ref),
       flashLength: ref.read(flashLengthProvider),
       liveBeatRate: () => ref.read(beatRateProvider),
@@ -109,6 +113,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         if (mounted) setState(() => _runningSlot = index);
       },
     );
+    // A bank with every slot empty flattens to zero steps, and `play`
+    // quietly declines to run them — reporting it as playing would leave
+    // nowPlaying (and this row's own icon) claiming a run that never
+    // started.
+    if (!_player.isPlaying) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${bank.name}" has no filled slots to play')),
+      );
+      return;
+    }
     ref.read(nowPlayingProvider.notifier).state = NowPlaying(
       id: bank.id,
       kind: PlaybackKind.bank,
@@ -132,6 +146,65 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       _player.stop();
       _toggleRun(bank);
     }
+  }
+
+  /// Builds the ready-made beat-flash program: a two-scene bank — rig out,
+  /// rig at full — armed for Beat Sync at the Flash rate, which is the one
+  /// combination that gives a stab on each beat instead of a square wave
+  /// sitting at 50% duty. One tap, rather than building two scenes by hand
+  /// and then remembering which of the four beat rates does this.
+  ///
+  /// Asks for the flash colour up front — white by default, but a tap away
+  /// from anything else — since a bank editor buried two screens deep is not
+  /// where anyone would think to look to change it. The "Up" scene can still
+  /// be split into differently-coloured groups afterwards for a flash where
+  /// the lamps don't all match.
+  Future<void> _addBeatFlashBank() async {
+    final fixtures = ref.read(patchedFixturesProvider);
+    if (fixtures.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No patched fixtures — patch your lamps first')),
+      );
+      return;
+    }
+
+    final color = await showColorPickerDialog(context, initial: const [255, 255, 255]);
+    if (!mounted) return;
+
+    final scenes = buildBeatFlashScenes(
+      fixtures: fixtures,
+      idGenerator: () => _uuid.v4(),
+      color: color ?? const [255, 255, 255],
+    );
+    final sceneNotifier = ref.read(scenesProvider.notifier);
+    for (final scene in scenes) {
+      sceneNotifier.upsert(scene);
+    }
+
+    final banksNotifier = ref.read(banksProvider.notifier);
+    final taken = {for (final b in ref.read(banksProvider)) b.name};
+    var name = 'Beat Flash';
+    for (var n = 2; taken.contains(name); n++) {
+      name = 'Beat Flash $n';
+    }
+    final bank = banksNotifier.addBank(name: name, slots: scenes.length, isBeatFlash: true);
+    for (var i = 0; i < scenes.length; i++) {
+      banksNotifier.setSlot(bank.id, i, scenes[i].id);
+    }
+
+    ref.read(beatRateProvider.notifier).state = BeatRate.flash;
+    ref.read(selectedBankIdProvider.notifier).state = bank.id;
+    setState(() {
+      _runningSlot = null;
+      _manualSlot = null;
+    });
+    // Arms the mic through the same path as the switch below, so a denied
+    // or busy microphone reports itself the way it does everywhere else.
+    await _setBeatSync(true);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('"$name" ready — hit Run Bank and it flashes on every beat')),
+    );
   }
 
   void _restartRunIfPlaying(Bank bank) {
@@ -259,7 +332,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       }
     }
     ref.read(banksProvider.notifier).remove(bank.id);
-    setState(() => _selectedBankId = null);
+    ref.read(selectedBankIdProvider.notifier).state = null;
   }
 
   Future<void> _renameBank(Bank bank) async {
@@ -315,8 +388,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
       );
     }
+    final selectedBankId = ref.watch(selectedBankIdProvider);
     final selected = banks.firstWhere(
-      (b) => b.id == _selectedBankId,
+      (b) => b.id == selectedBankId,
       orElse: () => banks.first,
     );
     final nowPlaying = ref.watch(nowPlayingProvider);
@@ -408,8 +482,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                           _player.stop();
                           ref.read(nowPlayingProvider.notifier).state = null;
                         }
+                        ref.read(selectedBankIdProvider.notifier).state = bank.id;
                         setState(() {
-                          _selectedBankId = bank.id;
                           _runningSlot = null;
                           _manualSlot = null;
                         });
@@ -422,8 +496,14 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   label: const Text('New'),
                   onPressed: () {
                     final newBank = ref.read(banksProvider.notifier).addBank();
-                    setState(() => _selectedBankId = newBank.id);
+                    ref.read(selectedBankIdProvider.notifier).state = newBank.id;
                   },
+                ),
+                ActionChip(
+                  avatar: const Icon(Icons.flash_on, size: 16, color: AppColors.accent),
+                  label: const Text('Beat Flash'),
+                  tooltip: 'Every lamp, full, on every beat',
+                  onPressed: _addBeatFlashBank,
                 ),
               ],
             ),
@@ -521,6 +601,38 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               ],
             ),
           ),
+          if (selected.isBeatFlash)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Row(
+                children: [
+                  const Tooltip(
+                    message: 'How long the lit → dark step takes at the Flash rate. '
+                        '0 is a hard cut; a little more gives the flash a short decay.',
+                    child: Icon(Icons.timelapse, size: 15, color: AppColors.textFaint),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text('Flash Fade Out', style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
+                  Expanded(
+                    child: Slider(
+                      value: selected.flashFadeOutMs.toDouble().clamp(0, 500),
+                      min: 0,
+                      max: 500,
+                      divisions: 50,
+                      label: '${selected.flashFadeOutMs} ms',
+                      onChanged: (v) => ref.read(banksProvider.notifier).setFlashFadeOut(selected.id, v.round()),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      '${selected.flashFadeOutMs}ms',
+                      style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: Builder(builder: (context) {
               final filledIndices = [

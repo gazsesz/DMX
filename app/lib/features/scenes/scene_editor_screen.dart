@@ -4,13 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/widgets/bank_picker_dialog.dart';
 import '../../core/widgets/channel_slider.dart';
+import '../../core/widgets/color_picker_dialog.dart';
+import '../../core/widgets/fixture_group_style.dart';
 import '../../models/builtin_fixtures.dart';
 import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
+import '../../models/fixture_group.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/color_palette_providers.dart';
+import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
 
@@ -64,22 +69,53 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         perFixtureValues[fixture.id] = map;
         _lastKnownValues[fixture.id] = map;
       }
-      // Cluster fixtures that share an identical value map into one group,
-      // so a previously-saved "3 purple, 1 dark" scene re-opens that way.
-      final byValues = <String, _Group>{};
-      for (final fixtureId in perFixtureValues.keys) {
-        final map = perFixtureValues[fixtureId]!;
-        final key = (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
-            .map((e) => '${e.key}:${e.value}')
-            .join(',');
-        final group = byValues.putIfAbsent(
-          key,
-          () => _Group(id: 'g${_groupCounter++}', fixtureIds: {}, values: Map.of(map)),
-        );
-        group.fixtureIds.add(fixtureId);
+
+      final savedGroups = scene.fixtureGroups;
+      if (savedGroups != null && savedGroups.isNotEmpty) {
+        // Rebuild exactly the groups the user last left the scene in,
+        // instead of re-clustering by value — two groups that happen to
+        // share a colour (or one split off before its colour changed) must
+        // not silently re-merge on reopen, or the grouping looks like it
+        // never saved.
+        for (final ids in savedGroups) {
+          final present = ids.where(perFixtureValues.containsKey).toSet();
+          if (present.isEmpty) continue;
+          final representative = perFixtureValues[present.first]!;
+          _groups.add(_Group(id: 'g${_groupCounter++}', fixtureIds: present, values: Map.of(representative)));
+        }
+        // Any fixture the scene has values for but that wasn't listed in a
+        // saved group (older data, or one added since) still gets to show
+        // up — on its own, clustered with whichever others match its exact
+        // look, same as the old behaviour.
+        final grouped = {for (final g in _groups) ...g.fixtureIds};
+        final orphans = perFixtureValues.keys.where((id) => !grouped.contains(id));
+        _clusterByValue(orphans, perFixtureValues);
+      } else {
+        // No saved grouping (older scene, or one built programmatically,
+        // e.g. the Beat Flash preset) — cluster fixtures that share an
+        // identical value map into one group, so a previously-saved
+        // "3 purple, 1 dark" scene re-opens that way.
+        _clusterByValue(perFixtureValues.keys, perFixtureValues);
       }
-      _groups.addAll(byValues.values);
     }
+  }
+
+  /// Groups fixtures in [ids] by exactly matching channel-function values —
+  /// the fallback for scenes with no explicit saved grouping.
+  void _clusterByValue(Iterable<String> ids, Map<String, Map<String, int>> perFixtureValues) {
+    final byValues = <String, _Group>{};
+    for (final fixtureId in ids) {
+      final map = perFixtureValues[fixtureId]!;
+      final key = (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+          .map((e) => '${e.key}:${e.value}')
+          .join(',');
+      final group = byValues.putIfAbsent(
+        key,
+        () => _Group(id: 'g${_groupCounter++}', fixtureIds: {}, values: Map.of(map)),
+      );
+      group.fixtureIds.add(fixtureId);
+    }
+    _groups.addAll(byValues.values);
   }
 
   @override
@@ -124,6 +160,28 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     });
   }
 
+  /// Adds a whole saved [FixtureGroup] as one new scene group in a single
+  /// tap — skips any fixture that's already selected, since it's already
+  /// live somewhere and re-grouping it should stay a deliberate drag, not a
+  /// side effect of tapping a shortcut chip.
+  void _addSavedGroupToScene(FixtureGroup savedGroup) {
+    final patchedIds = _allFixtures.map((f) => f.id).toSet();
+    final selected = _selectedFixtureIds;
+    final ids = savedGroup.fixtureIds.where((id) => patchedIds.contains(id) && !selected.contains(id)).toSet();
+    if (ids.isEmpty) return;
+    setState(() {
+      final values = <String, int>{};
+      for (final id in ids) {
+        final cached = _lastKnownValues[id];
+        if (cached != null) {
+          values.addAll(cached);
+          break;
+        }
+      }
+      _groups.add(_Group(id: 'g${_groupCounter++}', fixtureIds: ids, values: values));
+    });
+  }
+
   void _removeFixtureFromScene(PatchedFixture fixture) {
     setState(() {
       final group = _groupOf(fixture.id);
@@ -148,7 +206,14 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         );
       } else {
         final target = _groups.where((g) => g.id == targetGroupId).firstOrNull;
-        target?.fixtureIds.add(fixture.id);
+        if (target != null) {
+          target.fixtureIds.add(fixture.id);
+          // The fixture now shows the target group's look, not whatever it
+          // had before — cache that, or moving it again later (e.g. back
+          // out to its own group) would resurrect the stale value instead
+          // of the colour it's actually showing.
+          _lastKnownValues[fixture.id] = Map.of(target.values);
+        }
       }
     });
   }
@@ -188,6 +253,39 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
       if (hasDimmer && (group.values[ChannelFunction.dimmer.name] ?? 0) == 0) {
         group.values[ChannelFunction.dimmer.name] = 255;
       }
+      for (final id in group.fixtureIds) {
+        _lastKnownValues[id] = Map.of(group.values);
+      }
+    });
+    _pushLiveOutput();
+  }
+
+  /// Opens the full picker — presets, your saved colours, and a palette to
+  /// mix a new one.
+  ///
+  /// The rig follows the sliders while it's open, so you pick by looking at
+  /// the lamps; dismissing it puts the group back exactly as it was, live
+  /// output included, rather than leaving the last colour you dragged past.
+  Future<void> _openColorPicker(_Group group) async {
+    final snapshot = Map.of(group.values);
+    final picked = await showColorPickerDialog(
+      context,
+      initial: [
+        _valueForInGroup(group, ChannelFunction.red),
+        _valueForInGroup(group, ChannelFunction.green),
+        _valueForInGroup(group, ChannelFunction.blue),
+      ],
+      onPreview: (rgb) => _applyColorToGroup(group, rgb),
+    );
+    if (!mounted) return;
+    if (picked != null) {
+      _applyColorToGroup(group, picked);
+      return;
+    }
+    setState(() {
+      group.values
+        ..clear()
+        ..addAll(snapshot);
       for (final id in group.fixtureIds) {
         _lastKnownValues[id] = Map.of(group.values);
       }
@@ -282,15 +380,45 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   void _save() {
     if (_selectedFixtureIds.isEmpty || _nameController.text.trim().isEmpty) return;
     final fixtureValues = _buildFixtureValues();
+    final fixtureGroups = [for (final g in _groups) g.fixtureIds.toList()];
     final notifier = ref.read(scenesProvider.notifier);
     final Scene saved;
     if (widget.existing != null) {
-      saved = widget.existing!.copyWith(name: _nameController.text.trim(), fixtureValues: fixtureValues);
+      saved = widget.existing!.copyWith(
+        name: _nameController.text.trim(),
+        fixtureValues: fixtureValues,
+        fixtureGroups: fixtureGroups,
+      );
       notifier.upsert(saved);
     } else {
-      saved = notifier.create(_nameController.text.trim(), fixtureValues);
+      saved = notifier.create(_nameController.text.trim(), fixtureValues).copyWith(fixtureGroups: fixtureGroups);
+      notifier.upsert(saved);
     }
     Navigator.of(context).pop(saved);
+  }
+
+  Future<void> _delete() async {
+    final existing = widget.existing;
+    if (existing == null) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.panel,
+        title: Text('Delete "${existing.name}"?'),
+        content: const Text('This also removes it from any bank slots it\'s assigned to.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    ref.read(scenesProvider.notifier).remove(existing.id);
+    Navigator.of(context).pop();
   }
 
   Future<void> _assignToBank() async {
@@ -361,19 +489,38 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                       runSpacing: 8,
                       children: [
                         for (final entry in colorPresets.entries)
-                          InkWell(
-                            borderRadius: BorderRadius.circular(10),
+                          _ColorSwatch(
+                            rgb: entry.value,
+                            tooltip: entry.key,
                             onTap: () => _applyColorToGroup(group, entry.value),
+                          ),
+                        // Your own colours sit in the same grid as the
+                        // presets rather than in a drawer of their own —
+                        // once saved, a house colour is just a colour.
+                        for (final colour in ref.watch(customColorsProvider))
+                          _ColorSwatch(
+                            rgb: colour.rgb,
+                            tooltip: colour.displayName,
+                            onTap: () => _applyColorToGroup(group, colour.rgb),
+                          ),
+                        Tooltip(
+                          message: 'Mix a colour',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(10),
+                            onTap: () => _openColorPicker(group),
                             child: Container(
                               width: 46,
                               height: 46,
+                              alignment: Alignment.center,
                               decoration: BoxDecoration(
-                                color: Color.fromARGB(255, entry.value[0], entry.value[1], entry.value[2]),
+                                color: AppColors.panel2,
                                 borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: AppColors.border, width: 1.5),
+                                border: Border.all(color: AppColors.accent, width: 1.5),
                               ),
+                              child: const Icon(Icons.palette_outlined, size: 20, color: AppColors.accent),
                             ),
                           ),
+                        ),
                       ],
                     ),
                   ),
@@ -456,6 +603,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   Widget build(BuildContext context) {
     final allFixtures = ref.watch(patchedFixturesProvider);
     final selected = _selectedFixtureIds;
+    final savedGroups = ref.watch(fixtureGroupsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -465,6 +613,12 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
           decoration: const InputDecoration(border: InputBorder.none, isDense: true),
         ),
         actions: [
+          if (widget.existing != null)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppColors.danger),
+              onPressed: _delete,
+              tooltip: 'Delete',
+            ),
           IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: 'Save'),
         ],
       ),
@@ -488,6 +642,31 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                     style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.accent),
                   ),
                   const SizedBox(height: 10),
+                ],
+                if (savedGroups.isNotEmpty) ...[
+                  const Text(
+                    'ADD SAVED GROUP',
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 36,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: savedGroups.length,
+                      separatorBuilder: (_, _) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final group = savedGroups[index];
+                        final count = group.fixtureIds.where((id) => allFixtures.any((f) => f.id == id)).length;
+                        return ActionChip(
+                          avatar: Icon(fixtureGroupIcon(group.iconKey), size: 16, color: fixtureGroupColor(group.iconKey)),
+                          label: Text('${group.name} · $count'),
+                          onPressed: () => _addSavedGroupToScene(group),
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 16),
                 ],
                 const Text(
                   'FIXTURES',
@@ -584,4 +763,33 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
 
 extension _FirstOrNull<T> on Iterable<T> {
   T? get firstOrNull => isEmpty ? null : first;
+}
+
+/// One tappable colour in the group's swatch grid.
+class _ColorSwatch extends StatelessWidget {
+  final List<int> rgb;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _ColorSwatch({required this.rgb, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: Container(
+          width: 46,
+          height: 46,
+          decoration: BoxDecoration(
+            color: Color.fromARGB(255, rgb[0], rgb[1], rgb[2]),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.border, width: 1.5),
+          ),
+        ),
+      ),
+    );
+  }
 }

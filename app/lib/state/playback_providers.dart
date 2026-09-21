@@ -3,8 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/playback/chase_player.dart';
 import '../core/playback/smart_program_player.dart';
 import 'artnet_providers.dart';
+import 'momentary_fx_providers.dart';
 import 'provider_reader.dart';
 import 'audio_providers.dart';
+import 'tempo_providers.dart';
 
 /// A single player shared by every screen that can start a bank/chase
 /// (Dashboard triggers, the Banks "Run Bank" preview, the Chase editor's
@@ -26,7 +28,21 @@ final playbackControllerProvider = Provider<ChasePlayer>((ref) {
 final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
   final player = SmartProgramPlayer(
     chasePlayer: ref.watch(playbackControllerProvider),
-    beatService: ref.watch(beatDetectorProvider),
+    beatService: ref.watch(activeBeatSourceProvider),
+    // Read, not watched: the program is driven from callbacks, and a
+    // rebuilt player would drop the running show on the floor.
+    beatSyncEnabled: () => ref.read(beatSyncEnabledProvider),
+    beatRate: () => ref.read(beatRateProvider),
+    flashLength: () => ref.read(flashLengthProvider),
+    // Routed through the shared predictor so a Smart Program's tempo
+    // tracking rides out a missed beat the same way a beat-synced chase
+    // does, instead of the classifier alone having to fold it back in.
+    beatEvents: ref.watch(beatPredictorProvider).events,
+    // Lets the player suspend the app-wide Auto-Fade switch for as long as
+    // a Beat Flash bank is the active zone, and put it back once the
+    // program moves off it — see `SmartProgramPlayer._updateAutoFadeSuppression`.
+    isAutoFadeOn: () => ref.read(tempoProvider).autoFade,
+    setAutoFade: (value) => ref.read(tempoProvider.notifier).setAutoFade(value),
   );
   ref.onDispose(player.dispose);
   return player;
@@ -104,6 +120,9 @@ final nowPlayingProvider = StateProvider<NowPlaying?>((ref) => null);
 /// now-playing state. Shared by the Dashboard's panic button, the control
 /// dock and the remote endpoint so they can't drift apart.
 Future<void> blackoutEverything(ReadProvider read) async {
+  // First: a held Freeze pushes its own frame over the top of everything
+  // else on the way out, blackout included. The panic button has to win.
+  read(momentaryFxProvider.notifier).releaseAll();
   read(playbackControllerProvider).stop();
   read(smartProgramPlayerProvider).stop();
   final service = read(artNetServiceProvider);

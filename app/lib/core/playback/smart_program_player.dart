@@ -7,8 +7,9 @@ import '../../models/scene.dart';
 import '../../models/smart_program.dart';
 import '../../models/universe_config.dart';
 import '../artnet/artnet_service.dart';
-import '../audio/beat_detector.dart';
+import '../audio/beat_source.dart';
 import '../audio/tempo_estimator.dart';
+import 'auto_fade_guard.dart';
 import 'chase_player.dart';
 
 enum SmartProgramZone { base, faster, slower }
@@ -32,9 +33,51 @@ class SmartProgramStatus {
 /// duration, so a single early/late beat doesn't cause flicker.
 class SmartProgramPlayer {
   final ChasePlayer chasePlayer;
-  final BeatDetectorService beatService;
+  final BeatSource beatService;
 
-  SmartProgramPlayer({required this.chasePlayer, required this.beatService});
+  /// What actually drives [_onBeat] and an embedded chase/bank's own beat
+  /// sync (below) — the raw source by default, or a [BeatPredictor]'s
+  /// stream when the caller wants missed beats filled in. Kept separate
+  /// from [beatService] because that one still owns starting/stopping the
+  /// source itself; a predictor only ever sits in front of it, never
+  /// replaces it.
+  final Stream<DateTime> beatEvents;
+
+  /// The app-wide beat-sync switch, and the rate it's set to — read live
+  /// rather than captured, so flipping either from the dock lands on the
+  /// running program.
+  ///
+  /// A program already has the beat source open, so with beat sync armed its
+  /// bank or chase steps on the beats themselves instead of on a timer
+  /// derived from the zone's BPM. Without this a bank running inside a
+  /// program simply ignored beat sync: the zone handed the player a chase
+  /// with `beatSync` false and no beat stream, so it ticked along on
+  /// [_zoneHold] no matter what the music did.
+  final bool Function() beatSyncEnabled;
+  final BeatRate Function() beatRate;
+  final Duration Function() flashLength;
+
+  /// The app-wide auto-fade switch, read and (temporarily) written — see
+  /// [_suppressAutoFadeFor]. Defaults to a no-op pair so tests and callers
+  /// that don't care about this can ignore it entirely.
+  final bool Function() isAutoFadeOn;
+  final void Function(bool) setAutoFade;
+
+  SmartProgramPlayer({
+    required this.chasePlayer,
+    required this.beatService,
+    Stream<DateTime>? beatEvents,
+    bool Function()? beatSyncEnabled,
+    BeatRate Function()? beatRate,
+    Duration Function()? flashLength,
+    bool Function()? isAutoFadeOn,
+    void Function(bool)? setAutoFade,
+  })  : beatEvents = beatEvents ?? beatService.beatEvents,
+        beatSyncEnabled = beatSyncEnabled ?? (() => false),
+        beatRate = beatRate ?? (() => BeatRate.normal),
+        flashLength = flashLength ?? (() => const Duration(milliseconds: 80)),
+        isAutoFadeOn = isAutoFadeOn ?? (() => false),
+        setAutoFade = setAutoFade ?? ((_) {});
 
   StreamSubscription<DateTime>? _beatSub;
   Timer? _confirmTimer;
@@ -44,6 +87,7 @@ class SmartProgramPlayer {
   SmartProgramZone _confirmedZone = SmartProgramZone.base;
   SmartProgram? _program;
   bool _isSilent = false;
+  final _autoFadeGuard = AutoFadeGuard();
 
   /// How long to wait without a single beat before assuming the music has
   /// stopped (rather than just being between two real beats of a slow song
@@ -88,7 +132,7 @@ class SmartProgramPlayer {
     _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.base));
     _resetSilenceTimer(service: service, universes: universes);
 
-    _beatSub = beatService.beatEvents.listen((now) {
+    _beatSub = beatEvents.listen((now) {
       _onBeat(
         now,
         chases: chases,
@@ -133,6 +177,32 @@ class SmartProgramPlayer {
     if (!targetChanged && !fadeChanged && !holdChanged) return;
     _playZone(
       zone,
+      chases: chases,
+      scenes: scenes,
+      banks: banks,
+      patchedFixtures: patchedFixtures,
+      universes: universes,
+      service: service,
+    );
+  }
+
+  /// Re-fires the zone that's playing right now, without waiting for a
+  /// tempo change to hand over.
+  ///
+  /// Whether a chase steps on beats is settled when it's fired, so arming
+  /// or disarming beat sync mid-show has to re-fire the current zone or the
+  /// switch does nothing until the music crosses a threshold.
+  void replayCurrentZone({
+    required List<Chase> chases,
+    required List<Scene> scenes,
+    required List<Bank> banks,
+    required List<PatchedFixture> patchedFixtures,
+    required List<UniverseConfig> universes,
+    required ArtNetService service,
+  }) {
+    if (_program == null || _isSilent) return;
+    _playZone(
+      _confirmedZone,
       chases: chases,
       scenes: scenes,
       banks: banks,
@@ -257,6 +327,20 @@ class SmartProgramPlayer {
     }
   }
 
+  /// Auto-fade smears the lit→dark transition into a slow cross-fade, which
+  /// is exactly wrong for a Beat Flash bank — so while one of those is the
+  /// zone actually playing, it's forced off, and put back the moment the
+  /// program hands off to anything else.
+  void _updateAutoFadeSuppression({required ProgramTarget target, required List<Bank> banks}) {
+    final matches = target.isBank ? banks.where((b) => b.id == target.id) : const <Bank>[];
+    final isFlashBank = matches.isNotEmpty && matches.first.isBeatFlash;
+    final instruction = _autoFadeGuard.onTargetChanged(
+      isFlashBank: isFlashBank,
+      autoFadeCurrentlyOn: isAutoFadeOn(),
+    );
+    if (instruction != null) setAutoFade(instruction);
+  }
+
   SmartProgramZone _classify(SmartProgram program, double bpm) {
     if (bpm >= program.fasterTriggerBpm && program.fasterTarget != null) return SmartProgramZone.faster;
     if (bpm <= program.slowerTriggerBpm && program.slowerTarget != null) return SmartProgramZone.slower;
@@ -286,6 +370,12 @@ class SmartProgramPlayer {
       SmartProgramZone.slower => program.slowerFade,
     };
 
+    _updateAutoFadeSuppression(target: target, banks: banks);
+
+    // With beat sync armed the steps land on the detected beats, and the
+    // zone's hold only matters as the fallback the player never reaches.
+    final onBeat = beatSyncEnabled();
+
     // The program's own per-zone fade always wins over whatever the
     // chase/bank was configured with — that's the whole point of setting it
     // here.
@@ -298,6 +388,7 @@ class SmartProgramPlayer {
       toPlay = Chase(
         id: 'smart-bank-${target.id}',
         name: matches.first.name,
+        beatSync: onBeat,
         steps: [ChaseStep(bankId: target.id, hold: _zoneHold(program, zone), fade: fade)],
       );
     } else {
@@ -305,6 +396,7 @@ class SmartProgramPlayer {
       if (matches.isEmpty) return;
       final source = matches.first;
       toPlay = source.copyWith(
+        beatSync: onBeat,
         steps: [
           for (final step in source.steps)
             ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: step.hold, fade: fade),
@@ -319,6 +411,11 @@ class SmartProgramPlayer {
       patchedFixtures: patchedFixtures,
       universes: universes,
       service: service,
+      beatStream: onBeat ? beatEvents : null,
+      beatRate: beatRate(),
+      flashLength: flashLength(),
+      liveBeatRate: beatRate,
+      liveFlashLength: flashLength,
       onStep: (_) {},
     );
   }
@@ -345,6 +442,8 @@ class SmartProgramPlayer {
     _silenceTimer?.cancel();
     _silenceTimer = null;
     _isSilent = false;
+    final instruction = _autoFadeGuard.onStopped();
+    if (instruction != null) setAutoFade(instruction);
     chasePlayer.stop();
   }
 

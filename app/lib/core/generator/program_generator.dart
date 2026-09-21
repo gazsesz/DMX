@@ -510,3 +510,68 @@ ChaseStep bankStepFor(GeneratorEffect effect, String bankId) {
     fade: Duration(milliseconds: (fade * 1000).round()),
   );
 }
+
+/// The pair of scenes a beat-flash bank alternates between: the rig dark,
+/// then the whole rig at full in [color].
+///
+/// Order matters. Played with [BeatRate.flash] (see `ChasePlayer`), the
+/// *second* step is the one that lands on the beat and stays up for the
+/// flash length, while the first holds the gap in between — so the dark
+/// scene goes in slot 1 and the lit one in slot 2, not the other way round.
+///
+/// Unlike [GeneratorEffect.strobe] this zeroes the dimmer as well as the
+/// colour in the dark scene, so a fixture whose only output is a dimmer
+/// channel goes out too, and it parks pan/tilt at centre in *both* scenes
+/// so a moving head sits still and lit instead of slamming to its end stop
+/// on every beat.
+List<Scene> buildBeatFlashScenes({
+  required List<PatchedFixture> fixtures,
+  required String Function() idGenerator,
+  List<int> color = const [255, 255, 255],
+  String namePrefix = 'Beat Flash',
+}) {
+  if (fixtures.isEmpty) return const [];
+
+  Map<String, List<int>> valuesFor({required bool lit}) {
+    final result = <String, List<int>>{};
+    for (final fixture in fixtures) {
+      final channels = fixture.profile.channels;
+      final values = List<int>.filled(channels.length, 0);
+      for (var i = 0; i < channels.length; i++) {
+        switch (channels[i].function) {
+          case ChannelFunction.dimmer:
+            values[i] = lit ? 255 : 0;
+            break;
+          case ChannelFunction.red:
+            values[i] = lit ? color[0] : 0;
+            break;
+          case ChannelFunction.green:
+            values[i] = lit ? color[1] : 0;
+            break;
+          case ChannelFunction.blue:
+            values[i] = lit ? color[2] : 0;
+            break;
+          case ChannelFunction.white:
+            // Only as much white as the colour has in common across R/G/B —
+            // full on a white flash, off on a saturated one, where the white
+            // emitter would just wash the colour out.
+            values[i] = lit ? color.reduce(min) : 0;
+            break;
+          case ChannelFunction.pan:
+          case ChannelFunction.tilt:
+            values[i] = 128;
+            break;
+          default:
+            break;
+        }
+      }
+      result[fixture.id] = values;
+    }
+    return result;
+  }
+
+  return [
+    Scene(id: idGenerator(), name: '$namePrefix Out', fixtureValues: valuesFor(lit: false)),
+    Scene(id: idGenerator(), name: '$namePrefix Up', fixtureValues: valuesFor(lit: true)),
+  ];
+}

@@ -5,6 +5,9 @@ import 'dart:typed_data';
 import 'package:fftea/fftea.dart';
 import 'package:record/record.dart';
 
+import 'beat_source.dart';
+import 'onset_baseline.dart';
+
 /// How fast the detector's rolling baseline chases the music.
 ///
 /// The threshold is "mean + k·stddev" of recent onset strength, and this is
@@ -49,6 +52,14 @@ enum BeatAdaptSpeed {
 enum BeatFrequencyBand {
   overall,
   kick,
+
+  /// A narrow 60-120Hz window around where a kick drum's fundamental
+  /// actually sits. [kick] is 40-150Hz, wide enough to also take in a bass
+  /// guitar's low notes and a floor tom — fine in most rooms, but on a
+  /// dense mix those keep the baseline up between kicks and the detector
+  /// starts losing them. This band trades that tolerance for a signal that
+  /// is very nearly only the kick.
+  kickTight,
   bass,
   mid,
   high;
@@ -56,6 +67,7 @@ enum BeatFrequencyBand {
   String get label => switch (this) {
     BeatFrequencyBand.overall => 'Volume',
     BeatFrequencyBand.kick => 'Kick/Drum',
+    BeatFrequencyBand.kickTight => 'Kick Tight',
     BeatFrequencyBand.bass => 'Bass',
     BeatFrequencyBand.mid => 'Mid',
     BeatFrequencyBand.high => 'High',
@@ -106,7 +118,7 @@ class BeatMeterSample {
 /// analysis instead of a handful of overlapping IIR low-pass filters — while
 /// staying pure Dart (no native/FFI dependency, so it runs identically on
 /// Android, Windows, and any future iOS build).
-class BeatDetectorService {
+class BeatDetectorService implements BeatSource {
   static const _sampleRate = 44100.0;
   // A size-2048 FFT at 44.1kHz gives ~21.5Hz/bin — enough to separate a kick
   // drum's narrow ~40-150Hz pocket from the wider "bass" band below.
@@ -122,6 +134,11 @@ class BeatDetectorService {
   static const _subBassHz = 20.0; // skip the DC/near-DC bin
   static const _kickLowHz = 40.0;
   static const _kickHighHz = 150.0;
+  // The tight kick window: above the sub-bass rumble a PA puts out more or
+  // less continuously, below the low mids where a bass guitar's body and a
+  // snare's weight start.
+  static const _kickTightLowHz = 60.0;
+  static const _kickTightHighHz = 120.0;
   static const _bassHighHz = 250.0;
   static const _midHighHz = 2000.0;
 
@@ -134,8 +151,13 @@ class BeatDetectorService {
   StreamSubscription<Uint8List>? _pcmSub;
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
-  double? _emaMean;
-  double _emaVariance = 0;
+  final OnsetBaseline _baseline = OnsetBaseline();
+
+  /// A ~300ms level of the selected band, the "is anything happening in
+  /// here" reading the escape hatch needs.
+  static const _fastLevelMs = 300.0;
+  double _fastLevel = 0;
+  DateTime? _listeningSince;
   int _frameCount = 0;
   DateTime? _lastBeat;
 
@@ -155,14 +177,18 @@ class BeatDetectorService {
   BeatAdaptSpeed adaptSpeed = BeatAdaptSpeed.normal;
 
   /// Set when [start] fails, so the UI can show *why* instead of just "no".
+  @override
   String? lastError;
 
+  @override
   Stream<DateTime> get beatEvents => _beatController.stream;
   Stream<BeatMeterSample> get meterStream => _meterController.stream;
+  @override
   bool get isListening => _pcmSub != null;
 
   /// Starts listening. Returns false if permission was denied or the
   /// platform couldn't open a capture device — check [lastError] for why.
+  @override
   Future<bool> start() async {
     if (isListening) return true;
     lastError = null;
@@ -179,13 +205,12 @@ class BeatDetectorService {
         return false;
       }
 
-      final stream = await _recorder.startStream(
-        const RecordConfig(encoder: AudioEncoder.pcm16bits, numChannels: 1, sampleRate: 44100),
-      );
-      _emaMean = null;
-      _emaVariance = 0;
+      final stream = await _openStream();
+      _baseline.reset();
       _frameCount = 0;
       _lastBeat = null;
+      _fastLevel = 0;
+      _listeningSince = DateTime.now();
       _ring = Float64List(_fftSize);
       _ringWrite = 0;
       _samplesBuffered = 0;
@@ -200,6 +225,7 @@ class BeatDetectorService {
     }
   }
 
+  @override
   Future<void> stop() async {
     await _safeStop();
   }
@@ -212,6 +238,72 @@ class BeatDetectorService {
     } catch (_) {
       // Already stopped/never started — nothing to clean up.
     }
+  }
+
+  /// Android input sources, best first.
+  ///
+  /// [AndroidAudioSource.unprocessed] is the one we actually want: it's the
+  /// source Android defines as raw — no automatic gain control, no noise
+  /// suppression, no echo canceller. All of that processing exists to
+  /// flatter a voice, and all of it works against onset detection: AGC
+  /// pumps the level back up between beats so the kick stops standing out
+  /// from its own baseline, and noise suppression treats a steady loud room
+  /// as the thing to remove. It's optional, though — a device only honours
+  /// it if it reports PROPERTY_SUPPORT_AUDIO_SOURCE_UNPROCESSED, and plenty
+  /// of phones (the P20 Pro among them) don't.
+  ///
+  /// [AndroidAudioSource.camcorder] is the fallback because it's the other
+  /// source meant for recording the room rather than the user — it points
+  /// at the mic that faces away from the face and skips voice processing —
+  /// and it's far more widely implemented, though a device without a camera
+  /// mic can still refuse it.
+  ///
+  /// [AndroidAudioSource.mic] is last because it always exists. It's the
+  /// old behaviour, processing and all.
+  static const _androidSources = [
+    AndroidAudioSource.unprocessed,
+    AndroidAudioSource.camcorder,
+    AndroidAudioSource.mic,
+  ];
+
+  static RecordConfig _configFor(AndroidAudioSource source) => RecordConfig(
+    encoder: AudioEncoder.pcm16bits,
+    numChannels: 1,
+    sampleRate: 44100,
+    androidConfig: AndroidRecordConfig(
+      audioSource: source,
+      // Don't let the recorder open a Bluetooth SCO link. It would move
+      // capture to whatever headset is paired and drop the whole stream to
+      // narrowband — 8 or 16kHz, which throws away the spectrum the mid and
+      // high bands live in — and on the way it mutes the A2DP audio the
+      // music is playing over. We want the device's own mic, in the room.
+      manageBluetooth: false,
+    ),
+  );
+
+  /// Opens the capture stream, walking [_androidSources] until one opens.
+  ///
+  /// A source the device won't give us throws out of `startStream`, and the
+  /// next one gets its turn. The chain ends at plain `mic`, so this only
+  /// throws if capture is impossible at all — and the error that surfaces
+  /// is `mic`'s, which is the one worth showing. On every other platform
+  /// the Android block is ignored and the first attempt is the only one.
+  Future<Stream<Uint8List>> _openStream() async {
+    for (var i = 0; i < _androidSources.length; i++) {
+      try {
+        return await _recorder.startStream(_configFor(_androidSources[i]));
+      } catch (_) {
+        if (i == _androidSources.length - 1) rethrow;
+        // Leave nothing half-open behind before asking for the next source.
+        try {
+          await _recorder.stop();
+        } catch (_) {
+          // Never got far enough to need stopping.
+        }
+      }
+    }
+    // Unreachable: the loop either returns or rethrows on its last pass.
+    throw StateError('No audio source to try');
   }
 
   void _onPcmChunk(Uint8List chunk) {
@@ -245,6 +337,10 @@ class BeatDetectorService {
       case BeatFrequencyBand.kick:
         loHz = _kickLowHz;
         hiHz = _kickHighHz;
+        break;
+      case BeatFrequencyBand.kickTight:
+        loHz = _kickTightLowHz;
+        hiHz = _kickTightHighHz;
         break;
       case BeatFrequencyBand.bass:
         loHz = _subBassHz;
@@ -331,22 +427,31 @@ class BeatDetectorService {
     final alpha = 1 - math.exp(-_hopMs / adaptSpeed.tauMs);
     final bands = _bandLevels(fluxes, alpha);
 
-    final mean = _emaMean;
-    if (mean == null) {
-      _emaMean = flux;
-      _emaVariance = 0;
-    } else {
-      // Exponential moving average/variance: each new frame nudges the
-      // running mean by `alpha`, rather than a sample dropping out of a
-      // window and yanking the average by its own full weight — this is
-      // what keeps the meter's avg/threshold display smooth instead of
-      // visibly stepping every ~12ms.
-      final delta = flux - mean;
-      final newMean = mean + alpha * delta;
-      _emaMean = newMean;
-      final delta2 = flux - newMean;
-      _emaVariance = (1 - alpha) * (_emaVariance + alpha * delta * delta2);
+    // A short level, purely to answer "is this room still making noise" for
+    // the escape hatch below.
+    _fastLevel += (1 - math.exp(-_hopMs / _fastLevelMs)) * (flux - _fastLevel);
+
+    final now = DateTime.now();
+    // The bar can be left somewhere nothing musical will ever reach — see
+    // [shouldForgetBaseline]. Forgetting re-runs the warmup, so no beats go
+    // out while the statistics re-form.
+    final since = now.difference(_lastBeat ?? _listeningSince ?? now);
+    if (shouldForgetBaseline(
+      memoryMs: adaptSpeed.tauMs,
+      secondsSinceBeat: since.inMilliseconds / 1000,
+      fastLevel: _fastLevel,
+      mean: _baseline.mean,
+    )) {
+      _baseline.reset();
+      _frameCount = 1;
+      _lastBeat = now;
     }
+
+    // Exponential moving average/variance rather than a sliding window:
+    // each new frame nudges the running mean by `alpha` instead of a sample
+    // dropping out and yanking the average by its own full weight, so the
+    // meter's avg/threshold move smoothly rather than stepping every ~12ms.
+    _baseline.learn(flux, alpha);
 
     final warmupFrames = (_warmupMs / _hopMs).round();
     if (_frameCount < warmupFrames) {
@@ -371,8 +476,7 @@ class BeatDetectorService {
     // almost any residual noise would count as a huge relative rise. A
     // statistical outlier test (mean + k·standard deviation) stays correctly
     // calibrated to how noisy/eventful the recent audio has actually been.
-    final stddev = math.sqrt(_emaVariance);
-
+    //
     // Higher sensitivity -> fewer standard deviations above the mean are
     // enough to count as a beat.
     //
@@ -385,9 +489,8 @@ class BeatDetectorService {
     // gives 3.5) while still reaching 9.0 at the very bottom for a room
     // loud enough to need it.
     final k = 2.5 + 6.5 * _square(1 - sensitivity.clamp(0.0, 1.0));
-    final thresholdFlux = _emaMean! + k * stddev;
+    final thresholdFlux = _baseline.thresholdAt(k);
 
-    final now = DateTime.now();
     final pastRefractoryPeriod =
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
     final isBeat = flux > thresholdFlux && pastRefractoryPeriod;
@@ -396,7 +499,7 @@ class BeatDetectorService {
       _beatController.add(now);
     }
 
-    final avgDb = _toDb(_emaMean!);
+    final avgDb = _toDb(_baseline.mean ?? 0);
     final thresholdDb = _toDb(thresholdFlux);
     _meterController.add(
       BeatMeterSample(

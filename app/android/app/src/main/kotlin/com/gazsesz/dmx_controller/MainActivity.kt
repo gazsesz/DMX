@@ -1,7 +1,12 @@
 package com.gazsesz.dmx_controller
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.net.NetworkRequest
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
@@ -11,6 +16,9 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : FlutterActivity() {
+    private var connectivityManager: ConnectivityManager? = null
+    private var wifiNetworkCallback: ConnectivityManager.NetworkCallback? = null
+
     /**
      * Lets Dart start and stop [RemoteControlService], and check whether
      * Android is still allowed to doze the app.
@@ -21,6 +29,7 @@ class MainActivity : FlutterActivity() {
      */
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        bindProcessToActiveWifi()
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL).setMethodCallHandler { call, result ->
             when (call.method) {
                 "start" -> {
@@ -45,6 +54,47 @@ class MainActivity : FlutterActivity() {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * Art-Net/sACN only reach the node over whatever Wi-Fi it's actually on
+     * — often an isolated AP (e.g. an EasyNode's own hotspot) with no route
+     * to the internet. Android treats an unvalidated network like that as
+     * lower priority than one with internet, and once the phone also has
+     * mobile data up, it keeps routing *new* sockets through data instead —
+     * so the app can show "connected" to the right SSID and still never
+     * reach the node, until something (like toggling demo mode) happens to
+     * open a fresh socket after Android has settled on the Wi-Fi. Binding
+     * the whole process to the active Wi-Fi network removes that race
+     * instead of relying on it to resolve itself.
+     */
+    private fun bindProcessToActiveWifi() {
+        val manager = getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        connectivityManager = manager
+        val request = NetworkRequest.Builder()
+            .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
+            .build()
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                manager.bindProcessToNetwork(network)
+            }
+
+            override fun onLost(network: Network) {
+                manager.bindProcessToNetwork(null)
+            }
+        }
+        wifiNetworkCallback = callback
+        // registerNetworkCallback, not requestNetwork: the latter asks Android to
+        // *bring up* a matching network and needs CHANGE_NETWORK_STATE. This only
+        // needs to hear about the Wi-Fi the user already connected in system
+        // settings, which registerNetworkCallback reports for free.
+        manager.registerNetworkCallback(request, callback)
+    }
+
+    override fun onDestroy() {
+        wifiNetworkCallback?.let { connectivityManager?.unregisterNetworkCallback(it) }
+        wifiNetworkCallback = null
+        super.onDestroy()
     }
 
     private fun ensureNotificationPermission() {

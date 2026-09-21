@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/smart_program.dart';
 import '../../state/audio_providers.dart';
+import '../../state/momentary_fx_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../../state/tempo_providers.dart';
 import '../audio/beat_detector.dart';
+import '../audio/midi_beat_source.dart';
 import '../audio/tempo_estimator.dart';
 import '../playback/chase_player.dart';
 import '../playback/smart_program_player.dart';
@@ -15,6 +19,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import 'beat_meter.dart';
 import 'log_scale.dart';
+import 'momentary_fx_buttons.dart';
 
 /// Everything that used to be the Dashboard's "Tempo & Chase Speed" card,
 /// in one narrow column that the control dock can slide open over any tab.
@@ -123,8 +128,8 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
   }
 
   Future<void> _setBeatSync(bool value) async {
-    final beatService = ref.read(beatDetectorProvider);
-    if (value) {
+    if (value && ref.read(beatSourcePrefsProvider).kind == BeatSourceKind.mic) {
+      final beatService = ref.read(beatDetectorProvider);
       beatService.sensitivity = _sensitivity;
       beatService.frequencyBand = _frequencyBand;
       beatService.adaptSpeed = _adaptSpeed;
@@ -154,6 +159,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
     final beatRate = ref.watch(beatRateProvider);
     final smartActive = _smartPlayer.isRunning;
     final flashActive = beatSync && beatRate == BeatRate.flash;
+    final beatSourceKind = ref.watch(beatSourcePrefsProvider).kind;
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
@@ -336,13 +342,20 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
           ),
         ],
 
+        // No grand master here: the panel never shows without the dock's
+        // rail beside it, and that carries the fader.
         const Divider(height: 22),
 
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           dense: true,
-          secondary: const Icon(Icons.mic_none, size: 18, color: AppColors.textDim),
+          secondary: Icon(
+            beatSourceKind == BeatSourceKind.midi ? Icons.piano_outlined : Icons.mic_none,
+            size: 18,
+            color: AppColors.textDim,
+          ),
           title: const Text('Beat sync', style: TextStyle(fontSize: 13)),
+          subtitle: Text(beatSourceKind.label, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
           value: beatSync,
           onChanged: _setBeatSync,
         ),
@@ -374,51 +387,86 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             _readout('${ref.watch(flashLengthProvider).inMilliseconds} ms'),
           ],
           const SizedBox(height: 10),
-          BeatMeter(service: ref.read(beatDetectorProvider)),
-          _label('Sensitivity'),
-          Slider(
-            value: _sensitivity,
-            activeColor: AppColors.accent2,
-            onChanged: (value) {
-              setState(() => _sensitivity = value);
-              ref.read(beatDetectorProvider).sensitivity = value;
-            },
-          ),
-          _label('Baseline memory'),
-          SegmentedButton<BeatAdaptSpeed>(
-            segments: [
-              for (final speed in BeatAdaptSpeed.values)
-                ButtonSegment(value: speed, label: Text(speed.label)),
-            ],
-            selected: {_adaptSpeed},
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          if (beatSourceKind == BeatSourceKind.mic) ...[
+            BeatMeter(service: ref.read(beatDetectorProvider)),
+            _label('Sensitivity'),
+            Slider(
+              value: _sensitivity,
+              activeColor: AppColors.accent2,
+              onChanged: (value) {
+                setState(() => _sensitivity = value);
+                ref.read(beatDetectorProvider).sensitivity = value;
+              },
             ),
-            onSelectionChanged: (s) {
-              setState(() => _adaptSpeed = s.first);
-              ref.read(beatDetectorProvider).adaptSpeed = s.first;
-            },
-          ),
-          _label('React to'),
-          SegmentedButton<BeatFrequencyBand>(
-            segments: [
-              for (final band in BeatFrequencyBand.values)
-                ButtonSegment(value: band, label: Text(band.label)),
-            ],
-            selected: {_frequencyBand},
-            showSelectedIcon: false,
-            style: const ButtonStyle(
-              visualDensity: VisualDensity.compact,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            _label('Baseline memory'),
+            SegmentedButton<BeatAdaptSpeed>(
+              segments: [
+                for (final speed in BeatAdaptSpeed.values)
+                  ButtonSegment(value: speed, label: Text(speed.label)),
+              ],
+              selected: {_adaptSpeed},
+              showSelectedIcon: false,
+              style: const ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              onSelectionChanged: (s) {
+                setState(() => _adaptSpeed = s.first);
+                ref.read(beatDetectorProvider).adaptSpeed = s.first;
+              },
             ),
-            onSelectionChanged: (s) {
-              setState(() => _frequencyBand = s.first);
-              ref.read(beatDetectorProvider).frequencyBand = s.first;
-            },
-          ),
+            _label('React to'),
+            // Scrolls sideways: six bands of labelled segments don't fit a
+            // phone's panel, and a SegmentedButton that doesn't fit doesn't
+            // shrink — it overflows and takes the last band with it.
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: SegmentedButton<BeatFrequencyBand>(
+                segments: [
+                  for (final band in BeatFrequencyBand.values)
+                    ButtonSegment(value: band, label: Text(band.label)),
+                ],
+                selected: {_frequencyBand},
+                showSelectedIcon: false,
+                style: const ButtonStyle(
+                  visualDensity: VisualDensity.compact,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                onSelectionChanged: (s) {
+                  setState(() => _frequencyBand = s.first);
+                  ref.read(beatDetectorProvider).frequencyBand = s.first;
+                },
+              ),
+            ),
+          ] else
+            _MidiStatusRow(source: ref.watch(midiBeatSourceProvider)),
         ],
+
+        // Last, and deliberately: the momentary buttons are a copy, not the
+        // place you reach for them. They live on the dock's strip, which
+        // gives them up on a narrow screen — this is where they come back,
+        // so nothing is ever only on the strip. The open dock's rail leaves
+        // them out entirely: three more tiles down it would push Blackout
+        // off the bottom of a phone held sideways.
+        const Divider(height: 22),
+        _label('Momentary — hold one, let go to drop back'),
+        Row(
+          children: [
+            for (final entry in momentaryFxStyles.entries) ...[
+              MomentaryFxButton(fx: entry.key, icon: entry.value.icon, color: entry.value.color),
+              const SizedBox(width: 8),
+            ],
+          ],
+        ),
+        _label('Strobe rate'),
+        Slider(
+          value: ref.watch(strobeRateProvider).clamp(minStrobeHz, maxStrobeHz),
+          min: minStrobeHz,
+          max: maxStrobeHz,
+          activeColor: AppColors.accent,
+          onChanged: (value) => ref.read(strobeRateProvider.notifier).state = value,
+        ),
+        _readout('${ref.watch(strobeRateProvider).toStringAsFixed(1)} flashes a second'),
       ],
     );
   }
@@ -428,4 +476,115 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
     SmartProgramZone.slower => 'slower',
     SmartProgramZone.base => 'base',
   };
+}
+
+/// The MIDI equivalent of [BeatMeter] — there's no spectrum to draw, so this
+/// is just a beat-flash dot and which device (if any) the clock is coming
+/// from, mirroring the meter's own "Waiting for…" wording when nothing is
+/// connected yet.
+class _MidiStatusRow extends StatefulWidget {
+  final MidiBeatSource source;
+
+  const _MidiStatusRow({required this.source});
+
+  @override
+  State<_MidiStatusRow> createState() => _MidiStatusRowState();
+}
+
+class _MidiStatusRowState extends State<_MidiStatusRow> {
+  StreamSubscription<DateTime>? _beatSub;
+  StreamSubscription<DateTime>? _activitySub;
+  StreamSubscription<double>? _bpmSub;
+  Timer? _refreshTimer;
+  DateTime? _lastBeatAt;
+  DateTime? _lastActivityAt;
+  double? _bpm;
+
+  @override
+  void initState() {
+    super.initState();
+    _beatSub = widget.source.beatEvents.listen((_) {
+      if (!mounted) return;
+      setState(() => _lastBeatAt = DateTime.now());
+    });
+    _activitySub = widget.source.activity.listen((_) {
+      if (!mounted) return;
+      setState(() => _lastActivityAt = DateTime.now());
+    });
+    _bpmSub = widget.source.bpm.listen((value) {
+      if (!mounted) return;
+      setState(() => _bpm = value);
+    });
+    // Nothing else here forces a rebuild once the clock stops arriving — a
+    // stream listener only fires on the next event, so without this ticking
+    // along, "Clock from X" would sit there forever after just one beat,
+    // long after Ableton actually stopped sending.
+    _refreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _beatSub?.cancel();
+    _activitySub?.cancel();
+    _bpmSub?.cancel();
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final device = widget.source.connectedDevice;
+    final listening = widget.source.isListening;
+    final recentBeat =
+        _lastBeatAt != null && DateTime.now().difference(_lastBeatAt!) < const Duration(milliseconds: 180);
+    // A beat itself only lands once a bar-relative pulse count completes, so
+    // "still current" needs more slack than the flash dot above — 3s covers
+    // even a very slow tempo without falsely reporting live clock as gone.
+    final beatIsCurrent =
+        _lastBeatAt != null && DateTime.now().difference(_lastBeatAt!) < const Duration(seconds: 3);
+    final recentActivity =
+        _lastActivityAt != null && DateTime.now().difference(_lastActivityAt!) < const Duration(seconds: 3);
+    final ok = device != null && listening && (beatIsCurrent || _lastActivityAt == null);
+
+    final String message;
+    if (device == null) {
+      message = 'No MIDI device — pick one in Setup';
+    } else if (!listening) {
+      message = '${widget.source.lastError ?? 'Not connected'} — check Setup';
+    } else if (beatIsCurrent) {
+      message = _bpm == null
+          ? 'Clock from ${device.name}'
+          : 'Clock from ${device.name} — ${_bpm!.toStringAsFixed(1)} BPM';
+    } else if (recentActivity) {
+      // Bytes are arriving but never formed a beat: the device is talking,
+      // just not clock — almost always Sync being off on the DAW's output.
+      message = 'Receiving from ${device.name}, but no clock — enable Sync on its output';
+    } else {
+      message = 'Connected to ${device.name} — waiting for its clock';
+    }
+
+    return Row(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 80),
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: recentBeat ? AppColors.accent : AppColors.panel2,
+            border: Border.all(color: recentBeat ? AppColors.accent : AppColors.border, width: 1.2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: TextStyle(fontSize: 11, color: ok ? AppColors.textFaint : AppColors.danger),
+          ),
+        ),
+      ],
+    );
+  }
 }
