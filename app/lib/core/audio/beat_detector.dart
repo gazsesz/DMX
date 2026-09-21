@@ -5,6 +5,7 @@ import 'dart:typed_data';
 import 'package:fftea/fftea.dart';
 import 'package:record/record.dart';
 
+import 'beat_source.dart';
 import 'onset_baseline.dart';
 
 /// How fast the detector's rolling baseline chases the music.
@@ -117,7 +118,7 @@ class BeatMeterSample {
 /// analysis instead of a handful of overlapping IIR low-pass filters — while
 /// staying pure Dart (no native/FFI dependency, so it runs identically on
 /// Android, Windows, and any future iOS build).
-class BeatDetectorService {
+class BeatDetectorService implements BeatSource {
   static const _sampleRate = 44100.0;
   // A size-2048 FFT at 44.1kHz gives ~21.5Hz/bin — enough to separate a kick
   // drum's narrow ~40-150Hz pocket from the wider "bass" band below.
@@ -176,14 +177,18 @@ class BeatDetectorService {
   BeatAdaptSpeed adaptSpeed = BeatAdaptSpeed.normal;
 
   /// Set when [start] fails, so the UI can show *why* instead of just "no".
+  @override
   String? lastError;
 
+  @override
   Stream<DateTime> get beatEvents => _beatController.stream;
   Stream<BeatMeterSample> get meterStream => _meterController.stream;
+  @override
   bool get isListening => _pcmSub != null;
 
   /// Starts listening. Returns false if permission was denied or the
   /// platform couldn't open a capture device — check [lastError] for why.
+  @override
   Future<bool> start() async {
     if (isListening) return true;
     lastError = null;
@@ -220,6 +225,7 @@ class BeatDetectorService {
     }
   }
 
+  @override
   Future<void> stop() async {
     await _safeStop();
   }

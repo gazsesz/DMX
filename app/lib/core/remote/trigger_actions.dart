@@ -27,7 +27,7 @@ Future<void> startChase(ReadProvider read, Chase chase, {bool dashboardTiming = 
   final service = read(artNetServiceProvider);
   Stream<DateTime>? beatStream;
   if (chase.beatSync) {
-    final beatService = read(beatDetectorProvider);
+    final beatService = read(activeBeatSourceProvider);
     if (await beatService.start()) beatStream = read(beatPredictorProvider).events;
   }
   read(playbackControllerProvider).play(
@@ -110,6 +110,11 @@ Future<String> togglePlayable(
     chase = chaseAsDashboardPlaysIt(read, matches.first);
   }
   await startChase(read, chase, dashboardTiming: isBank || read(tempoProvider).overrideTiming);
+  // A step whose scene or bank no longer exists (deleted out from under it)
+  // flattens to nothing, and `play` quietly declines to run zero steps —
+  // reporting "Started" anyway would leave nowPlaying pointing at a bank
+  // or chase that isn't actually doing anything.
+  if (!player.isPlaying) return '$name has no valid steps to play';
   read(nowPlayingProvider.notifier).state = NowPlaying(
     id: id,
     kind: isBank ? PlaybackKind.bank : PlaybackKind.chase,
@@ -253,6 +258,27 @@ Future<String> setBeatSync(ReadProvider read, {bool? on}) async {
   // [restartActiveTrigger].
   await restartActiveTrigger(read);
   return 'Beat sync ${target ? 'on' : 'off'}';
+}
+
+/// Toggles the beat predictor that fills in beats the mic misses — the same
+/// switch as the control dock's "Predict" button. [on] null toggles it.
+String setBeatPrediction(ReadProvider read, {bool? on}) {
+  final current = read(beatPredictionEnabledProvider);
+  final target = on ?? !current;
+  if (target == current) return 'Predict already ${target ? 'on' : 'off'}';
+  read(beatPredictionEnabledProvider.notifier).setEnabled(target);
+  return 'Predict ${target ? 'on' : 'off'}';
+}
+
+/// Toggles auto-fade — the tempo-linked fade time the control dock's
+/// "AutoFade" button and the Control Panel's switch share. [on] null toggles
+/// it.
+String setAutoFade(ReadProvider read, {bool? on}) {
+  final tempo = read(tempoProvider);
+  final target = on ?? !tempo.autoFade;
+  if (target == tempo.autoFade) return 'AutoFade already ${target ? 'on' : 'off'}';
+  read(tempoProvider.notifier).setAutoFade(target);
+  return 'AutoFade ${target ? 'on' : 'off'}';
 }
 
 /// Something the remote endpoint can fire, and the name it answers to.

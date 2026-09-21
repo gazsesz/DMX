@@ -5,6 +5,7 @@ import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
+import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
@@ -21,6 +22,7 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     universes: ref.read(universesProvider),
     customFixtureProfiles: library.where((f) => !f.isBuiltIn).toList(),
     patchedFixtures: ref.read(patchedFixturesProvider),
+    fixtureGroups: ref.read(fixtureGroupsProvider),
     scenes: ref.read(scenesProvider),
     banks: ref.read(banksProvider),
     chases: ref.read(chasesProvider),
@@ -80,6 +82,7 @@ void startProject(
       universes: source.universes,
       customFixtureProfiles: source.customFixtureProfiles,
       patchedFixtures: source.patchedFixtures,
+      fixtureGroups: source.fixtureGroups,
       scenes: source.scenes,
       banks: source.banks,
       chases: source.chases,
@@ -95,10 +98,12 @@ void startProject(
     ref.read(universesProvider.notifier).loadAll(source.universes);
     ref.read(fixtureLibraryProvider.notifier).loadAll(source.customFixtureProfiles);
     ref.read(patchedFixturesProvider.notifier).loadAll(source.patchedFixtures);
+    ref.read(fixtureGroupsProvider.notifier).loadAll(source.fixtureGroups);
   } else {
     ref.read(universesProvider.notifier).reset();
     ref.read(fixtureLibraryProvider.notifier).loadAll(const []);
     ref.read(patchedFixturesProvider.notifier).loadAll(const []);
+    ref.read(fixtureGroupsProvider.notifier).loadAll(const []);
   }
   ref.read(scenesProvider.notifier).loadAll(const []);
   ref.read(banksProvider.notifier).reset();
@@ -117,6 +122,7 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(universesProvider.notifier).loadAll(data.universes);
   ref.read(fixtureLibraryProvider.notifier).loadAll(data.customFixtureProfiles);
   ref.read(patchedFixturesProvider.notifier).loadAll(data.patchedFixtures);
+  ref.read(fixtureGroupsProvider.notifier).loadAll(data.fixtureGroups);
   ref.read(scenesProvider.notifier).loadAll(data.scenes);
   ref.read(banksProvider.notifier).loadAll(data.banks);
   ref.read(chasesProvider.notifier).loadAll(data.chases);

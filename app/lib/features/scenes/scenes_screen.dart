@@ -578,6 +578,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
       floatingActionButton: _selecting
           ? null
           : FloatingActionButton(
+              heroTag: 'scenes-fab',
               onPressed: () => _openEditor(),
               tooltip: 'New Scene',
               child: const Icon(Icons.add),

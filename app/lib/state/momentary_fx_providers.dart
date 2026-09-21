@@ -155,7 +155,7 @@ class MomentaryFxController extends StateNotifier<Set<MomentaryFx>> {
     // when there is music and carries on when the detector loses it. A strobe
     // that stops with the song is one that fails you mid-song.
     if (_ref.read(beatSyncEnabledProvider)) {
-      _beatSub = _ref.read(beatDetectorProvider).beatEvents.listen((_) {
+      _beatSub = _ref.read(activeBeatSourceProvider).beatEvents.listen((_) {
         if (!state.contains(MomentaryFx.strobe)) return;
         _lit = true;
         _service.refreshOutput();

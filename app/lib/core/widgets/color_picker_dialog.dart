@@ -110,7 +110,7 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
     );
   }
 
-  Widget _swatches(List<List<int>> custom) {
+  Widget _swatches(List<SavedColor> custom) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -138,12 +138,11 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final rgb in custom)
-                _Swatch(
-                  rgb: rgb,
-                  tooltip: '#${hexOf(rgb)} — long-press to remove',
-                  onTap: () => _pick(rgb),
-                  onLongPress: () => ref.read(customColorsProvider.notifier).remove(rgb),
+              for (final colour in custom)
+                _NamedSwatch(
+                  colour: colour,
+                  onTap: () => _pick(colour.rgb),
+                  onLongPress: () => _showColorOptions(colour),
                 ),
             ],
           ),
@@ -151,9 +150,59 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
     );
   }
 
-  Widget _palette(List<List<int>> custom) {
+  /// Rename or delete a saved colour — long-press on its swatch. Deleting
+  /// stays a deliberate second step (not the long-press itself) now that
+  /// there's something to lose besides the colour: its name.
+  Future<void> _showColorOptions(SavedColor colour) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.panel,
+      builder: (context) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: Text(colour.name == null ? 'Name this colour' : 'Rename'),
+              onTap: () => Navigator.pop(context, 'rename'),
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+              title: const Text('Delete', style: TextStyle(color: AppColors.danger)),
+              onTap: () => Navigator.pop(context, 'delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    if (action == 'delete') {
+      ref.read(customColorsProvider.notifier).remove(colour.rgb);
+    } else if (action == 'rename') {
+      final controller = TextEditingController(text: colour.name ?? '');
+      final name = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.panel,
+          title: const Text('Colour name'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'e.g. Deep Blue'),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Save')),
+          ],
+        ),
+      );
+      if (name != null) ref.read(customColorsProvider.notifier).rename(colour.rgb, name);
+    }
+  }
+
+  Widget _palette(List<SavedColor> custom) {
     final rgb = _rgb;
-    final saved = custom.any((c) => c[0] == rgb[0] && c[1] == rgb[1] && c[2] == rgb[2]);
+    final saved = custom.any((c) => c.rgb[0] == rgb[0] && c.rgb[1] == rgb[1] && c.rgb[2] == rgb[2]);
     final hueOnly = HSVColor.fromAHSV(1, _hsv.hue, 1, 1).toColor();
 
     return Column(
@@ -232,12 +281,11 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
             runSpacing: 8,
             children: [
               for (final colour in custom)
-                _Swatch(
-                  rgb: colour,
-                  tooltip: '#${hexOf(colour)}',
+                _NamedSwatch(
+                  colour: colour,
                   size: 34,
                   onTap: () => _setHsv(
-                    HSVColor.fromColor(Color.fromARGB(255, colour[0], colour[1], colour[2])),
+                    HSVColor.fromColor(Color.fromARGB(255, colour.rgb[0], colour.rgb[1], colour.rgb[2])),
                   ),
                 ),
             ],
@@ -268,17 +316,9 @@ class _SectionLabel extends StatelessWidget {
 class _Swatch extends StatelessWidget {
   final List<int> rgb;
   final String tooltip;
-  final double size;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress;
 
-  const _Swatch({
-    required this.rgb,
-    required this.tooltip,
-    required this.onTap,
-    this.onLongPress,
-    this.size = 40,
-  });
+  const _Swatch({required this.rgb, required this.tooltip, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -287,15 +327,60 @@ class _Swatch extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(9),
         onTap: onTap,
-        onLongPress: onLongPress,
         child: Container(
-          width: size,
-          height: size,
+          width: 40,
+          height: 40,
           decoration: BoxDecoration(
             color: Color.fromARGB(255, rgb[0], rgb[1], rgb[2]),
             borderRadius: BorderRadius.circular(9),
             border: Border.all(color: AppColors.border, width: 1.5),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A saved colour's swatch with its name underneath — unlike a tooltip,
+/// visible without a hover, which is the only kind of pointer a touch
+/// console has.
+class _NamedSwatch extends StatelessWidget {
+  final SavedColor colour;
+  final double size;
+  final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+
+  const _NamedSwatch({required this.colour, required this.onTap, this.onLongPress, this.size = 40});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(9),
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: SizedBox(
+        width: size + 12,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: size,
+              height: size,
+              decoration: BoxDecoration(
+                color: Color.fromARGB(255, colour.rgb[0], colour.rgb[1], colour.rgb[2]),
+                borderRadius: BorderRadius.circular(9),
+                border: Border.all(color: AppColors.border, width: 1.5),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              colour.displayName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            ),
+          ],
         ),
       ),
     );

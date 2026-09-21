@@ -9,6 +9,7 @@ import 'app.dart';
 import 'models/artnet_settings.dart';
 import 'models/output_protocol.dart';
 import 'state/artnet_providers.dart';
+import 'state/audio_providers.dart';
 import 'state/control_dock_providers.dart';
 import 'state/dashboard_prefs_providers.dart';
 import 'state/remote_providers.dart';
@@ -54,6 +55,12 @@ Future<void> main() async {
     stageVisible: prefs.getBool(prefStageVisible),
   );
 
+  final initialBeatSource = beatSourcePrefsFromStrings(
+    kind: prefs.getString(prefBeatSourceKind),
+    midiDeviceId: prefs.getString(prefBeatSourceMidiDeviceId),
+    midiDeviceName: prefs.getString(prefBeatSourceMidiDeviceName),
+  );
+
   runApp(
     ProviderScope(
       overrides: [
@@ -61,6 +68,7 @@ Future<void> main() async {
         dashboardPrefsProvider.overrideWith((ref) => DashboardPrefsNotifier(initialDashboardPrefs)),
         controlDockProvider.overrideWith((ref) => ControlDockNotifier(initialDock)),
         remoteControlProvider.overrideWith((ref) => RemoteControlNotifier(initialRemote)),
+        beatSourcePrefsProvider.overrideWith((ref) => BeatSourcePrefsNotifier(initialBeatSource)),
       ],
       child: const DmxControllerApp(),
     ),

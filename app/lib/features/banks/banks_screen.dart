@@ -113,6 +113,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         if (mounted) setState(() => _runningSlot = index);
       },
     );
+    // A bank with every slot empty flattens to zero steps, and `play`
+    // quietly declines to run them — reporting it as playing would leave
+    // nowPlaying (and this row's own icon) claiming a run that never
+    // started.
+    if (!_player.isPlaying) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${bank.name}" has no filled slots to play')),
+      );
+      return;
+    }
     ref.read(nowPlayingProvider.notifier).state = NowPlaying(
       id: bank.id,
       kind: PlaybackKind.bank,

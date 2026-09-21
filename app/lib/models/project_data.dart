@@ -2,6 +2,7 @@ import 'artnet_settings.dart';
 import 'bank.dart';
 import 'chase.dart';
 import 'dashboard_trigger.dart';
+import 'fixture_group.dart';
 import 'fixture_profile.dart';
 import 'patched_fixture.dart';
 import 'scene.dart';
@@ -15,6 +16,7 @@ class ProjectData {
   final List<UniverseConfig> universes;
   final List<FixtureProfile> customFixtureProfiles;
   final List<PatchedFixture> patchedFixtures;
+  final List<FixtureGroup> fixtureGroups;
   final List<Scene> scenes;
   final List<Bank> banks;
   final List<Chase> chases;
@@ -27,6 +29,7 @@ class ProjectData {
     required this.universes,
     required this.customFixtureProfiles,
     required this.patchedFixtures,
+    this.fixtureGroups = const [],
     required this.scenes,
     required this.banks,
     required this.chases,
@@ -41,6 +44,7 @@ class ProjectData {
     'universes': universes.map((u) => u.toJson()).toList(),
     'fixtureProfiles': customFixtureProfiles.map((f) => f.toJson()).toList(),
     'patchedFixtures': patchedFixtures.map((p) => p.toJson()).toList(),
+    'fixtureGroups': fixtureGroups.map((g) => g.toJson()).toList(),
     'scenes': scenes.map((s) => s.toJson()).toList(),
     'banks': banks.map((b) => b.toJson()).toList(),
     'chases': chases.map((c) => c.toJson()).toList(),
@@ -62,6 +66,9 @@ class ProjectData {
       customFixtureProfiles: customProfiles,
       patchedFixtures: (json['patchedFixtures'] as List? ?? [])
           .map((p) => PatchedFixture.fromJson(p as Map<String, dynamic>, library))
+          .toList(),
+      fixtureGroups: (json['fixtureGroups'] as List? ?? [])
+          .map((g) => FixtureGroup.fromJson(g as Map<String, dynamic>))
           .toList(),
       scenes: (json['scenes'] as List? ?? []).map((s) => Scene.fromJson(s as Map<String, dynamic>)).toList(),
       banks: (json['banks'] as List? ?? []).map((b) => Bank.fromJson(b as Map<String, dynamic>)).toList(),

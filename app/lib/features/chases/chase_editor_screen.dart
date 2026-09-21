@@ -203,7 +203,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     ref.read(smartProgramPlayerProvider).stop();
     Stream<DateTime>? beatStream;
     if (_beatSync) {
-      final beatService = ref.read(beatDetectorProvider);
+      final beatService = ref.read(activeBeatSourceProvider);
       final started = await beatService.start();
       if (!started) {
         if (mounted) {
@@ -235,6 +235,16 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
         if (mounted) setState(() => _playingIndex = index);
       },
     );
+    // A step whose scene or bank doesn't exist flattens to nothing, and the
+    // player quietly declines to run zero steps.
+    if (!_player.isPlaying) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nothing to preview — add a step with a valid scene or bank first')),
+        );
+      }
+      return;
+    }
     ref.read(nowPlayingProvider.notifier).state = NowPlaying(
       id: widget.existing.id,
       kind: PlaybackKind.chase,

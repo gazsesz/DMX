@@ -23,7 +23,6 @@ import '../../state/dashboard_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
-import '../manual_control/manual_control_screen.dart';
 import 'live_stage_view.dart';
 
 class _DashboardTrigger {
@@ -459,13 +458,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
             ),
-          IconButton(
-            tooltip: 'Manual Control',
-            icon: const Icon(Icons.tune),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ManualControlScreen()),
-            ),
-          ),
           const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),

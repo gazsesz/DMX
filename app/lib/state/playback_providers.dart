@@ -27,7 +27,7 @@ final playbackControllerProvider = Provider<ChasePlayer>((ref) {
 final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
   final player = SmartProgramPlayer(
     chasePlayer: ref.watch(playbackControllerProvider),
-    beatService: ref.watch(beatDetectorProvider),
+    beatService: ref.watch(activeBeatSourceProvider),
     // Read, not watched: the program is driven from callbacks, and a
     // rebuilt player would drop the running show on the floor.
     beatSyncEnabled: () => ref.read(beatSyncEnabledProvider),

@@ -99,6 +99,18 @@ void main() {
     expect((await get('/status'))['beatSync'], isFalse);
   });
 
+  test('/predict toggles and reports the new state', () async {
+    expect((await get('/predict?on=1'))['message'], 'Predict on');
+    expect((await get('/predict?on=1'))['message'], 'Predict already on');
+    expect((await get('/predict'))['message'], 'Predict off');
+  });
+
+  test('/autofade toggles and reports the new state', () async {
+    expect((await get('/autofade?on=1'))['message'], 'AutoFade on');
+    expect((await get('/autofade?on=1'))['message'], 'AutoFade already on');
+    expect((await get('/autofade'))['message'], 'AutoFade off');
+  });
+
   test('/endpoints serves the watch menu in HttpClient-WearOS format', () async {
     // Pin one of each to the Dashboard — the watch mirrors those, not the
     // whole project.
@@ -121,11 +133,16 @@ void main() {
     // The app refuses anything that isn't text/plain.
     expect(contentType, 'text/plain');
     final lines = body.split('\n');
-    expect(lines, contains('- trg,Triggers'));
-    expect(lines, contains('- smt,Smart'));
-    expect(lines, contains('-- bs,Beat Sync,/beatsync'));
-    expect(lines, contains('-- stop,Stop,/stop'));
-    expect(lines, contains('-- blk,Blackout,/blackout'));
+    // Everything nests under one root — HttpClient-WearOS only shows a
+    // single top-level entry as the tree's root.
+    expect(lines, contains('- dmx,DMX'));
+    expect(lines, contains('-- trg,Triggers'));
+    expect(lines, contains('-- smt,Smart'));
+    expect(lines, contains('--- bs,Beat Sync,/beatsync'));
+    expect(lines, contains('--- pr,Predict,/predict'));
+    expect(lines, contains('--- af,AutoFade,/autofade'));
+    expect(lines, contains('--- stop,Stop,/stop'));
+    expect(lines, contains('--- blk,Blackout,/blackout'));
     // Leaf lines are `<dashes> <id>,<name>,<path>` and the name is encoded
     // into the URL so spaces and accents survive the round trip.
     expect(body, contains(',Front Wash,/trigger?name=Front%20Wash'));

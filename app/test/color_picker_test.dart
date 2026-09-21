@@ -56,9 +56,9 @@ void main() {
     await tester.tap(find.text('Save colour'));
     await tester.pump();
 
-    expect(container.read(customColorsProvider), [
-      [0, 0, 255],
-    ]);
+    final saved = container.read(customColorsProvider);
+    expect(saved.length, 1);
+    expect(saved.first.rgb, [0, 0, 255]);
     // Saved twice is still one colour, and the button says so.
     expect(find.text('Saved'), findsOneWidget);
 

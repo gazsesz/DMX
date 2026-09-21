@@ -104,6 +104,16 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       dashboardTiming: ref.read(tempoProvider).overrideTiming,
     );
     if (!mounted) return;
+    // A step whose scene or bank was since deleted flattens to nothing, and
+    // the player quietly declines to run zero steps — without this check
+    // nowPlaying would claim the chase is running while nothing lights the
+    // list's own play icon, which is exactly "can't tell what's running".
+    if (!_player.isPlaying) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('"${chase.name}" has no valid steps — check its scenes/banks still exist')),
+      );
+      return;
+    }
     ref.read(nowPlayingProvider.notifier).state = NowPlaying(
       id: chase.id,
       kind: PlaybackKind.chase,
@@ -424,6 +434,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'chases-fab',
         onPressed: () async {
           final chase = ref.read(chasesProvider.notifier).create('New Chase');
           await _open(chase);

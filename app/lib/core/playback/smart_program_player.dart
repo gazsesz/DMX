@@ -7,7 +7,7 @@ import '../../models/scene.dart';
 import '../../models/smart_program.dart';
 import '../../models/universe_config.dart';
 import '../artnet/artnet_service.dart';
-import '../audio/beat_detector.dart';
+import '../audio/beat_source.dart';
 import '../audio/tempo_estimator.dart';
 import 'chase_player.dart';
 
@@ -32,13 +32,13 @@ class SmartProgramStatus {
 /// duration, so a single early/late beat doesn't cause flicker.
 class SmartProgramPlayer {
   final ChasePlayer chasePlayer;
-  final BeatDetectorService beatService;
+  final BeatSource beatService;
 
   /// What actually drives [_onBeat] and an embedded chase/bank's own beat
-  /// sync (below) — the raw detector by default, or a [BeatPredictor]'s
+  /// sync (below) — the raw source by default, or a [BeatPredictor]'s
   /// stream when the caller wants missed beats filled in. Kept separate
   /// from [beatService] because that one still owns starting/stopping the
-  /// microphone itself; a predictor only ever sits in front of it, never
+  /// source itself; a predictor only ever sits in front of it, never
   /// replaces it.
   final Stream<DateTime> beatEvents;
 
@@ -46,7 +46,7 @@ class SmartProgramPlayer {
   /// rather than captured, so flipping either from the dock lands on the
   /// running program.
   ///
-  /// A program already has the microphone open, so with beat sync armed its
+  /// A program already has the beat source open, so with beat sync armed its
   /// bank or chase steps on the beats themselves instead of on a timer
   /// derived from the zone's BPM. Without this a bank running inside a
   /// program simply ignored beat sync: the zone handed the player a chase
