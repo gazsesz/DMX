@@ -21,6 +21,11 @@ class ProjectData {
   final List<DashboardTriggerRef> dashboardTriggers;
   final List<SmartProgram> smartPrograms;
 
+  /// The bank the Banks screen had selected, so reopening the project (or
+  /// restarting the app) lands back on whatever the user was last working
+  /// on instead of always falling back to the first bank in the list.
+  final String? lastSelectedBankId;
+
   const ProjectData({
     required this.name,
     required this.settings,
@@ -32,6 +37,7 @@ class ProjectData {
     required this.chases,
     this.dashboardTriggers = const [],
     this.smartPrograms = const [],
+    this.lastSelectedBankId,
   });
 
   Map<String, dynamic> toJson() => {
@@ -46,6 +52,7 @@ class ProjectData {
     'chases': chases.map((c) => c.toJson()).toList(),
     'dashboardTriggers': dashboardTriggers.map((t) => t.toJson()).toList(),
     'smartPrograms': smartPrograms.map((p) => p.toJson()).toList(),
+    if (lastSelectedBankId != null) 'lastSelectedBankId': lastSelectedBankId,
   };
 
   factory ProjectData.fromJson(Map<String, dynamic> json, {required List<FixtureProfile> builtIns}) {
@@ -72,6 +79,7 @@ class ProjectData {
       smartPrograms: (json['smartPrograms'] as List? ?? [])
           .map((p) => SmartProgram.fromJson(p as Map<String, dynamic>))
           .toList(),
+      lastSelectedBankId: json['lastSelectedBankId'] as String?,
     );
   }
 }

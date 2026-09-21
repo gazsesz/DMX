@@ -40,7 +40,6 @@ class BanksScreen extends ConsumerStatefulWidget {
 }
 
 class _BanksScreenState extends ConsumerState<BanksScreen> {
-  String? _selectedBankId;
   late final ChasePlayer _player;
   int? _runningSlot;
 
@@ -184,8 +183,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     }
 
     ref.read(beatRateProvider.notifier).state = BeatRate.flash;
+    ref.read(selectedBankIdProvider.notifier).state = bank.id;
     setState(() {
-      _selectedBankId = bank.id;
       _runningSlot = null;
       _manualSlot = null;
     });
@@ -323,7 +322,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       }
     }
     ref.read(banksProvider.notifier).remove(bank.id);
-    setState(() => _selectedBankId = null);
+    ref.read(selectedBankIdProvider.notifier).state = null;
   }
 
   Future<void> _renameBank(Bank bank) async {
@@ -379,8 +378,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
       );
     }
+    final selectedBankId = ref.watch(selectedBankIdProvider);
     final selected = banks.firstWhere(
-      (b) => b.id == _selectedBankId,
+      (b) => b.id == selectedBankId,
       orElse: () => banks.first,
     );
     final nowPlaying = ref.watch(nowPlayingProvider);
@@ -472,8 +472,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                           _player.stop();
                           ref.read(nowPlayingProvider.notifier).state = null;
                         }
+                        ref.read(selectedBankIdProvider.notifier).state = bank.id;
                         setState(() {
-                          _selectedBankId = bank.id;
                           _runningSlot = null;
                           _manualSlot = null;
                         });
@@ -486,7 +486,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   label: const Text('New'),
                   onPressed: () {
                     final newBank = ref.read(banksProvider.notifier).addBank();
-                    setState(() => _selectedBankId = newBank.id);
+                    ref.read(selectedBankIdProvider.notifier).state = newBank.id;
                   },
                 ),
                 ActionChip(

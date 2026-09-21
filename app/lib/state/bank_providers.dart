@@ -10,6 +10,14 @@ final banksProvider = StateNotifierProvider<BanksNotifier, List<Bank>>((ref) {
   return BanksNotifier();
 });
 
+/// Which bank the Banks screen shows as selected — lifted out of that
+/// screen's own State so it's part of the project rather than something
+/// that resets to the first bank whenever the show is saved and reloaded
+/// (or the app restarts). Creating a bank — the "New" button, or a preset
+/// like Beat Flash — points this at the new bank; it never causes anything
+/// to actually play, since something else may already be live.
+final selectedBankIdProvider = StateProvider<String?>((ref) => null);
+
 class BanksNotifier extends StateNotifier<List<Bank>> {
   BanksNotifier()
     : super([

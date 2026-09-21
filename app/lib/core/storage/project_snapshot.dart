@@ -26,6 +26,7 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     chases: ref.read(chasesProvider),
     dashboardTriggers: ref.read(dashboardTriggersProvider),
     smartPrograms: ref.read(smartProgramsProvider),
+    lastSelectedBankId: ref.read(selectedBankIdProvider),
   );
 }
 
@@ -85,6 +86,7 @@ void startProject(
       chases: source.chases,
       dashboardTriggers: source.dashboardTriggers,
       smartPrograms: source.smartPrograms,
+      lastSelectedBankId: source.lastSelectedBankId,
     ));
     return;
   }
@@ -105,6 +107,7 @@ void startProject(
   ref.read(chasesProvider.notifier).loadAll(const []);
   ref.read(dashboardTriggersProvider.notifier).loadAll(const []);
   ref.read(smartProgramsProvider.notifier).loadAll(const []);
+  ref.read(selectedBankIdProvider.notifier).state = null;
 }
 
 /// The inverse of [buildProjectSnapshot] — pushes a loaded [ProjectData] into
@@ -122,4 +125,5 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(chasesProvider.notifier).loadAll(data.chases);
   ref.read(dashboardTriggersProvider.notifier).loadAll(data.dashboardTriggers);
   ref.read(smartProgramsProvider.notifier).loadAll(data.smartPrograms);
+  ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;
 }
