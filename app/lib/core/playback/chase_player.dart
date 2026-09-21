@@ -13,7 +13,14 @@ class _Instant {
   final Duration hold;
   final Duration fade;
 
-  const _Instant({required this.scene, required this.hold, required this.fade});
+  /// The lit→dark release time to use instead of the usual zero, when this
+  /// instant is the "dark" half of a Beat Flash bank running at
+  /// [BeatRate.flash] and that bank has its own [Bank.flashFadeOutMs] set.
+  /// Null everywhere else, which keeps the flash's attack (dark→lit) always
+  /// instant.
+  final Duration? flashFadeOut;
+
+  const _Instant({required this.scene, required this.hold, required this.fade, this.flashFadeOut});
 }
 
 class _FadeTarget {
@@ -108,11 +115,25 @@ class ChasePlayer {
       } else if (step.bankId != null) {
         final bankMatches = banks.where((b) => b.id == step.bankId);
         if (bankMatches.isEmpty) continue;
-        for (final slotSceneId in bankMatches.first.sceneSlots) {
+        final bank = bankMatches.first;
+        // A Beat Flash bank is always [dark, lit] pairs (see
+        // `buildBeatFlashScenes`) — the even slot in each pair is the dark
+        // one, which is where a configured release time applies.
+        final slots = bank.sceneSlots;
+        for (var slot = 0; slot < slots.length; slot++) {
+          final slotSceneId = slots[slot];
           if (slotSceneId == null) continue;
           final sceneMatches = scenes.where((s) => s.id == slotSceneId);
           if (sceneMatches.isEmpty) continue;
-          result.add(_Instant(scene: sceneMatches.first, hold: step.hold, fade: step.fade));
+          final isDarkSlot = bank.isBeatFlash && slot.isEven;
+          result.add(_Instant(
+            scene: sceneMatches.first,
+            hold: step.hold,
+            fade: step.fade,
+            flashFadeOut: isDarkSlot && bank.flashFadeOutMs > 0
+                ? Duration(milliseconds: bank.flashFadeOutMs)
+                : null,
+          ));
         }
       }
     }
@@ -163,9 +184,11 @@ class ChasePlayer {
         // Asked per step rather than baked in at play() time, so auto-fade
         // can track the tempo without restarting the chase — restarting is
         // what used to make a beat-synced bank stutter. Flash overrides
-        // everything: a stab that fades in is just a short fade.
+        // everything: a stab that fades in is just a short fade — except a
+        // Beat Flash bank's own configured release, which only ever applies
+        // going into its dark step (the attack in is always instant).
         fade: useBeat && rate == BeatRate.flash
-            ? Duration.zero
+            ? (instants[_index].flashFadeOut ?? Duration.zero)
             : fadeOverride?.call() ?? instants[_index].fade,
         service: service,
         patchedFixtures: patchedFixtures,

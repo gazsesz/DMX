@@ -10,6 +10,14 @@ final banksProvider = StateNotifierProvider<BanksNotifier, List<Bank>>((ref) {
   return BanksNotifier();
 });
 
+/// Which bank the Banks screen shows as selected — lifted out of that
+/// screen's own State so it's part of the project rather than something
+/// that resets to the first bank whenever the show is saved and reloaded
+/// (or the app restarts). Creating a bank — the "New" button, or a preset
+/// like Beat Flash — points this at the new bank; it never causes anything
+/// to actually play, since something else may already be live.
+final selectedBankIdProvider = StateProvider<String?>((ref) => null);
+
 class BanksNotifier extends StateNotifier<List<Bank>> {
   BanksNotifier()
     : super([
@@ -19,11 +27,13 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
   /// [name] and [slots] let a preset mint a bank that is already the right
   /// size and called the right thing, instead of an empty "Bank N" the
   /// caller then has to rename and resize in two more state updates.
-  Bank addBank({String? name, int? slots}) {
+  /// [isBeatFlash] tags a bank built by the Beat Flash preset — see [Bank].
+  Bank addBank({String? name, int? slots, bool isBeatFlash = false}) {
     final bank = Bank(
       id: _uuid.v4(),
       name: name ?? 'Bank ${state.length + 1}',
       sceneSlots: List.filled(slots ?? defaultBankSize, null),
+      isBeatFlash: isBeatFlash,
     );
     state = [...state, bank];
     return bank;
@@ -50,6 +60,15 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     state = [
       for (final b in state)
         if (b.id == id) b.resized(newSize) else b,
+    ];
+  }
+
+  /// Sets the lit→dark fade-out for a Beat Flash bank's [BeatRate.flash]
+  /// playback — see [Bank.flashFadeOutMs].
+  void setFlashFadeOut(String id, int ms) {
+    state = [
+      for (final b in state)
+        if (b.id == id) b.copyWith(flashFadeOutMs: ms.clamp(0, 5000)) else b,
     ];
   }
 

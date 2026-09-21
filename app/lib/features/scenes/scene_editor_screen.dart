@@ -69,22 +69,53 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         perFixtureValues[fixture.id] = map;
         _lastKnownValues[fixture.id] = map;
       }
-      // Cluster fixtures that share an identical value map into one group,
-      // so a previously-saved "3 purple, 1 dark" scene re-opens that way.
-      final byValues = <String, _Group>{};
-      for (final fixtureId in perFixtureValues.keys) {
-        final map = perFixtureValues[fixtureId]!;
-        final key = (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
-            .map((e) => '${e.key}:${e.value}')
-            .join(',');
-        final group = byValues.putIfAbsent(
-          key,
-          () => _Group(id: 'g${_groupCounter++}', fixtureIds: {}, values: Map.of(map)),
-        );
-        group.fixtureIds.add(fixtureId);
+
+      final savedGroups = scene.fixtureGroups;
+      if (savedGroups != null && savedGroups.isNotEmpty) {
+        // Rebuild exactly the groups the user last left the scene in,
+        // instead of re-clustering by value — two groups that happen to
+        // share a colour (or one split off before its colour changed) must
+        // not silently re-merge on reopen, or the grouping looks like it
+        // never saved.
+        for (final ids in savedGroups) {
+          final present = ids.where(perFixtureValues.containsKey).toSet();
+          if (present.isEmpty) continue;
+          final representative = perFixtureValues[present.first]!;
+          _groups.add(_Group(id: 'g${_groupCounter++}', fixtureIds: present, values: Map.of(representative)));
+        }
+        // Any fixture the scene has values for but that wasn't listed in a
+        // saved group (older data, or one added since) still gets to show
+        // up — on its own, clustered with whichever others match its exact
+        // look, same as the old behaviour.
+        final grouped = {for (final g in _groups) ...g.fixtureIds};
+        final orphans = perFixtureValues.keys.where((id) => !grouped.contains(id));
+        _clusterByValue(orphans, perFixtureValues);
+      } else {
+        // No saved grouping (older scene, or one built programmatically,
+        // e.g. the Beat Flash preset) — cluster fixtures that share an
+        // identical value map into one group, so a previously-saved
+        // "3 purple, 1 dark" scene re-opens that way.
+        _clusterByValue(perFixtureValues.keys, perFixtureValues);
       }
-      _groups.addAll(byValues.values);
     }
+  }
+
+  /// Groups fixtures in [ids] by exactly matching channel-function values —
+  /// the fallback for scenes with no explicit saved grouping.
+  void _clusterByValue(Iterable<String> ids, Map<String, Map<String, int>> perFixtureValues) {
+    final byValues = <String, _Group>{};
+    for (final fixtureId in ids) {
+      final map = perFixtureValues[fixtureId]!;
+      final key = (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+          .map((e) => '${e.key}:${e.value}')
+          .join(',');
+      final group = byValues.putIfAbsent(
+        key,
+        () => _Group(id: 'g${_groupCounter++}', fixtureIds: {}, values: Map.of(map)),
+      );
+      group.fixtureIds.add(fixtureId);
+    }
+    _groups.addAll(byValues.values);
   }
 
   @override
@@ -175,7 +206,14 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         );
       } else {
         final target = _groups.where((g) => g.id == targetGroupId).firstOrNull;
-        target?.fixtureIds.add(fixture.id);
+        if (target != null) {
+          target.fixtureIds.add(fixture.id);
+          // The fixture now shows the target group's look, not whatever it
+          // had before — cache that, or moving it again later (e.g. back
+          // out to its own group) would resurrect the stale value instead
+          // of the colour it's actually showing.
+          _lastKnownValues[fixture.id] = Map.of(target.values);
+        }
       }
     });
   }
@@ -342,13 +380,19 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   void _save() {
     if (_selectedFixtureIds.isEmpty || _nameController.text.trim().isEmpty) return;
     final fixtureValues = _buildFixtureValues();
+    final fixtureGroups = [for (final g in _groups) g.fixtureIds.toList()];
     final notifier = ref.read(scenesProvider.notifier);
     final Scene saved;
     if (widget.existing != null) {
-      saved = widget.existing!.copyWith(name: _nameController.text.trim(), fixtureValues: fixtureValues);
+      saved = widget.existing!.copyWith(
+        name: _nameController.text.trim(),
+        fixtureValues: fixtureValues,
+        fixtureGroups: fixtureGroups,
+      );
       notifier.upsert(saved);
     } else {
-      saved = notifier.create(_nameController.text.trim(), fixtureValues);
+      saved = notifier.create(_nameController.text.trim(), fixtureValues).copyWith(fixtureGroups: fixtureGroups);
+      notifier.upsert(saved);
     }
     Navigator.of(context).pop(saved);
   }

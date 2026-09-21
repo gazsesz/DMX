@@ -7,6 +7,7 @@ import '../../core/playback/chase_player.dart';
 import '../../core/playback/scene_output.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/color_picker_dialog.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/node_status_action.dart';
@@ -39,7 +40,6 @@ class BanksScreen extends ConsumerStatefulWidget {
 }
 
 class _BanksScreenState extends ConsumerState<BanksScreen> {
-  String? _selectedBankId;
   late final ChasePlayer _player;
   int? _runningSlot;
 
@@ -153,6 +153,12 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   /// combination that gives a stab on each beat instead of a square wave
   /// sitting at 50% duty. One tap, rather than building two scenes by hand
   /// and then remembering which of the four beat rates does this.
+  ///
+  /// Asks for the flash colour up front — white by default, but a tap away
+  /// from anything else — since a bank editor buried two screens deep is not
+  /// where anyone would think to look to change it. The "Up" scene can still
+  /// be split into differently-coloured groups afterwards for a flash where
+  /// the lamps don't all match.
   Future<void> _addBeatFlashBank() async {
     final fixtures = ref.read(patchedFixturesProvider);
     if (fixtures.isEmpty) {
@@ -162,7 +168,14 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       return;
     }
 
-    final scenes = buildBeatFlashScenes(fixtures: fixtures, idGenerator: () => _uuid.v4());
+    final color = await showColorPickerDialog(context, initial: const [255, 255, 255]);
+    if (!mounted) return;
+
+    final scenes = buildBeatFlashScenes(
+      fixtures: fixtures,
+      idGenerator: () => _uuid.v4(),
+      color: color ?? const [255, 255, 255],
+    );
     final sceneNotifier = ref.read(scenesProvider.notifier);
     for (final scene in scenes) {
       sceneNotifier.upsert(scene);
@@ -174,14 +187,14 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     for (var n = 2; taken.contains(name); n++) {
       name = 'Beat Flash $n';
     }
-    final bank = banksNotifier.addBank(name: name, slots: scenes.length);
+    final bank = banksNotifier.addBank(name: name, slots: scenes.length, isBeatFlash: true);
     for (var i = 0; i < scenes.length; i++) {
       banksNotifier.setSlot(bank.id, i, scenes[i].id);
     }
 
     ref.read(beatRateProvider.notifier).state = BeatRate.flash;
+    ref.read(selectedBankIdProvider.notifier).state = bank.id;
     setState(() {
-      _selectedBankId = bank.id;
       _runningSlot = null;
       _manualSlot = null;
     });
@@ -319,7 +332,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       }
     }
     ref.read(banksProvider.notifier).remove(bank.id);
-    setState(() => _selectedBankId = null);
+    ref.read(selectedBankIdProvider.notifier).state = null;
   }
 
   Future<void> _renameBank(Bank bank) async {
@@ -375,8 +388,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
       );
     }
+    final selectedBankId = ref.watch(selectedBankIdProvider);
     final selected = banks.firstWhere(
-      (b) => b.id == _selectedBankId,
+      (b) => b.id == selectedBankId,
       orElse: () => banks.first,
     );
     final nowPlaying = ref.watch(nowPlayingProvider);
@@ -468,8 +482,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                           _player.stop();
                           ref.read(nowPlayingProvider.notifier).state = null;
                         }
+                        ref.read(selectedBankIdProvider.notifier).state = bank.id;
                         setState(() {
-                          _selectedBankId = bank.id;
                           _runningSlot = null;
                           _manualSlot = null;
                         });
@@ -482,7 +496,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   label: const Text('New'),
                   onPressed: () {
                     final newBank = ref.read(banksProvider.notifier).addBank();
-                    setState(() => _selectedBankId = newBank.id);
+                    ref.read(selectedBankIdProvider.notifier).state = newBank.id;
                   },
                 ),
                 ActionChip(
@@ -587,6 +601,38 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               ],
             ),
           ),
+          if (selected.isBeatFlash)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+              child: Row(
+                children: [
+                  const Tooltip(
+                    message: 'How long the lit → dark step takes at the Flash rate. '
+                        '0 is a hard cut; a little more gives the flash a short decay.',
+                    child: Icon(Icons.timelapse, size: 15, color: AppColors.textFaint),
+                  ),
+                  const SizedBox(width: 6),
+                  const Text('Flash Fade Out', style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
+                  Expanded(
+                    child: Slider(
+                      value: selected.flashFadeOutMs.toDouble().clamp(0, 500),
+                      min: 0,
+                      max: 500,
+                      divisions: 50,
+                      label: '${selected.flashFadeOutMs} ms',
+                      onChanged: (v) => ref.read(banksProvider.notifier).setFlashFadeOut(selected.id, v.round()),
+                    ),
+                  ),
+                  SizedBox(
+                    width: 48,
+                    child: Text(
+                      '${selected.flashFadeOutMs}ms',
+                      style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           Expanded(
             child: Builder(builder: (context) {
               final filledIndices = [
