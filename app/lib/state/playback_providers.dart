@@ -17,6 +17,22 @@ final playbackControllerProvider = Provider<ChasePlayer>((ref) {
   return player;
 });
 
+/// A second, fully independent player — Layer 2. It shares nothing with
+/// [playbackControllerProvider] (Layer 1): starting a bank/chase here never
+/// supersedes whatever Layer 1 is running, and the other way around. The two
+/// layers stay conflict-free as long as the scenes each one plays leave the
+/// channels the other owns out of [Scene.fixtureValues] — e.g. Layer 1 runs
+/// a color/beam chase on a moving head while Layer 2 runs a slow pan/tilt
+/// sweep on the same fixture, each only ever writing its own attributes.
+final layer2ControllerProvider = Provider<ChasePlayer>((ref) {
+  final player = ChasePlayer();
+  ref.onDispose(player.dispose);
+  return player;
+});
+
+/// What's running on Layer 2, mirroring [nowPlayingProvider] for Layer 1.
+final nowPlayingLayer2Provider = StateProvider<NowPlaying?>((ref) => null);
+
 /// The single Smart Program runner, sharing the same [ChasePlayer] above —
 /// so a Smart Program's tempo-driven chase switches use the exact same
 /// "only one thing plays" machinery as a plain bank/chase trigger. Anything
@@ -105,6 +121,7 @@ final nowPlayingProvider = StateProvider<NowPlaying?>((ref) => null);
 /// dock and the remote endpoint so they can't drift apart.
 Future<void> blackoutEverything(ReadProvider read) async {
   read(playbackControllerProvider).stop();
+  read(layer2ControllerProvider).stop();
   read(smartProgramPlayerProvider).stop();
   final service = read(artNetServiceProvider);
   if (!service.isConnected) {
@@ -112,12 +129,15 @@ Future<void> blackoutEverything(ReadProvider read) async {
   }
   service.blackoutAll(read(universesProvider));
   read(nowPlayingProvider.notifier).state = null;
+  read(nowPlayingLayer2Provider.notifier).state = null;
 }
 
 /// Stops whatever is playing without blacking the rig out — the fixtures
 /// hold their current look.
 void stopPlayback(ReadProvider read) {
   read(playbackControllerProvider).stop();
+  read(layer2ControllerProvider).stop();
   read(smartProgramPlayerProvider).stop();
   read(nowPlayingProvider.notifier).state = null;
+  read(nowPlayingLayer2Provider.notifier).state = null;
 }
