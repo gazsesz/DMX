@@ -21,7 +21,15 @@ class _Group {
   final Set<String> fixtureIds;
   final Map<String, int> values;
 
-  _Group({required this.id, required this.fixtureIds, required this.values});
+  /// Attribute groups this group deliberately leaves out of the saved scene
+  /// — e.g. a color/gobo chase that excludes Position so a moving head's
+  /// pan/tilt keeps whatever another program (another Layer, or manual
+  /// control) is driving it to, instead of snapping to whatever this scene
+  /// happens to hold.
+  final Set<AttributeGroup> excluded;
+
+  _Group({required this.id, required this.fixtureIds, required this.values, Set<AttributeGroup>? excluded})
+    : excluded = excluded ?? {};
 }
 
 const _newGroupSentinel = '__new_group__';
@@ -53,28 +61,41 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     if (scene != null) {
       final allFixtures = ref.read(patchedFixturesProvider);
       final perFixtureValues = <String, Map<String, int>>{};
+      final perFixtureExcluded = <String, Set<AttributeGroup>>{};
       for (final entry in scene.fixtureValues.entries) {
         final fixture = allFixtures.where((f) => f.id == entry.key).firstOrNull;
         if (fixture == null) continue;
-        final map = <String, int>{};
         final channels = fixture.profile.channels;
-        for (var i = 0; i < channels.length && i < entry.value.length; i++) {
-          map[channels[i].function.name] = entry.value[i];
+        final map = <String, int>{};
+        final possibleGroups = <AttributeGroup>{};
+        final presentGroups = <AttributeGroup>{};
+        for (final channel in channels) {
+          possibleGroups.add(channel.function.attributeGroup);
+          final value = entry.value[channel.offset];
+          if (value == null) continue;
+          map[channel.function.name] = value;
+          presentGroups.add(channel.function.attributeGroup);
         }
         perFixtureValues[fixture.id] = map;
+        perFixtureExcluded[fixture.id] = possibleGroups.difference(presentGroups);
         _lastKnownValues[fixture.id] = map;
       }
-      // Cluster fixtures that share an identical value map into one group,
-      // so a previously-saved "3 purple, 1 dark" scene re-opens that way.
+      // Cluster fixtures that share an identical value map (and the same
+      // excluded attribute groups) into one group, so a previously-saved "3
+      // purple, 1 dark" scene re-opens that way.
       final byValues = <String, _Group>{};
       for (final fixtureId in perFixtureValues.keys) {
         final map = perFixtureValues[fixtureId]!;
-        final key = (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
-            .map((e) => '${e.key}:${e.value}')
-            .join(',');
+        final excluded = perFixtureExcluded[fixtureId]!;
+        final key =
+            (map.entries.toList()..sort((a, b) => a.key.compareTo(b.key)))
+                .map((e) => '${e.key}:${e.value}')
+                .join(',') +
+            '|' +
+            (excluded.toList()..sort((a, b) => a.index.compareTo(b.index))).join(',');
         final group = byValues.putIfAbsent(
           key,
-          () => _Group(id: 'g${_groupCounter++}', fixtureIds: {}, values: Map.of(map)),
+          () => _Group(id: 'g${_groupCounter++}', fixtureIds: {}, values: Map.of(map), excluded: Set.of(excluded)),
         );
         group.fixtureIds.add(fixtureId);
       }
@@ -171,6 +192,23 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     return const [];
   }
 
+  /// Which attribute groups this group's fixtures actually have a channel
+  /// for — only these get a toggle, so a fixture with no Position channels
+  /// never shows a "Position" switch it couldn't do anything with.
+  Set<AttributeGroup> _availableGroupsFor(_Group group) =>
+      {for (final function in _sharedFunctionsFor(group)) function.attributeGroup};
+
+  void _toggleAttributeGroup(_Group group, AttributeGroup attributeGroup) {
+    setState(() {
+      if (group.excluded.contains(attributeGroup)) {
+        group.excluded.remove(attributeGroup);
+      } else {
+        group.excluded.add(attributeGroup);
+      }
+    });
+    _pushLiveOutput();
+  }
+
   void _setValueInGroup(_Group group, ChannelFunction function, int value) {
     setState(() => group.values[function.name] = value.clamp(0, 255));
     for (final id in group.fixtureIds) {
@@ -207,6 +245,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         final universe = universeMatches.first;
         touched.add(universe);
         for (final channel in fixture.profile.channels) {
+          if (group.excluded.contains(channel.function.attributeGroup)) continue;
           final value = group.values[channel.function.name];
           if (value == null) continue;
           service.setChannel(universe, fixture.startChannel + channel.offset, value, send: false);
@@ -218,13 +257,16 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     }
   }
 
-  Map<String, List<int>> _buildFixtureValues() {
-    final result = <String, List<int>>{};
+  Map<String, Map<int, int>> _buildFixtureValues() {
+    final result = <String, Map<int, int>>{};
     for (final group in _groups) {
       for (final fixture in _fixturesIn(group)) {
-        result[fixture.id] = [
-          for (final channel in fixture.profile.channels) group.values[channel.function.name] ?? 0,
-        ];
+        final values = <int, int>{};
+        for (final channel in fixture.profile.channels) {
+          if (group.excluded.contains(channel.function.attributeGroup)) continue;
+          values[channel.offset] = group.values[channel.function.name] ?? 0;
+        }
+        result[fixture.id] = values;
       }
     }
     return result;
@@ -314,6 +356,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     final hasPanTilt = functions.any((f) => f.isPanTilt);
     final hasGobo = functions.any((f) => f.isGobo);
     final fixtures = _fixturesIn(group);
+    final availableGroups = _availableGroupsFor(group).toList()..sort((a, b) => a.index.compareTo(b.index));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -349,6 +392,29 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                   ),
               ],
             ),
+            if (availableGroups.length > 1) ...[
+              const SizedBox(height: 10),
+              const Text(
+                'INCLUDES',
+                style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final attributeGroup in availableGroups)
+                    FilterChip(
+                      label: Text(attributeGroup.label, style: const TextStyle(fontSize: 10.5)),
+                      selected: !group.excluded.contains(attributeGroup),
+                      onSelected: (_) => _toggleAttributeGroup(group, attributeGroup),
+                      tooltip: group.excluded.contains(attributeGroup)
+                          ? 'Left alone at playback — another program can drive it'
+                          : 'This scene sets it',
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 14),
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,

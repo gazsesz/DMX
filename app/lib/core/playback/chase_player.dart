@@ -19,8 +19,11 @@ class _Instant {
 class _FadeTarget {
   final UniverseConfig universe;
   final int startChannel;
-  final List<int> from;
-  final List<int> to;
+
+  /// Channel offset (within the fixture) -> value, from and to. Only offsets
+  /// the target scene actually specifies appear here — see [Scene.fixtureValues].
+  final Map<int, int> from;
+  final Map<int, int> to;
 
   const _FadeTarget({
     required this.universe,
@@ -239,9 +242,9 @@ class ChasePlayer {
       if (universeMatches.isEmpty) continue;
       final universe = universeMatches.first;
       final to = entry.value;
-      final from = [
-        for (var i = 0; i < to.length; i++) service.getChannelValue(universe, fixture.startChannel + i),
-      ];
+      final from = {
+        for (final offset in to.keys) offset: service.getChannelValue(universe, fixture.startChannel + offset),
+      };
       targets.add(_FadeTarget(universe: universe, startChannel: fixture.startChannel, from: from, to: to));
     }
 
@@ -263,9 +266,11 @@ class ChasePlayer {
   void _writeStep(List<_FadeTarget> targets, double t, ArtNetService service) {
     final touched = <UniverseConfig>{};
     for (final target in targets) {
-      for (var i = 0; i < target.to.length; i++) {
-        final value = (target.from[i] + (target.to[i] - target.from[i]) * t).round();
-        service.setChannel(target.universe, target.startChannel + i, value.clamp(0, 255), send: false);
+      for (final offset in target.to.keys) {
+        final from = target.from[offset] ?? 0;
+        final to = target.to[offset]!;
+        final value = (from + (to - from) * t).round();
+        service.setChannel(target.universe, target.startChannel + offset, value.clamp(0, 255), send: false);
       }
       touched.add(target.universe);
     }
