@@ -28,7 +28,7 @@ import 'tempo_providers.dart';
 /// pan/tilt sweep on the same fixture, each only ever writing its own
 /// attributes (see the Scene editor's "INCLUDES" toggles).
 final chasePlayerProvider = Provider.family<ChasePlayer, String>((ref, layerId) {
-  final player = ChasePlayer();
+  final player = ChasePlayer(layerId: layerId);
   ref.onDispose(player.dispose);
   return player;
 });
@@ -233,16 +233,23 @@ List<String> chaseLayerIds(ReadProvider read, Chase chase) =>
 /// as [playing]. Starting a lane takes its layer back from the Smart
 /// Program first. Returns the layer ids that actually started (a lane whose
 /// scenes/banks were all deleted flattens to nothing and doesn't).
+///
+/// [followBeatSync] ties the chase to the app-wide beat-sync switch for as
+/// long as it runs, instead of the chase's own flag at start — flipping the
+/// switch mid-chase then moves it onto or off the beat without a restart.
 Future<List<String>> startLayeredChase(
   ReadProvider read,
   Chase chase, {
   required NowPlaying playing,
   Duration? Function()? fadeOverride,
   void Function(String layerId, int instantIndex)? onStep,
+  bool followBeatSync = false,
 }) async {
   final service = read(artNetServiceProvider);
   Stream<DateTime>? beatStream;
-  if (chase.beatSync) {
+  if (followBeatSync) {
+    beatStream = read(beatPredictorProvider).events;
+  } else if (chase.beatSync) {
     final beatService = read(activeBeatSourceProvider);
     if (await beatService.start()) beatStream = read(beatPredictorProvider).events;
   }
@@ -263,7 +270,11 @@ Future<List<String>> startLayeredChase(
       flashLength: read(flashLengthProvider),
       liveBeatRate: () => read(beatRateProvider),
       liveFlashLength: () => read(flashLengthProvider),
-      onStep: onStep == null ? null : (index) => onStep(entry.key, index),
+      liveBeatSync: followBeatSync ? () => read(beatSyncEnabledProvider) : null,
+      onStep: (index) {
+        read(layerStepProvider(entry.key).notifier).state = index;
+        onStep?.call(entry.key, index);
+      },
       fadeOverride: fadeOverride,
     );
     if (!player.isPlaying) continue;
@@ -404,45 +415,79 @@ Future<String> resumeLayer(ReadProvider read, String layerId) async {
   }
 }
 
-/// Builds a synthetic one-step chase from [bank] (using the app's shared
-/// tempo/beat settings, exactly like the Banks "Run Bank" button) and starts
-/// it on [layerId]'s player. Returns an error message to show the user, or
-/// null on success. A layer the Smart Program was driving is taken back
-/// from it first; the program keeps its other layers.
+/// Which instant (played look) each layer's player is on — for highlighting
+/// the live slot, whichever screen or trigger started the layer.
+final layerStepProvider = StateProvider.family<int?, String>((ref, layerId) => null);
+
+/// The one-step chase [bank] plays as on its own: at its own Hold/Fade when
+/// it has them, at the dock's otherwise.
+Chase bankRunChase(ReadProvider read, Bank bank, {required String layerId}) {
+  final tempo = read(tempoProvider);
+  return Chase(
+    id: 'bank-run-$layerId-${bank.id}',
+    name: bank.name,
+    steps: [
+      ChaseStep(
+        bankId: bank.id,
+        hold: bank.ownTiming ? bank.hold : tempo.hold,
+        fade: bank.ownTiming ? bank.fade : tempo.fade,
+      ),
+    ],
+    direction: ChaseDirection.forward,
+    beatSync: read(beatSyncEnabledProvider),
+  );
+}
+
+/// Starts [bank] on [layerId]'s player — what "Run Bank", the layer picker,
+/// a Dashboard bank tile and the remote all do. Returns an error message to
+/// show the user, or null on success. A layer the Smart Program was driving
+/// is taken back from it first; the program keeps its other layers.
 String? runBankOnLayer(ReadProvider read, {required Bank bank, required String layerId}) {
   final service = read(artNetServiceProvider);
   if (!service.isConnected) return 'Not connected — check Settings';
   releaseLayersFromSmart(read, [layerId]);
-  final beatSync = read(beatSyncEnabledProvider);
-  final tempo = read(tempoProvider);
-  final chase = Chase(
-    id: 'bank-run-$layerId-${bank.id}',
-    name: bank.name,
-    steps: [ChaseStep(bankId: bank.id, hold: tempo.hold, fade: tempo.fade)],
-    direction: ChaseDirection.forward,
-    beatSync: beatSync,
-  );
-  read(chasePlayerProvider(layerId)).play(
-    chase: chase,
+  final player = read(chasePlayerProvider(layerId));
+  player.play(
+    chase: bankRunChase(read, bank, layerId: layerId),
     scenes: read(scenesProvider),
     banks: read(banksProvider),
     patchedFixtures: read(patchedFixturesProvider),
     universes: read(universesProvider),
     service: service,
-    beatStream: beatSync ? read(beatPredictorProvider).events : null,
+    beatStream: read(beatPredictorProvider).events,
+    liveBeatSync: () => read(beatSyncEnabledProvider),
     beatRate: read(beatRateProvider),
     flashLength: read(flashLengthProvider),
     liveBeatRate: () => read(beatRateProvider),
     liveFlashLength: () => read(flashLengthProvider),
-    fadeOverride: () {
-      final t = read(tempoProvider);
-      return t.autoFade ? t.fade : null;
-    },
+    // Auto-fade is the dock's; a bank keeping its own timing keeps its own
+    // fade too.
+    fadeOverride: bank.ownTiming
+        ? null
+        : () {
+            final t = read(tempoProvider);
+            return t.autoFade ? t.fade : null;
+          },
+    onStep: (index) => read(layerStepProvider(layerId).notifier).state = index,
   );
+  // A bank with every slot empty flattens to zero steps, and `play` quietly
+  // declines to run them — reporting it as playing would leave nowPlaying
+  // claiming a run that never started.
+  if (!player.isPlaying) return '"${bank.name}" has no filled slots to play';
   read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
     id: bank.id,
     kind: PlaybackKind.bank,
     name: bank.name,
   );
   return null;
+}
+
+/// Re-starts [bankId] on every layer it's playing on, so an edit to its
+/// timing lands straight away.
+void restartBankEverywhere(ReadProvider read, String bankId) {
+  final banks = read(banksProvider).where((b) => b.id == bankId);
+  if (banks.isEmpty) return;
+  for (final layerId in layersPlaying(read, bankId)) {
+    runBankOnLayer(read, bank: banks.first, layerId: layerId);
+  }
 }

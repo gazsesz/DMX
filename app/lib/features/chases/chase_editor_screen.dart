@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/audio/beat_detector.dart';
+import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/beat_meter.dart';
@@ -15,6 +16,7 @@ import '../../state/chase_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
+import '../../state/tempo_providers.dart';
 
 class ChaseEditorScreen extends ConsumerStatefulWidget {
   final Chase existing;
@@ -53,16 +55,26 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     _direction = widget.existing.direction;
     _sensitivity = ref.read(beatDetectorProvider).sensitivity;
     _frequencyBand = ref.read(beatDetectorProvider).frequencyBand;
+    _wasRunningAtOpen;
   }
 
   bool get _isThisPreviewing => layersPlaying(ref.read, widget.existing.id).isNotEmpty;
 
+  /// Whether this chase was already playing (from the Dashboard, say) when
+  /// the editor opened — then leaving the editor must not stop it.
+  late final bool _wasRunningAtOpen = _isThisPreviewing;
+
+  /// Set by [_save] once the saved version has been put back on the rig.
+  bool _keepRunning = false;
+
   @override
   void dispose() {
-    // Playback persists across tabs, so something else may well be running
-    // while this editor is open — only stop it if it's actually *our own*
-    // preview, never something started elsewhere.
-    if (_isThisPreviewing) stopEverywhere(ref.read, widget.existing.id);
+    // Playback persists across tabs — only stop what's actually our own
+    // preview, never a chase that was running before the editor opened or
+    // one that Save just handed back to the show.
+    if (!_wasRunningAtOpen && !_keepRunning && _isThisPreviewing) {
+      stopEverywhere(ref.read, widget.existing.id);
+    }
     _nameController.dispose();
     super.dispose();
   }
@@ -279,10 +291,26 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     if (mounted) setState(() {});
   }
 
-  void _save() {
-    if (_isThisPreviewing) stopEverywhere(ref.read, widget.existing.id);
-    ref.read(chasesProvider.notifier).upsert(_currentChase);
-    Navigator.of(context).pop();
+  /// Saves, and if the chase is playing keeps it playing — as the saved
+  /// version, fired the way the Dashboard fires it. Saving used to stop it,
+  /// so changing e.g. its beat sync mid-show took the chase off the rig.
+  Future<void> _save() async {
+    final saved = _currentChase;
+    ref.read(chasesProvider.notifier).upsert(saved);
+    if (_isThisPreviewing) {
+      if (saved.beatSync && !ref.read(beatSyncEnabledProvider)) {
+        await ref.read(beatSyncEnabledProvider.notifier).setEnabled(true);
+      }
+      if (!mounted) return;
+      await startChase(
+        ref.read,
+        chaseAsDashboardPlaysIt(ref.read, saved),
+        playing: NowPlaying(id: saved.id, kind: PlaybackKind.chase, name: saved.name),
+        dashboardTiming: ref.read(tempoProvider).overrideTiming,
+      );
+      _keepRunning = true;
+    }
+    if (mounted) Navigator.of(context).pop();
   }
 
   String _stepLabel(ChaseStep step) {

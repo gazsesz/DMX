@@ -13,6 +13,7 @@ enum GeneratorEffect {
   runningLight,
   strobe,
   rainbow,
+  rainbowWave,
   circle,
   disco,
   carousel,
@@ -44,6 +45,8 @@ extension GeneratorEffectLabel on GeneratorEffect {
         return 'Strobe / Pulse';
       case GeneratorEffect.rainbow:
         return 'Rainbow Sweep';
+      case GeneratorEffect.rainbowWave:
+        return 'Rainbow Wave';
       case GeneratorEffect.disco:
         return 'Disco';
       case GeneratorEffect.carousel:
@@ -104,6 +107,7 @@ extension GeneratorEffectLabel on GeneratorEffect {
       case GeneratorEffect.strobe:
         return (0.08, 0.0);
       case GeneratorEffect.rainbow:
+      case GeneratorEffect.rainbowWave:
         return (0.5, 0.5);
       case GeneratorEffect.disco:
         return (0.25, 0.05);
@@ -283,6 +287,9 @@ Map<String, Map<int, int>> _colorValuesFor(
   return result;
 }
 
+/// Degrees round the colour wheel for a phase in turns, wrapped to 0..360.
+double _hueAt(double turns) => 360 * (turns % 1.0);
+
 /// -1 → 1 → -1 at a constant rate, unlike a sine's slow turnarounds.
 double _triangle(double phase) => 4 * (phase - (phase + 0.5).floorToDouble()).abs() - 1;
 
@@ -436,10 +443,26 @@ List<Scene> generateScenes({
       break;
 
     case GeneratorEffect.rainbow:
+      // The whole rig on one hue, turning together — Shift staggers it.
       for (var i = 0; i < count; i++) {
-        final hue = 360 * i / count;
-        final rgb = _hsvToRgb(hue, 1, 1);
-        addScene(i, _colorValuesFor(fixtures, (_) => rgb));
+        addScene(
+          i,
+          _colorValuesFor(fixtures, (f) => _hsvToRgb(_hueAt(i / count + shift * fixtures.indexOf(f) / fixtures.length), 1, 1)),
+        );
+      }
+      break;
+
+    case GeneratorEffect.rainbowWave:
+      // Every lamp a phase further round the colour wheel than the one
+      // before it, so the rainbow rolls across the rig instead of the
+      // whole rig changing colour at once. Shift narrows the spread from
+      // the full wheel down to lamps almost in step.
+      final spread = shift > 0 ? shift : 1.0;
+      for (var i = 0; i < count; i++) {
+        addScene(
+          i,
+          _colorValuesFor(fixtures, (f) => _hsvToRgb(_hueAt(i / count + spread * fixtures.indexOf(f) / fixtures.length), 1, 1)),
+        );
       }
       break;
 

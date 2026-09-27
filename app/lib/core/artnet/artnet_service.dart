@@ -170,6 +170,88 @@ class ArtNetService {
     if (send) _send(universe);
   }
 
+  // --- Layer arbitration -------------------------------------------------
+  //
+  // Several layers can drive the same channel. The one started most
+  // recently wins it (LTP, the way a console's playbacks behave), and when
+  // it lets go the channel falls back to the next most recent layer still
+  // asking for it — so a flash fired over a running chase takes the lamps
+  // it names, and hands them back the moment it stops.
+
+  int _claimCounter = 0;
+  final Map<String, int> _layerStamps = {};
+
+  /// Universe id → per-channel owning layer.
+  final Map<String, List<String?>> _owners = {};
+
+  /// Layer → universe id → channel → the value that layer last asked for,
+  /// whether or not it currently owns the channel.
+  final Map<String, Map<String, Map<int, int>>> _layerValues = {};
+
+  /// Marks [layer] as the newest thing started: from now on it wins every
+  /// channel it shares with a layer started before it.
+  void claimLayer(String layer) => _layerStamps[layer] = ++_claimCounter;
+
+  int _stampOf(String layer) => _layerStamps[layer] ?? 0;
+
+  List<String?> _ownersFor(UniverseConfig universe) =>
+      _owners.putIfAbsent(universe.id, () => List<String?>.filled(512, null));
+
+  /// [setChannel] on behalf of [layer]: remembered for that layer, and
+  /// written out only if no layer started after it holds the channel. Call
+  /// [flush] afterwards, as with `setChannel(send: false)`.
+  void setLayerChannel(UniverseConfig universe, int channel, int value, String layer) {
+    if (channel < 0 || channel > 511) return;
+    final clamped = value.clamp(0, 255);
+    _layerValues.putIfAbsent(layer, () => {}).putIfAbsent(universe.id, () => {})[channel] = clamped;
+    final owners = _ownersFor(universe);
+    final owner = owners[channel];
+    if (owner != null && owner != layer && _stampOf(owner) > _stampOf(layer)) return;
+    owners[channel] = layer;
+    _bufferFor(universe)[channel] = clamped;
+  }
+
+  /// Lets go of every channel [layer] holds, except those in [keep]
+  /// (universe id → channels). Each released channel goes to the newest
+  /// other layer still asking for it; with none, it keeps its level — a
+  /// stopped layer leaves its look on stage rather than blacking out.
+  void releaseLayer(String layer, {Map<String, Set<int>> keep = const {}}) {
+    final values = _layerValues[layer];
+    if (values == null) return;
+    for (final entry in values.entries.toList()) {
+      final universeId = entry.key;
+      final kept = keep[universeId] ?? const <int>{};
+      final owners = _owners[universeId];
+      final buffer = _buffers[universeId];
+      var touched = false;
+      for (final channel in entry.value.keys.toList()) {
+        if (kept.contains(channel)) continue;
+        entry.value.remove(channel);
+        if (owners == null || owners[channel] != layer) continue;
+        owners[channel] = null;
+        String? next;
+        var nextStamp = -1;
+        for (final other in _layerValues.entries) {
+          if (other.key == layer || other.value[universeId]?[channel] == null) continue;
+          final stamp = _stampOf(other.key);
+          if (stamp > nextStamp) {
+            next = other.key;
+            nextStamp = stamp;
+          }
+        }
+        if (next != null && buffer != null) {
+          owners[channel] = next;
+          buffer[channel] = _layerValues[next]![universeId]![channel]!;
+          touched = true;
+        }
+      }
+      if (entry.value.isEmpty) values.remove(universeId);
+      final universe = _knownUniverses[universeId];
+      if (touched && universe != null) _send(universe);
+    }
+    if (values.isEmpty) _layerValues.remove(layer);
+  }
+
   void setUniverseData(UniverseConfig universe, Uint8List data, {bool send = true}) {
     final buffer = _bufferFor(universe);
     buffer.setRange(0, data.length.clamp(0, 512), data);

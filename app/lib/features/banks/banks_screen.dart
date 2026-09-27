@@ -10,11 +10,12 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/color_picker_dialog.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/fixture_select.dart';
+import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/layer_picker_sheet.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
-import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../models/layer.dart';
 import '../../models/scene.dart';
@@ -43,23 +44,11 @@ class BanksScreen extends ConsumerStatefulWidget {
 }
 
 class _BanksScreenState extends ConsumerState<BanksScreen> {
-  late final ChasePlayer _player;
-  int? _runningSlot;
-
   /// The slot the user last fired by hand — so tapping a scene shows which
   /// one is live even when the bank isn't running as a chase.
   int? _manualSlot;
 
-  @override
-  void initState() {
-    super.initState();
-    _player = ref.read(playbackControllerProvider);
-  }
-
-  bool _isThisBankRunning(Bank bank) {
-    final current = ref.read(nowPlayingProvider);
-    return _player.isPlaying && current?.kind == PlaybackKind.bank && current?.id == bank.id;
-  }
+  bool _isThisBankRunning(Bank bank) => layersPlaying(ref.read, bank.id).contains(layer1Id);
 
   /// Whether [bank] is currently running on any layer other than Layer 1 —
   /// drives the "run on another layer" icon's active color.
@@ -74,93 +63,110 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
   void _toggleRun(Bank bank) {
     if (_isThisBankRunning(bank)) {
-      _player.stop();
-      ref.read(nowPlayingProvider.notifier).state = null;
-      setState(() => _runningSlot = null);
+      stopLayer(ref.read, layer1Id);
       return;
     }
-    final service = ref.read(artNetServiceProvider);
-    if (!service.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected — check Settings')),
-      );
+    // The same start as the layer picker and a Dashboard tile, so a bank
+    // plays the same wherever it's fired from.
+    final error = runBankOnLayer(ref.read, bank: bank, layerId: layer1Id);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
-    releaseLayersFromSmart(ref.read, const [layer1Id]);
-    final beatSync = ref.read(beatSyncEnabledProvider);
-    // One set of timing for the whole app — this screen's own Hold/Fade
-    // sliders are gone, and the dock's panel is where they live now.
-    final tempo = ref.read(tempoProvider);
-    final chase = Chase(
-      id: 'bank-run-${bank.id}',
-      name: bank.name,
-      steps: [
-        ChaseStep(
-          bankId: bank.id,
-          hold: tempo.hold,
-          fade: tempo.fade,
-        ),
-      ],
-      direction: ChaseDirection.forward,
-      beatSync: beatSync,
-    );
-    _player.play(
-      chase: chase,
-      scenes: ref.read(scenesProvider),
-      banks: ref.read(banksProvider),
-      patchedFixtures: ref.read(patchedFixturesProvider),
-      universes: ref.read(universesProvider),
-      service: service,
-      beatStream: beatSync ? ref.read(beatPredictorProvider).events : null,
-      beatRate: beatRateOf(ref),
-      flashLength: ref.read(flashLengthProvider),
-      liveBeatRate: () => ref.read(beatRateProvider),
-      liveFlashLength: () => ref.read(flashLengthProvider),
-      // Auto-fade is app-wide, so it governs a bank run from here too. It
-      // used to be ignored on this screen, which made the local Fade
-      // slider look like it was beating auto-fade in a fight.
-      fadeOverride: () {
-        final tempo = ref.read(tempoProvider);
-        return tempo.autoFade ? tempo.fade : null;
-      },
-      onStep: (index) {
-        if (mounted) setState(() => _runningSlot = index);
-      },
-    );
-    // A bank with every slot empty flattens to zero steps, and `play`
-    // quietly declines to run them — reporting it as playing would leave
-    // nowPlaying (and this row's own icon) claiming a run that never
-    // started.
-    if (!_player.isPlaying) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${bank.name}" has no filled slots to play')),
-      );
-      return;
-    }
-    ref.read(nowPlayingProvider.notifier).state = NowPlaying(
-      id: bank.id,
-      kind: PlaybackKind.bank,
-      name: bank.name,
-    );
     setState(() => _manualSlot = null);
   }
 
+  /// Everything running follows the switch live — no re-fire, which used to
+  /// reach only a bank run from this screen and left a chase started
+  /// elsewhere stuck waiting for beats.
   Future<void> _setBeatSync(bool value) async {
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
-      return;
-    }
-    // Re-arm whatever is running so it picks up (or drops) beat stepping
-    // right away instead of only on the next run.
-    final banks = ref.read(banksProvider);
-    final running = banks.where(_isThisBankRunning);
-    if (running.isNotEmpty) {
-      final bank = running.first;
-      _player.stop();
-      _toggleRun(bank);
     }
   }
+
+  /// This bank's own Hold/Fade — or the choice to follow the dock's, which
+  /// is where the readout used to send you whatever you wanted to change.
+  Future<void> _editBankTiming(String bankId) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.panel,
+      showDragHandle: true,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final bank = ref.watch(banksProvider).where((b) => b.id == bankId).firstOrNull;
+          if (bank == null) return const SizedBox.shrink();
+          final tempo = ref.watch(tempoProvider);
+          final beatSync = ref.watch(beatSyncEnabledProvider);
+          final notifier = ref.read(banksProvider.notifier);
+          void restart() => restartBankEverywhere(ref.read, bankId);
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text('${bank.name} — Timing', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Own timing for this bank'),
+                    subtitle: Text(
+                      bank.ownTiming
+                          ? 'Plays at the Hold/Fade below, wherever it runs'
+                          : 'Follows the dock: Hold ${tempo.stepSeconds.toStringAsFixed(2)}s · '
+                                'Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s${tempo.autoFade ? ' (auto)' : ''}',
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
+                    ),
+                    value: bank.ownTiming,
+                    onChanged: (v) {
+                      notifier.setTiming(bankId, ownTiming: v);
+                      restart();
+                    },
+                  ),
+                  if (bank.ownTiming) ...[
+                    Text(
+                      beatSync ? 'Hold ${_seconds(bank.holdMs)} — Beat Sync is on, steps follow the beat' : 'Hold ${_seconds(bank.holdMs)}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
+                    ),
+                    Slider(
+                      value: _holdScale.positionOf(bank.holdMs / 1000),
+                      onChanged: (p) => notifier.setTiming(bankId, holdMs: (_holdScale.valueAt(p) * 1000).round()),
+                      onChangeEnd: (_) => restart(),
+                    ),
+                    Text('Fade ${_seconds(bank.fadeMs)}', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),
+                    Slider(
+                      value: fadeTimeScale.positionOf(bank.fadeMs / 1000),
+                      activeColor: AppColors.accent2,
+                      onChanged: (p) => notifier.setTiming(bankId, fadeMs: (fadeTimeScale.valueAt(p) * 1000).round()),
+                      onChangeEnd: (_) => restart(),
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      icon: const Icon(Icons.tune, size: 16),
+                      label: const Text('App-wide timing (dock)'),
+                      onPressed: () {
+                        Navigator.pop(context);
+                        ref.read(controlDockProvider.notifier).toggleExpanded();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  static const _holdScale = LogScale(min: 0.02, max: 10.0);
+
+  static String _seconds(int ms) => '${(ms / 1000).toStringAsFixed(2)}s';
 
   /// Builds the ready-made beat-flash program: a two-scene bank — rig out,
   /// rig at full — armed for Beat Sync at the Flash rate, which is the one
@@ -184,9 +190,13 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
     final color = await showColorPickerDialog(context, initial: const [255, 255, 255]);
     if (!mounted) return;
+    // Which lamps flash — the rest of the rig is left to whatever else is
+    // playing, instead of being blacked out on every beat.
+    final chosen = await showFixtureSelectDialog(context, fixtures: fixtures, title: 'Which fixtures flash?');
+    if (chosen == null || !mounted) return;
 
     final scenes = buildBeatFlashScenes(
-      fixtures: fixtures,
+      fixtures: chosen,
       idGenerator: () => _uuid.v4(),
       color: color ?? const [255, 255, 255],
     );
@@ -206,12 +216,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       banksNotifier.setSlot(bank.id, i, scenes[i].id);
     }
 
-    ref.read(beatRateProvider.notifier).state = BeatRate.flash;
+    // No app-wide switch to Flash any more: a Beat Flash bank steps at the
+    // Flash rate by itself, and flipping the shared rate made everything
+    // else running on the other layers flash along with it.
     ref.read(selectedBankIdProvider.notifier).state = bank.id;
-    setState(() {
-      _runningSlot = null;
-      _manualSlot = null;
-    });
+    setState(() => _manualSlot = null);
     // Arms the mic through the same path as the switch below, so a denied
     // or busy microphone reports itself the way it does everywhere else.
     await _setBeatSync(true);
@@ -219,12 +228,6 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('"$name" ready — hit Run Bank and it flashes on every beat')),
     );
-  }
-
-  void _restartRunIfPlaying(Bank bank) {
-    if (!_isThisBankRunning(bank)) return;
-    _player.stop();
-    _toggleRun(bank);
   }
 
   static const _newSceneSentinel = '__new__';
@@ -339,7 +342,6 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       final current = ref.read(nowPlayingForLayerProvider(layer.id));
       if (current?.kind == PlaybackKind.bank && current?.id == bank.id) {
         stopLayer(ref.read, layer.id);
-        if (layer.id == layer1Id) setState(() => _runningSlot = null);
       }
     }
     if (choice == BankDeleteChoice.deleteScenes) {
@@ -410,9 +412,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       (b) => b.id == selectedBankId,
       orElse: () => banks.first,
     );
-    final nowPlaying = ref.watch(nowPlayingProvider);
-    final isRunningThisBank =
-        _player.isPlaying && nowPlaying?.kind == PlaybackKind.bank && nowPlaying?.id == selected.id;
+    ref.watch(nowPlayingProvider);
+    final isRunningThisBank = _isThisBankRunning(selected);
+    final runningSlot = ref.watch(layerStepProvider(layer1Id));
     // Watch every other layer's now-playing so this rebuilds when one of
     // them starts/stops this bank, not just when Layer 1 does.
     for (final layer in ref.watch(layersProvider)) {
@@ -506,10 +508,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         // selecting a bank to send to a *different* layer
                         // silently killed whatever Layer 1 was running.)
                         ref.read(selectedBankIdProvider.notifier).state = bank.id;
-                        setState(() {
-                          _runningSlot = null;
-                          _manualSlot = null;
-                        });
+                        setState(() => _manualSlot = null);
                       },
                     ),
                   ),
@@ -577,7 +576,17 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     ],
                   ),
                 ),
-                if (beatSync) ...[
+                if (beatSync && selected.isBeatFlash) ...[
+                  const SizedBox(width: 6),
+                  const Tooltip(
+                    message: 'A Beat Flash bank always flashes on the beat, whatever the app-wide rate',
+                    child: Chip(
+                      avatar: Icon(Icons.flash_on, size: 14, color: AppColors.accent),
+                      label: Text('Flash'),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ),
+                ] else if (beatSync) ...[
                   const SizedBox(width: 6),
                   Tooltip(
                     message: 'Steps per beat',
@@ -591,23 +600,17 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         visualDensity: VisualDensity.compact,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      onSelectionChanged: (selection) {
-                        ref.read(beatRateProvider.notifier).state = selection.first;
-                        _restartRunIfPlaying(selected);
-                      },
+                      // Read live by every running player — no restart.
+                      onSelectionChanged: (selection) => ref.read(beatRateProvider.notifier).state = selection.first,
                     ),
                   ),
                 ],
                 const SizedBox(width: 8),
-                // A readout, not a control. This screen used to carry its
-                // own Hold/Fade sliders that quietly disagreed with the
-                // Dashboard's — which is how auto-fade ended up looking
-                // like it was losing a fight with a slider. One set of
-                // timing now, in the dock's panel, and this says what it
-                // currently is and where to change it.
+                // What this bank plays at, and the way to change it: its
+                // own Hold/Fade, or the dock's when it follows those.
                 Expanded(
                   child: InkWell(
-                    onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
+                    onTap: () => _editBankTiming(selected.id),
                     borderRadius: BorderRadius.circular(6),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -615,10 +618,15 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              'Hold ${tempo.stepSeconds.toStringAsFixed(2)}s · '
-                              'Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s'
-                              '${autoFade ? ' (auto)' : ''}',
-                              style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
+                              selected.ownTiming
+                                  ? 'Hold ${_seconds(selected.holdMs)} · Fade ${_seconds(selected.fadeMs)} (bank)'
+                                  : 'Hold ${tempo.stepSeconds.toStringAsFixed(2)}s · '
+                                        'Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s'
+                                        '${autoFade ? ' (auto)' : ''}',
+                              style: appMonoStyle(
+                                fontSize: 10.5,
+                                color: selected.ownTiming ? AppColors.accent : AppColors.textFaint,
+                              ),
                             ),
                           ),
                           const Icon(Icons.tune, size: 15, color: AppColors.textFaint),
@@ -669,8 +677,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   if (selected.sceneSlots[i] != null) i,
               ];
               final highlightIndex =
-                  (isRunningThisBank && _runningSlot != null && _runningSlot! < filledIndices.length)
-                      ? filledIndices[_runningSlot!]
+                  (isRunningThisBank && runningSlot != null && runningSlot < filledIndices.length)
+                      ? filledIndices[runningSlot]
                       : null;
               return GridView.builder(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
@@ -764,7 +772,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () => ref.read(banksProvider.notifier).duplicate(selected.id),
+                    onPressed: () {
+                      final copy = ref.read(banksProvider.notifier).duplicate(selected.id);
+                      if (copy != null) ref.read(selectedBankIdProvider.notifier).state = copy.id;
+                    },
                     child: const Text('Duplicate Bank'),
                   ),
                 ),

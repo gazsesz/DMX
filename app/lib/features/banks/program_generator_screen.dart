@@ -4,8 +4,8 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/generator/program_generator.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/fixture_select.dart';
 import '../../models/builtin_fixtures.dart';
-import '../../models/fixture_profile.dart';
 import '../../models/patched_fixture.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
@@ -26,7 +26,8 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
   final Set<int> _selectedColors = {0, 6, 10};
   GeneratorEffect _effect = GeneratorEffect.colorChase;
   FixturePattern _pattern = FixturePattern.all;
-  String _applyTo = 'all';
+  FixtureTypeFilter _typeFilter = FixtureTypeFilter.all;
+  late Set<String> _selectedFixtures = fixtureIdsOf(ref.read(patchedFixturesProvider), _typeFilter);
   String? _destinationBankId;
   int _sceneCount = 6;
   // Off by default: what a generated program is for is the bank, and a
@@ -47,23 +48,16 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
     });
   }
 
-  List<PatchedFixture> _targetFixtures() {
-    final all = ref.read(patchedFixturesProvider);
-    switch (_applyTo) {
-      case 'rgb':
-        return all.where((f) => f.profile.category == FixtureCategory.rgb).toList();
-      case 'moving':
-        return all.where((f) => f.profile.category == FixtureCategory.movingHead).toList();
-      default:
-        return all;
-    }
-  }
+  List<PatchedFixture> _targetFixtures() => [
+    for (final f in ref.read(patchedFixturesProvider))
+      if (_selectedFixtures.contains(f.id)) f,
+  ];
 
   void _generate() {
     final targets = _targetFixtures();
     if (targets.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No matching patched fixtures — patch some first')),
+        const SnackBar(content: Text('No fixtures selected — tick at least one under Apply To')),
       );
       return;
     }
@@ -114,6 +108,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
       final chase = ref.read(chasesProvider.notifier).create('${_effect.label} Chase');
       ref.read(chasesProvider.notifier).upsert(chase.copyWith(steps: [bankStepFor(_effect, bankId)]));
     }
+    // Back on the Banks screen, the bank just generated into is the one
+    // showing — not whichever happened to be selected before.
+    ref.read(selectedBankIdProvider.notifier).state = bankId;
 
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
@@ -258,7 +255,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                     label: 'Shift',
                     hint: _effect.isMove
                         ? 'Delays each fixture so the move ripples across the rig'
-                        : 'Staggers the palette across the fixtures',
+                        : _effect == GeneratorEffect.rainbowWave
+                            ? 'How far apart the lamps sit on the colour wheel (0 = the full wheel)'
+                            : 'Staggers the palette across the fixtures',
                     value: _shift,
                     onChanged: (v) => setState(() => _shift = v),
                   ),
@@ -294,14 +293,21 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'all', label: Text('All Fixtures')),
-              ButtonSegment(value: 'rgb', label: Text('RGB Only')),
-              ButtonSegment(value: 'moving', label: Text('Moving Heads')),
-            ],
-            selected: {_applyTo},
-            onSelectionChanged: (s) => setState(() => _applyTo = s.first),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: FixtureChecklist(
+                fixtures: ref.watch(patchedFixturesProvider),
+                selected: _selectedFixtures,
+                filter: _typeFilter,
+                onChanged: (s) => setState(() => _selectedFixtures = s),
+                // Picking a type ticks every fixture of it, to trim by hand.
+                onFilterChanged: (f) => setState(() {
+                  _typeFilter = f;
+                  _selectedFixtures = fixtureIdsOf(ref.read(patchedFixturesProvider), f);
+                }),
+              ),
+            ),
           ),
           const SizedBox(height: 20),
           const Text(

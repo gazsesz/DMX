@@ -36,6 +36,7 @@ Future<List<String>> startChase(
     read,
     chase,
     playing: playing,
+    followBeatSync: true,
     // Read fresh on every step rather than captured here, so tempo changes
     // reach the rig without restarting the chase. Returns null while
     // auto-fade is off, leaving the step's own fade alone.
@@ -45,18 +46,6 @@ Future<List<String>> startChase(
             return tempo.autoFade ? tempo.fade : null;
           }
         : null,
-  );
-}
-
-/// A bank has no timing of its own, so it always runs at the Dashboard's
-/// Hold/Fade — override switch or not.
-Chase bankChase(ReadProvider read, {required String bankId, required String name}) {
-  final tempo = read(tempoProvider);
-  return Chase(
-    id: 'dashboard-bank-$bankId',
-    name: name,
-    steps: [ChaseStep(bankId: bankId, hold: tempo.hold, fade: tempo.fade)],
-    beatSync: read(beatSyncEnabledProvider),
   );
 }
 
@@ -87,19 +76,19 @@ Future<String> togglePlayable(
   }
   if (!read(artNetServiceProvider).isConnected) return 'Not connected — check Settings';
 
-  final Chase chase;
   if (isBank) {
-    chase = bankChase(read, bankId: id, name: name);
-  } else {
-    final matches = read(chasesProvider).where((c) => c.id == id);
-    if (matches.isEmpty) return 'Chase no longer exists';
-    chase = chaseAsDashboardPlaysIt(read, matches.first);
+    // A bank fired on its own plays on Layer 1, the way it always has.
+    final banks = read(banksProvider).where((b) => b.id == id);
+    if (banks.isEmpty) return 'Bank no longer exists';
+    return runBankOnLayer(read, bank: banks.first, layerId: layer1Id) ?? 'Started $name';
   }
+  final matches = read(chasesProvider).where((c) => c.id == id);
+  if (matches.isEmpty) return 'Chase no longer exists';
   final started = await startChase(
     read,
-    chase,
-    playing: NowPlaying(id: id, kind: isBank ? PlaybackKind.bank : PlaybackKind.chase, name: name),
-    dashboardTiming: isBank || read(tempoProvider).overrideTiming,
+    chaseAsDashboardPlaysIt(read, matches.first),
+    playing: NowPlaying(id: id, kind: PlaybackKind.chase, name: name),
+    dashboardTiming: read(tempoProvider).overrideTiming,
   );
   // A step whose scene or bank no longer exists (deleted out from under it)
   // flattens to nothing, and `play` quietly declines to run zero steps —
@@ -161,15 +150,9 @@ Future<void> restartActiveTrigger(ReadProvider read, {bool timingOnly = false}) 
     if (current.kind == PlaybackKind.bank) {
       final banks = read(banksProvider).where((b) => b.id == current.id);
       if (banks.isEmpty) continue;
-      if (layer.id == layer1Id) {
-        await startChase(
-          read,
-          bankChase(read, bankId: current.id, name: banks.first.name),
-          playing: current,
-        );
-      } else {
-        runBankOnLayer(read, bank: banks.first, layerId: layer.id);
-      }
+      // Nothing of the dock's to pick up for a bank on its own timing.
+      if (timingOnly && banks.first.ownTiming) continue;
+      runBankOnLayer(read, bank: banks.first, layerId: layer.id);
       continue;
     }
     if (timingOnly && !read(tempoProvider).overrideTiming) continue;

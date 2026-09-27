@@ -148,6 +148,12 @@ class SmartProgramPlayer {
     _pendingZone = SmartProgramZone.base;
     _confirmedZone = SmartProgramZone.base;
     _isSilent = false;
+    // Starting the program is what makes its layers the newest; its own
+    // zone changes later don't, so a bank fired over it afterwards keeps
+    // the lamps it took.
+    for (final layer in program.drivenLayers) {
+      service.claimLayer(layer.layerId);
+    }
     _playZone(
       SmartProgramZone.base,
       chases: chases,
@@ -418,11 +424,13 @@ class SmartProgramPlayer {
         patchedFixtures: patchedFixtures,
         universes: universes,
         service: service,
-        beatStream: onBeat ? beatEvents : null,
+        beatStream: beatEvents,
         beatRate: beatRate(),
         flashLength: flashLength(),
         liveBeatRate: beatRate,
         liveFlashLength: flashLength,
+        liveBeatSync: beatSyncEnabled,
+        claim: false,
         onStep: (_) {},
       );
     }

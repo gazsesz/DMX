@@ -39,13 +39,38 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     return bank;
   }
 
-  void duplicate(String id) {
+  /// Returns the copy, so the caller can switch to it.
+  Bank? duplicate(String id) {
     final source = state.where((b) => b.id == id);
-    if (source.isEmpty) return;
-    final copy = source.first;
+    if (source.isEmpty) return null;
+    final original = source.first;
+    final copy = Bank(
+      id: _uuid.v4(),
+      name: '${original.name} Copy',
+      sceneSlots: [...original.sceneSlots],
+      isBeatFlash: original.isBeatFlash,
+      flashFadeOutMs: original.flashFadeOutMs,
+      ownTiming: original.ownTiming,
+      holdMs: original.holdMs,
+      fadeMs: original.fadeMs,
+    );
+    state = [...state, copy];
+    return copy;
+  }
+
+  /// Sets whether [id] plays at its own Hold/Fade, and what they are — see
+  /// [Bank.ownTiming].
+  void setTiming(String id, {bool? ownTiming, int? holdMs, int? fadeMs}) {
     state = [
-      ...state,
-      Bank(id: _uuid.v4(), name: '${copy.name} Copy', sceneSlots: [...copy.sceneSlots]),
+      for (final b in state)
+        if (b.id == id)
+          b.copyWith(
+            ownTiming: ownTiming,
+            holdMs: holdMs?.clamp(20, 10000),
+            fadeMs: fadeMs?.clamp(0, 10000),
+          )
+        else
+          b,
     ];
   }
 
