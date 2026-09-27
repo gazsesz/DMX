@@ -538,6 +538,18 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   'Bank Size: ${selected.sceneSlots.length} slots',
                   style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
                 ),
+                const Spacer(),
+                Tooltip(
+                  message: 'Plays its slots as dark/lit pairs: 1 dark, 2 lit, 3 dark… '
+                      'The lit step only stays up for the flash length — on the beat or on the timer.',
+                  child: FilterChip(
+                    avatar: Icon(Icons.flash_on, size: 14, color: selected.isBeatFlash ? AppColors.accent : AppColors.textFaint),
+                    label: const Text('Flash bank'),
+                    selected: selected.isBeatFlash,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (v) => ref.read(banksProvider.notifier).setBeatFlash(selected.id, v),
+                  ),
+                ),
                 TextButton(onPressed: () => _resizeBank(selected), child: const Text('Edit Size')),
               ],
             ),

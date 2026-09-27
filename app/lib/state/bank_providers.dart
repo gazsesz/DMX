@@ -58,6 +58,16 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     return copy;
   }
 
+  /// Marks [id] as a Beat Flash bank (dark/lit pairs, flashing) or not —
+  /// for a bank built by hand, or one from before the flag was kept on a
+  /// copy.
+  void setBeatFlash(String id, bool value) {
+    state = [
+      for (final b in state)
+        if (b.id == id) b.copyWith(isBeatFlash: value) else b,
+    ];
+  }
+
   /// Sets whether [id] plays at its own Hold/Fade, and what they are — see
   /// [Bank.ownTiming].
   void setTiming(String id, {bool? ownTiming, int? holdMs, int? fadeMs}) {

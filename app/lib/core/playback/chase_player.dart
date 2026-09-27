@@ -26,12 +26,17 @@ class _Instant {
   /// to make everything else running start stabbing along with it.
   final bool isFlash;
 
+  /// The lit half of a Beat Flash bank's dark/lit pair — the step that
+  /// only stays up for the flash length.
+  final bool isFlashLit;
+
   const _Instant({
     required this.scene,
     required this.hold,
     required this.fade,
     this.flashFadeOut,
     this.isFlash = false,
+    this.isFlashLit = false,
   });
 }
 
@@ -169,6 +174,7 @@ class ChasePlayer {
           }
           result.add(_Instant(
             isFlash: bank.isBeatFlash,
+            isFlashLit: bank.isBeatFlash && slot.isOdd,
             scene: scene,
             hold: step.hold,
             fade: step.fade,
@@ -273,19 +279,21 @@ class ChasePlayer {
       }
       final useBeat = beatSynced();
       if (!useBeat) stepIsOffBeat = false;
-      final rate = instants[_index].isFlash ? BeatRate.flash : (liveBeatRate?.call() ?? beatRate);
+      final instant = instants[_index];
+      final rate = instant.isFlash ? BeatRate.flash : (liveBeatRate?.call() ?? beatRate);
       onStep?.call(_index);
       await _crossfadeTo(
-        instants[_index].scene,
+        instant.scene,
         // Asked per step rather than baked in at play() time, so auto-fade
         // can track the tempo without restarting the chase — restarting is
         // what used to make a beat-synced bank stutter. Flash overrides
         // everything: a stab that fades in is just a short fade — except a
         // Beat Flash bank's own configured release, which only ever applies
-        // going into its dark step (the attack in is always instant).
-        fade: useBeat && rate == BeatRate.flash
-            ? (instants[_index].flashFadeOut ?? Duration.zero)
-            : fadeOverride?.call() ?? instants[_index].fade,
+        // going into its dark step (the attack in is always instant). A
+        // Beat Flash bank is a flash on the timers too, not just the beat.
+        fade: instant.isFlash || (useBeat && rate == BeatRate.flash)
+            ? (instant.flashFadeOut ?? Duration.zero)
+            : fadeOverride?.call() ?? instant.fade,
         service: service,
         patchedFixtures: patchedFixtures,
         universes: universes,
@@ -293,7 +301,13 @@ class ChasePlayer {
       );
       if (!_isCurrent(myGeneration)) break;
       if (useBeat) {
-        if (stepIsOffBeat) {
+        // A Beat Flash step knows its own part — dark waits for the beat,
+        // lit is the short stab after it. Counting on/off steps instead goes
+        // out of phase as soon as a chase mixes in anything else (a 2× bank
+        // before it, Random order), and then the dark step flashes while
+        // the lit one holds a whole beat — no flash at all.
+        final holdShort = instant.isFlash ? instant.isFlashLit : stepIsOffBeat;
+        if (holdShort) {
           // Flash holds the lit step for a fixed short time; doubled splits
           // the measured beat in half.
           await _holdFor(
@@ -312,10 +326,13 @@ class ChasePlayer {
             }
             previousBeatAt = beatAt;
           }
-          stepIsOffBeat = rate.hasOffBeatStep;
+          stepIsOffBeat = !instant.isFlash && rate.hasOffBeatStep;
         }
       } else {
-        await _holdFor(instants[_index].hold, myGeneration);
+        await _holdFor(
+          instant.isFlashLit ? (liveFlashLength?.call() ?? flashLength) : instant.hold,
+          myGeneration,
+        );
       }
       if (!_isCurrent(myGeneration)) break;
       _advance(instants.length, chase.direction);
