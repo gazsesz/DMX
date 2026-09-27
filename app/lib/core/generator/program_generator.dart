@@ -172,7 +172,7 @@ List<bool> _activeMaskFor(FixturePattern pattern, int fixtureCount, int sceneInd
 /// scene — via their dimmer channel where they have one, else by zeroing
 /// their color channels directly.
 void _applyPatternMask(
-  Map<String, List<int>> fixtureValues,
+  Map<String, Map<int, int>> fixtureValues,
   List<PatchedFixture> fixtures,
   List<bool> mask,
 ) {
@@ -184,10 +184,10 @@ void _applyPatternMask(
     final channels = fixture.profile.channels;
     final dimmerIdx = channels.indexWhere((c) => c.function == ChannelFunction.dimmer);
     if (dimmerIdx != -1) {
-      values[dimmerIdx] = 0;
+      values[channels[dimmerIdx].offset] = 0;
     } else {
-      for (var c = 0; c < channels.length; c++) {
-        if (channels[c].function.isColorMix) values[c] = 0;
+      for (final channel in channels) {
+        if (channel.function.isColorMix) values[channel.offset] = 0;
       }
     }
   }
@@ -231,8 +231,11 @@ List<int> _hsvToRgb(double hue, double saturation, double value) {
 }
 
 /// One fixture's channel values: colour (scaled by [brightness]) plus an
-/// optional beam position. Channels the effect says nothing about stay at 0.
-List<int> _channelValues(
+/// optional beam position. Sparse — a channel the effect says nothing about
+/// (pan/tilt on a static color effect, gobo/zoom/focus always) is left out
+/// entirely rather than zeroed, so it plays alongside whatever else (another
+/// scene, another Layer) is already driving it.
+Map<int, int> _channelValues(
   PatchedFixture fixture, {
   List<int>? rgb,
   int? pan,
@@ -240,27 +243,27 @@ List<int> _channelValues(
   double brightness = 1.0,
 }) {
   final channels = fixture.profile.channels;
-  final values = List<int>.filled(channels.length, 0);
+  final values = <int, int>{};
   int scaled(int component) => (component * brightness).round().clamp(0, 255);
-  for (var i = 0; i < channels.length; i++) {
-    switch (channels[i].function) {
+  for (final channel in channels) {
+    switch (channel.function) {
       case ChannelFunction.red:
-        if (rgb != null) values[i] = scaled(rgb[0]);
+        if (rgb != null) values[channel.offset] = scaled(rgb[0]);
         break;
       case ChannelFunction.green:
-        if (rgb != null) values[i] = scaled(rgb[1]);
+        if (rgb != null) values[channel.offset] = scaled(rgb[1]);
         break;
       case ChannelFunction.blue:
-        if (rgb != null) values[i] = scaled(rgb[2]);
+        if (rgb != null) values[channel.offset] = scaled(rgb[2]);
         break;
       case ChannelFunction.dimmer:
-        values[i] = scaled(255);
+        values[channel.offset] = scaled(255);
         break;
       case ChannelFunction.pan:
-        if (pan != null) values[i] = pan;
+        if (pan != null) values[channel.offset] = pan;
         break;
       case ChannelFunction.tilt:
-        if (tilt != null) values[i] = tilt;
+        if (tilt != null) values[channel.offset] = tilt;
         break;
       default:
         break;
@@ -269,11 +272,11 @@ List<int> _channelValues(
   return values;
 }
 
-Map<String, List<int>> _colorValuesFor(
+Map<String, Map<int, int>> _colorValuesFor(
   List<PatchedFixture> fixtures,
   List<int> Function(PatchedFixture fixture) colorPicker,
 ) {
-  final result = <String, List<int>>{};
+  final result = <String, Map<int, int>>{};
   for (final fixture in fixtures) {
     result[fixture.id] = _channelValues(fixture, rgb: colorPicker(fixture));
   }
@@ -341,7 +344,7 @@ List<Scene> generateScenes({
   final scenes = <Scene>[];
   final random = Random();
 
-  void addScene(int index, Map<String, List<int>> fixtureValues) {
+  void addScene(int index, Map<String, Map<int, int>> fixtureValues) {
     if (pattern != FixturePattern.all) {
       _applyPatternMask(fixtureValues, fixtures, _activeMaskFor(pattern, fixtures.length, index, random));
     }
@@ -350,7 +353,7 @@ List<Scene> generateScenes({
 
   if (effect.isMove) {
     for (var i = 0; i < count; i++) {
-      final map = <String, List<int>>{};
+      final map = <String, Map<int, int>>{};
       for (var f = 0; f < fixtures.length; f++) {
         final fixture = fixtures[f];
         final phase = (i / count + shift * f / fixtures.length) % 1.0;
@@ -412,7 +415,7 @@ List<Scene> generateScenes({
       for (var i = 0; i < count; i++) {
         final headIndex = i % fixtures.length;
         final color = palette[i % palette.length];
-        final map = <String, List<int>>{};
+        final map = <String, Map<int, int>>{};
         for (var f = 0; f < fixtures.length; f++) {
           final fixture = fixtures[f];
           final distance = (headIndex - f) % fixtures.length;
@@ -467,7 +470,7 @@ List<Scene> generateScenes({
         while (chosen.length < lit) {
           chosen.add(random.nextInt(fixtures.length));
         }
-        final map = <String, List<int>>{};
+        final map = <String, Map<int, int>>{};
         for (var f = 0; f < fixtures.length; f++) {
           map[fixtures[f].id] = _channelValues(
             fixtures[f],

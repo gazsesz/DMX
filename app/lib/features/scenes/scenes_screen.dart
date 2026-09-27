@@ -57,18 +57,17 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
     for (final fixture in patched) {
       final values = scene.fixtureValues[fixture.id];
       if (values == null) continue;
-      final channels = fixture.profile.channels;
       int? r, g, b;
-      for (var i = 0; i < channels.length; i++) {
-        switch (channels[i].function.name) {
+      for (final channel in fixture.profile.channels) {
+        switch (channel.function.name) {
           case 'red':
-            r = values[i];
+            r = values[channel.offset];
             break;
           case 'green':
-            g = values[i];
+            g = values[channel.offset];
             break;
           case 'blue':
-            b = values[i];
+            b = values[channel.offset];
             break;
         }
       }

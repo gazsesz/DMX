@@ -68,4 +68,31 @@ enum ChannelFunction {
       this == red || this == green || this == blue || this == white || this == amber || this == uv;
   bool get isPanTilt => this == pan || this == panFine || this == tilt || this == tiltFine;
   bool get isGobo => this == gobo || this == goboRotation;
+
+  /// Which broad attribute a channel belongs to, for deciding what a Scene
+  /// (or a Layer) controls independently of the others — a moving head's
+  /// position can be owned by one program while its colour is owned by
+  /// another. [AttributeGroup.other] covers strobe/zoom/focus/autofade/
+  /// generic, none of which have their own group yet.
+  AttributeGroup get attributeGroup {
+    if (isDimmer) return AttributeGroup.dimmer;
+    if (isColorMix) return AttributeGroup.color;
+    if (isPanTilt) return AttributeGroup.position;
+    if (isGobo || this == colorWheel) return AttributeGroup.beam;
+    return AttributeGroup.other;
+  }
+}
+
+/// A channel's function grouped into the handful of attributes a Scene can
+/// choose to control (or leave alone) independently of the others.
+enum AttributeGroup { dimmer, color, position, beam, other }
+
+extension AttributeGroupLabel on AttributeGroup {
+  String get label => switch (this) {
+    AttributeGroup.dimmer => 'Dimmer',
+    AttributeGroup.color => 'Color',
+    AttributeGroup.position => 'Position',
+    AttributeGroup.beam => 'Beam',
+    AttributeGroup.other => 'Other',
+  };
 }

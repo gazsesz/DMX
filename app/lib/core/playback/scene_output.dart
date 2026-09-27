@@ -19,9 +19,8 @@ void outputScene({
     final universeMatches = universes.where((u) => u.id == patched.universeId);
     if (universeMatches.isEmpty) continue;
     final universe = universeMatches.first;
-    final values = entry.value;
-    for (var i = 0; i < values.length; i++) {
-      service.setChannel(universe, patched.startChannel + i, values[i], send: false);
+    for (final offsetEntry in entry.value.entries) {
+      service.setChannel(universe, patched.startChannel + offsetEntry.key, offsetEntry.value, send: false);
     }
     touched.add(universe);
   }

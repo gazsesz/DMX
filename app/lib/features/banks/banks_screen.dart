@@ -37,6 +37,7 @@ class BanksScreen extends ConsumerStatefulWidget {
 class _BanksScreenState extends ConsumerState<BanksScreen> {
   String? _selectedBankId;
   late final ChasePlayer _player;
+  late final ChasePlayer _player2;
   int? _runningSlot;
 
   /// The slot the user last fired by hand — so tapping a scene shows which
@@ -47,11 +48,17 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   void initState() {
     super.initState();
     _player = ref.read(playbackControllerProvider);
+    _player2 = ref.read(layer2ControllerProvider);
   }
 
   bool _isThisBankRunning(Bank bank) {
     final current = ref.read(nowPlayingProvider);
     return _player.isPlaying && current?.kind == PlaybackKind.bank && current?.id == bank.id;
+  }
+
+  bool _isThisBankRunningOnLayer2(Bank bank) {
+    final current = ref.read(nowPlayingLayer2Provider);
+    return _player2.isPlaying && current?.kind == PlaybackKind.bank && current?.id == bank.id;
   }
 
   void _toggleRun(Bank bank) {
@@ -115,6 +122,65 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       name: bank.name,
     );
     setState(() => _manualSlot = null);
+  }
+
+  /// Same as [_toggleRun], but on Layer 2 — a second, independent player
+  /// that runs alongside Layer 1 instead of superseding it. Meant for a bank
+  /// whose scenes only touch attributes Layer 1 leaves alone (see the
+  /// "INCLUDES" toggles in the Scene editor), e.g. a moving head's Position
+  /// here while Layer 1 chases its Color/Beam on the beat.
+  void _toggleRunLayer2(Bank bank) {
+    if (_isThisBankRunningOnLayer2(bank)) {
+      _player2.stop();
+      ref.read(nowPlayingLayer2Provider.notifier).state = null;
+      setState(() {});
+      return;
+    }
+    final service = ref.read(artNetServiceProvider);
+    if (!service.isConnected) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Not connected — check Settings')),
+      );
+      return;
+    }
+    final beatSync = ref.read(beatSyncEnabledProvider);
+    final tempo = ref.read(tempoProvider);
+    final chase = Chase(
+      id: 'bank-run-layer2-${bank.id}',
+      name: bank.name,
+      steps: [
+        ChaseStep(
+          bankId: bank.id,
+          hold: tempo.hold,
+          fade: tempo.fade,
+        ),
+      ],
+      direction: ChaseDirection.forward,
+      beatSync: beatSync,
+    );
+    _player2.play(
+      chase: chase,
+      scenes: ref.read(scenesProvider),
+      banks: ref.read(banksProvider),
+      patchedFixtures: ref.read(patchedFixturesProvider),
+      universes: ref.read(universesProvider),
+      service: service,
+      beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
+      beatRate: beatRateOf(ref),
+      flashLength: ref.read(flashLengthProvider),
+      liveBeatRate: () => ref.read(beatRateProvider),
+      liveFlashLength: () => ref.read(flashLengthProvider),
+      fadeOverride: () {
+        final tempo = ref.read(tempoProvider);
+        return tempo.autoFade ? tempo.fade : null;
+      },
+    );
+    ref.read(nowPlayingLayer2Provider.notifier).state = NowPlaying(
+      id: bank.id,
+      kind: PlaybackKind.bank,
+      name: bank.name,
+    );
+    setState(() {});
   }
 
   Future<void> _setBeatSync(bool value) async {
@@ -252,6 +318,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       _player.stop();
       ref.read(nowPlayingProvider.notifier).state = null;
     }
+    if (_isThisBankRunningOnLayer2(bank)) {
+      _player2.stop();
+      ref.read(nowPlayingLayer2Provider.notifier).state = null;
+    }
     if (choice == BankDeleteChoice.deleteScenes) {
       final scenes = ref.read(scenesProvider.notifier);
       for (final id in exclusive) {
@@ -322,6 +392,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final nowPlaying = ref.watch(nowPlayingProvider);
     final isRunningThisBank =
         _player.isPlaying && nowPlaying?.kind == PlaybackKind.bank && nowPlaying?.id == selected.id;
+    final nowPlayingLayer2 = ref.watch(nowPlayingLayer2Provider);
+    final isRunningThisBankOnLayer2 =
+        _player2.isPlaying && nowPlayingLayer2?.kind == PlaybackKind.bank && nowPlayingLayer2?.id == selected.id;
     final beatSync = ref.watch(beatSyncEnabledProvider);
     final tempo = ref.watch(tempoProvider);
     final autoFade = tempo.autoFade;
@@ -450,7 +523,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   icon: Icon(isRunningThisBank ? Icons.stop : Icons.play_arrow),
                   label: Text(isRunningThisBank ? 'Stop' : 'Run Bank'),
                 ),
-                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: () => _toggleRunLayer2(selected),
+                  icon: Icon(isRunningThisBankOnLayer2 ? Icons.layers_clear : Icons.layers, size: 20),
+                  color: isRunningThisBankOnLayer2 ? AppColors.accent : AppColors.textFaint,
+                  visualDensity: VisualDensity.compact,
+                  tooltip: isRunningThisBankOnLayer2
+                      ? 'Stop on Layer 2'
+                      : 'Also run on Layer 2 — an independent player alongside Run Bank',
+                ),
+                const SizedBox(width: 4),
                 Tooltip(
                   message: beatSync ? 'Beat Sync on — steps wait for the beat' : 'Beat Sync off — steps on the timer',
                   child: Column(

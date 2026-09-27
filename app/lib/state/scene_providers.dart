@@ -12,7 +12,7 @@ final scenesProvider = StateNotifierProvider<ScenesNotifier, List<Scene>>((ref) 
 class ScenesNotifier extends StateNotifier<List<Scene>> {
   ScenesNotifier() : super(const []);
 
-  Scene create(String name, Map<String, List<int>> fixtureValues) {
+  Scene create(String name, Map<String, Map<int, int>> fixtureValues) {
     final scene = Scene(id: _uuid.v4(), name: name, fixtureValues: fixtureValues);
     state = [...state, scene];
     return scene;
