@@ -12,6 +12,7 @@ enum GeneratorEffect {
   colorChase,
   runningLight,
   strobe,
+  runningStrobe,
   rainbow,
   rainbowWave,
   circle,
@@ -43,6 +44,8 @@ extension GeneratorEffectLabel on GeneratorEffect {
         return 'Running Light';
       case GeneratorEffect.strobe:
         return 'Strobe / Pulse';
+      case GeneratorEffect.runningStrobe:
+        return 'Running Strobe';
       case GeneratorEffect.rainbow:
         return 'Rainbow Sweep';
       case GeneratorEffect.rainbowWave:
@@ -105,6 +108,7 @@ extension GeneratorEffectLabel on GeneratorEffect {
       case GeneratorEffect.runningLight:
         return (0.12, 0.08);
       case GeneratorEffect.strobe:
+      case GeneratorEffect.runningStrobe:
         return (0.08, 0.0);
       case GeneratorEffect.rainbow:
       case GeneratorEffect.rainbowWave:
@@ -132,6 +136,40 @@ extension GeneratorEffectLabel on GeneratorEffect {
       case GeneratorEffect.lightRider:
         return (0.12, 0.08);
     }
+  }
+}
+
+/// Which way a [GeneratorEffect.runningStrobe] travels along the rig.
+enum StrobeDirection { right, left, bounce }
+
+extension StrobeDirectionLabel on StrobeDirection {
+  String get label => switch (this) {
+    StrobeDirection.right => 'Right →',
+    StrobeDirection.left => '← Left',
+    StrobeDirection.bounce => '↔ Bounce',
+  };
+}
+
+/// How many scenes a running strobe over [fixtureCount] lamps makes.
+int runningStrobeSceneCount(int fixtureCount, int groupSize, StrobeDirection direction) {
+  if (fixtureCount <= 0) return 0;
+  final groups = (fixtureCount / groupSize.clamp(1, fixtureCount)).ceil();
+  return strobeGroupOrder(groups, direction).length * 2;
+}
+
+/// The order a running strobe visits its lamp groups in — group indexes,
+/// one flash each. Bounce doesn't repeat the end groups on the turn, so the
+/// ends don't get a double flash.
+List<int> strobeGroupOrder(int groupCount, StrobeDirection direction) {
+  final forward = [for (var i = 0; i < groupCount; i++) i];
+  switch (direction) {
+    case StrobeDirection.right:
+      return forward;
+    case StrobeDirection.left:
+      return forward.reversed.toList();
+    case StrobeDirection.bounce:
+      if (groupCount <= 2) return forward;
+      return [...forward, for (var i = groupCount - 2; i > 0; i--) i];
   }
 }
 
@@ -343,6 +381,11 @@ List<Scene> generateScenes({
   double size = 1.0,
   double fan = 0.0,
   double shift = 0.0,
+  // Running Strobe only: how many neighbouring lamps flash together, and
+  // which way the flash travels. It makes its own scene count — one flash
+  // and one gap per group visited — so [count] doesn't apply to it.
+  int strobeGroupSize = 1,
+  StrobeDirection strobeDirection = StrobeDirection.right,
 }) {
   if (fixtures.isEmpty || count <= 0) return [];
   final palette = colors.isEmpty ? const [
@@ -439,6 +482,30 @@ List<Scene> generateScenes({
       for (var i = 0; i < count; i++) {
         final on = i.isEven;
         addScene(i, _colorValuesFor(fixtures, (_) => on ? color : const [0, 0, 0]));
+      }
+      break;
+
+    case GeneratorEffect.runningStrobe:
+      // A strobe hit that walks along the rig: a group of neighbouring
+      // lamps flashes, the rig goes dark, the next group flashes. The gap
+      // scenes are what make it read as a strobe rather than a chase.
+      final perGroup = strobeGroupSize.clamp(1, fixtures.length);
+      final groupCount = (fixtures.length / perGroup).ceil();
+      final order = strobeGroupOrder(groupCount, strobeDirection);
+      for (var k = 0; k < order.length; k++) {
+        final first = order[k] * perGroup;
+        final lit = {for (var f = first; f < min(fixtures.length, first + perGroup); f++) f};
+        final color = palette[k % palette.length];
+        final flash = <String, Map<int, int>>{};
+        final gap = <String, Map<int, int>>{};
+        for (var f = 0; f < fixtures.length; f++) {
+          flash[fixtures[f].id] = _channelValues(fixtures[f], rgb: color, brightness: lit.contains(f) ? 1.0 : 0.0);
+          gap[fixtures[f].id] = _channelValues(fixtures[f], rgb: color, brightness: 0.0);
+        }
+        // Built directly rather than through addScene: the pattern mask is
+        // meaningless here, the groups already are the pattern.
+        scenes.add(Scene(id: idGenerator(), name: '$namePrefix ${k + 1}', fixtureValues: flash));
+        scenes.add(Scene(id: idGenerator(), name: '$namePrefix ${k + 1} gap', fixtureValues: gap));
       }
       break;
 

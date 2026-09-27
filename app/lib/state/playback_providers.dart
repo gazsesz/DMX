@@ -245,6 +245,8 @@ Future<List<String>> startLayeredChase(
   void Function(String layerId, int instantIndex)? onStep,
   bool followBeatSync = false,
 }) async {
+  // The players read through this on every step — see [stableRead].
+  read = stableRead(read);
   final service = read(artNetServiceProvider);
   Stream<DateTime>? beatStream;
   if (followBeatSync) {
@@ -270,6 +272,8 @@ Future<List<String>> startLayeredChase(
       flashLength: read(flashLengthProvider),
       liveBeatRate: () => read(beatRateProvider),
       liveFlashLength: () => read(flashLengthProvider),
+      liveBanks: () => read(banksProvider),
+      liveScenes: () => read(scenesProvider),
       liveBeatSync: followBeatSync ? () => read(beatSyncEnabledProvider) : null,
       onStep: (index) {
         read(layerStepProvider(entry.key).notifier).state = index;
@@ -443,6 +447,8 @@ Chase bankRunChase(ReadProvider read, Bank bank, {required String layerId}) {
 /// show the user, or null on success. A layer the Smart Program was driving
 /// is taken back from it first; the program keeps its other layers.
 String? runBankOnLayer(ReadProvider read, {required Bank bank, required String layerId}) {
+  // The player reads through this on every step — see [stableRead].
+  read = stableRead(read);
   final service = read(artNetServiceProvider);
   if (!service.isConnected) return 'Not connected — check Settings';
   releaseLayersFromSmart(read, [layerId]);
@@ -460,6 +466,8 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
     flashLength: read(flashLengthProvider),
     liveBeatRate: () => read(beatRateProvider),
     liveFlashLength: () => read(flashLengthProvider),
+    liveBanks: () => read(banksProvider),
+    liveScenes: () => read(scenesProvider),
     // Auto-fade is the dock's; a bank keeping its own timing keeps its own
     // fade too.
     fadeOverride: bank.ownTiming

@@ -205,13 +205,21 @@ class ChasePlayer {
     // it used to be fixed at play() time, which left a chase started on
     // the beat frozen waiting for beats once beat sync was switched off.
     bool Function()? liveBeatSync,
+    // The project's current banks and scenes, checked before every step: an
+    // edit to one this chase plays — a Beat Flash bank's fade-out, a slot, a
+    // scene's values — lands on the next step instead of only after the
+    // chase is stopped and started again.
+    List<Bank> Function()? liveBanks,
+    List<Scene> Function()? liveScenes,
     // Makes this layer the newest one, winning the channels it shares with
     // other layers. Off for a restart that shouldn't jump the queue (a
     // Smart Program changing zone).
     bool claim = true,
   }) async {
     _halt();
-    final instants = _flatten(chase, scenes, banks);
+    var instants = _flatten(chase, scenes, banks);
+    var playedBanks = banks;
+    var playedScenes = scenes;
     if (instants.isEmpty) {
       stop();
       return;
@@ -250,6 +258,19 @@ class ChasePlayer {
     var stepIsOffBeat = false;
 
     while (_isCurrent(myGeneration)) {
+      final banksNow = liveBanks?.call() ?? playedBanks;
+      final scenesNow = liveScenes?.call() ?? playedScenes;
+      // Lists are replaced, never mutated, on every edit — so identity says
+      // whether anything changed since the last step.
+      if (!identical(banksNow, playedBanks) || !identical(scenesNow, playedScenes)) {
+        playedBanks = banksNow;
+        playedScenes = scenesNow;
+        final refreshed = _flatten(chase, scenesNow, banksNow);
+        if (refreshed.isNotEmpty) {
+          instants = refreshed;
+          if (_index >= instants.length) _index = 0;
+        }
+      }
       final useBeat = beatSynced();
       if (!useBeat) stepIsOffBeat = false;
       final rate = instants[_index].isFlash ? BeatRate.flash : (liveBeatRate?.call() ?? beatRate);

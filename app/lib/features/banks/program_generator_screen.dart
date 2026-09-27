@@ -37,6 +37,16 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
   double _size = 1.0;
   double _fan = 0.0;
   double _shift = 0.0;
+  int _strobeGroupSize = 1;
+  StrobeDirection _strobeDirection = StrobeDirection.right;
+
+  bool get _isRunningStrobe => _effect == GeneratorEffect.runningStrobe;
+
+  /// What the Generate button will actually make — a running strobe sizes
+  /// itself from the lamps picked.
+  int get _plannedSceneCount => _isRunningStrobe
+      ? runningStrobeSceneCount(_selectedFixtures.length, _strobeGroupSize, _strobeDirection)
+      : _sceneCount;
 
   void _toggleColor(int index) {
     setState(() {
@@ -56,9 +66,8 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
   void _generate() {
     final targets = _targetFixtures();
     if (targets.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No fixtures selected — tick at least one under Apply To')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('No fixtures selected — tick at least one under Apply To')));
       return;
     }
     final colors = [for (final i in _selectedColors) _palette[i].value];
@@ -73,6 +82,8 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
       size: _size,
       fan: _fan,
       shift: _shift,
+      strobeGroupSize: _strobeGroupSize,
+      strobeDirection: _strobeDirection,
     );
     if (scenes.isEmpty) return;
 
@@ -227,66 +238,115 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             ],
           ),
           const SizedBox(height: 20),
-          Text(
-            _effect.isMove ? 'SHAPE' : 'SHAPE (Shift staggers the palette)',
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
-              child: Column(
-                children: [
-                  if (_effect.isMove) ...[
-                    _shapeSlider(
-                      label: 'Size',
-                      hint: 'How far the beams travel from centre',
-                      value: _size,
-                      onChanged: (v) => setState(() => _size = v),
+          if (_isRunningStrobe) ...[
+            const Text(
+              'RUNNING STROBE',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            ),
+            const Text(
+              'A strobe hit walking along the lamps, in the order they\'re patched',
+              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Lamps at once', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(value: 1, label: Text('1')),
+                        ButtonSegment(value: 2, label: Text('2')),
+                        ButtonSegment(value: 3, label: Text('3')),
+                      ],
+                      selected: {_strobeGroupSize},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) => setState(() => _strobeGroupSize = s.first),
                     ),
-                    _shapeSlider(
-                      label: 'Fan',
-                      hint: 'Spreads the rig outward, left to right',
-                      value: _fan,
-                      onChanged: (v) => setState(() => _fan = v),
+                    const SizedBox(height: 12),
+                    const Text('Direction', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 6),
+                    SegmentedButton<StrobeDirection>(
+                      segments: [for (final d in StrobeDirection.values) ButtonSegment(value: d, label: Text(d.label))],
+                      selected: {_strobeDirection},
+                      showSelectedIcon: false,
+                      onSelectionChanged: (s) => setState(() => _strobeDirection = s.first),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Each flash is followed by a dark step. Hold sets the strobe speed; '
+                      'with Beat Sync each step lands on a beat.',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                   ],
-                  _shapeSlider(
-                    label: 'Shift',
-                    hint: _effect.isMove
-                        ? 'Delays each fixture so the move ripples across the rig'
-                        : _effect == GeneratorEffect.rainbowWave
-                            ? 'How far apart the lamps sit on the colour wheel (0 = the full wheel)'
-                            : 'Staggers the palette across the fixtures',
-                    value: _shift,
-                    onChanged: (v) => setState(() => _shift = v),
-                  ),
-                ],
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'FIXTURE PATTERN',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
-          ),
-          const Text(
-            'Which fixtures light up each scene — not always all of them at once',
-            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final pattern in FixturePattern.values)
-                ChoiceChip(
-                  label: Text(pattern.label),
-                  selected: _pattern == pattern,
-                  onSelected: (_) => setState(() => _pattern = pattern),
+          ] else ...[
+            Text(
+              _effect.isMove ? 'SHAPE' : 'SHAPE (Shift staggers the palette)',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            ),
+            const SizedBox(height: 8),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
+                child: Column(
+                  children: [
+                    if (_effect.isMove) ...[
+                      _shapeSlider(
+                        label: 'Size',
+                        hint: 'How far the beams travel from centre',
+                        value: _size,
+                        onChanged: (v) => setState(() => _size = v),
+                      ),
+                      _shapeSlider(
+                        label: 'Fan',
+                        hint: 'Spreads the rig outward, left to right',
+                        value: _fan,
+                        onChanged: (v) => setState(() => _fan = v),
+                      ),
+                    ],
+                    _shapeSlider(
+                      label: 'Shift',
+                      hint: _effect.isMove
+                          ? 'Delays each fixture so the move ripples across the rig'
+                          : _effect == GeneratorEffect.rainbowWave
+                          ? 'How far apart the lamps sit on the colour wheel (0 = the full wheel)'
+                          : 'Staggers the palette across the fixtures',
+                      value: _shift,
+                      onChanged: (v) => setState(() => _shift = v),
+                    ),
+                  ],
                 ),
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'FIXTURE PATTERN',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            ),
+            const Text(
+              'Which fixtures light up each scene — not always all of them at once',
+              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final pattern in FixturePattern.values)
+                  ChoiceChip(
+                    label: Text(pattern.label),
+                    selected: _pattern == pattern,
+                    onSelected: (_) => setState(() => _pattern = pattern),
+                  ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           const Text(
             'APPLY TO',
@@ -333,25 +393,27 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                       onChanged: (v) => setState(() => _destinationBankId = v),
                     ),
                   ),
-                  const Divider(height: 1),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text('Number of Scenes'),
-                    trailing: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.remove_circle_outline, size: 20),
-                          onPressed: _sceneCount > 1 ? () => setState(() => _sceneCount--) : null,
-                        ),
-                        SizedBox(width: 24, child: Text('$_sceneCount', textAlign: TextAlign.center)),
-                        IconButton(
-                          icon: const Icon(Icons.add_circle_outline, size: 20),
-                          onPressed: _sceneCount < 32 ? () => setState(() => _sceneCount++) : null,
-                        ),
-                      ],
+                  if (!_isRunningStrobe) ...[
+                    const Divider(height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text('Number of Scenes'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline, size: 20),
+                            onPressed: _sceneCount > 1 ? () => setState(() => _sceneCount--) : null,
+                          ),
+                          SizedBox(width: 24, child: Text('$_sceneCount', textAlign: TextAlign.center)),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline, size: 20),
+                            onPressed: _sceneCount < 32 ? () => setState(() => _sceneCount++) : null,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
+                  ],
                   const Divider(height: 1),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
@@ -367,7 +429,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
           FilledButton.icon(
             onPressed: _generate,
             icon: const Icon(Icons.auto_awesome),
-            label: Text('Generate $_sceneCount Scenes'),
+            label: Text('Generate $_plannedSceneCount Scenes'),
           ),
         ],
       ),

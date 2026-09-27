@@ -32,6 +32,8 @@ Future<List<String>> startChase(
   required NowPlaying playing,
   bool dashboardTiming = true,
 }) {
+  // Read on every step — see [stableRead].
+  read = stableRead(read);
   return startLayeredChase(
     read,
     chase,
