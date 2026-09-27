@@ -211,6 +211,15 @@ class ChasePlayer {
     // it used to be fixed at play() time, which left a chase started on
     // the beat frozen waiting for beats once beat sync was switched off.
     bool Function()? liveBeatSync,
+    // Whether beats are actually arriving (the mic or MIDI clock is on),
+    // whatever this chase's own beat sync says. A Beat Flash bank goes by
+    // this rather than the chase's switch: dropped into a chase it flashes
+    // on the beat without the chase having to be set up for it first.
+    bool Function()? liveBeatAvailable,
+    // How long a Beat Flash bank's dark step lasts when there are no beats
+    // to wait for — one beat at the show's tempo, instead of the chase
+    // step's hold, which had to be dragged to zero for the flash to show.
+    Duration Function()? liveFlashGap,
     // The project's current banks and scenes, checked before every step: an
     // edit to one this chase plays — a Beat Flash bank's fade-out, a slot, a
     // scene's values — lands on the next step instead of only after the
@@ -252,6 +261,7 @@ class ChasePlayer {
 
     final myGeneration = ++_generation;
     bool beatSynced() => beatStream != null && (liveBeatSync?.call() ?? chase.beatSync);
+    bool flashOnBeat() => beatStream != null && (liveBeatAvailable?.call() ?? beatSynced());
     _running = true;
     _index = chase.direction == ChaseDirection.random ? _random.nextInt(instants.length) : 0;
     _forward = true;
@@ -277,9 +287,9 @@ class ChasePlayer {
           if (_index >= instants.length) _index = 0;
         }
       }
-      final useBeat = beatSynced();
-      if (!useBeat) stepIsOffBeat = false;
       final instant = instants[_index];
+      final useBeat = instant.isFlash ? flashOnBeat() : beatSynced();
+      if (!useBeat) stepIsOffBeat = false;
       final rate = instant.isFlash ? BeatRate.flash : (liveBeatRate?.call() ?? beatRate);
       onStep?.call(_index);
       await _crossfadeTo(
@@ -316,7 +326,12 @@ class ChasePlayer {
           );
           stepIsOffBeat = false;
         } else {
-          final beatAt = await _waitForBeat(beatStream!, myGeneration, rate == BeatRate.half ? 2 : 1, beatSynced);
+          final beatAt = await _waitForBeat(
+            beatStream!,
+            myGeneration,
+            rate == BeatRate.half ? 2 : 1,
+            instant.isFlash ? flashOnBeat : beatSynced,
+          );
           if (beatAt != null) {
             final measured = previousBeatAt == null ? null : beatAt.difference(previousBeatAt);
             // Ignore a gap that means the music stopped rather than a tempo
@@ -330,7 +345,11 @@ class ChasePlayer {
         }
       } else {
         await _holdFor(
-          instant.isFlashLit ? (liveFlashLength?.call() ?? flashLength) : instant.hold,
+          instant.isFlashLit
+              ? (liveFlashLength?.call() ?? flashLength)
+              : instant.isFlash
+                  ? (liveFlashGap?.call() ?? instant.hold)
+                  : instant.hold,
           myGeneration,
         );
       }

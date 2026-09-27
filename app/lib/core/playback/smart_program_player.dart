@@ -430,6 +430,7 @@ class SmartProgramPlayer {
         liveBeatRate: beatRate,
         liveFlashLength: flashLength,
         liveBeatSync: beatSyncEnabled,
+        liveBeatAvailable: () => beatService.isListening,
         claim: false,
         onStep: (_) {},
       );

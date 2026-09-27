@@ -10,6 +10,7 @@ import 'package:dmx_controller/models/chase.dart';
 import 'package:dmx_controller/models/fixture_channel.dart';
 import 'package:dmx_controller/models/fixture_profile.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
+import 'package:dmx_controller/models/scene.dart';
 import 'package:dmx_controller/models/universe_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -117,6 +118,79 @@ void main() {
       expect(ms, lessThan(150), reason: 'the lit step should be a short flash, not the 250 ms hold');
     }
     await service.disconnect();
+  });
+
+  group('a flash bank overrides the chase\'s own hold', () {
+    late ArtNetService service;
+    late List<Scene> scenes;
+    late List<Bank> banks;
+    setUp(() async {
+      service = ArtNetService();
+      await service.connect(const ArtNetSettings(demoMode: true));
+      var n = 0;
+      scenes = buildBeatFlashScenes(fixtures: fixtures, idGenerator: () => 'a${n++}');
+      banks = [Bank(id: 'A', name: 'A', sceneSlots: [scenes.first.id, scenes.last.id], isBeatFlash: true)];
+    });
+    tearDown(() => service.disconnect());
+
+    // A chase with a long hold and its own beat sync off — what used to
+    // need the hold dragged to zero before the flash would show.
+    const chase = Chase(
+      id: 'c',
+      name: 'Long hold',
+      steps: [ChaseStep(bankId: 'A', hold: Duration(seconds: 3), fade: Duration(milliseconds: 500))],
+    );
+
+    test('beats coming in: it flashes on them, chase beat sync or not', () async {
+      final beats = StreamController<DateTime>.broadcast();
+      final player = ChasePlayer();
+      unawaited(player.play(
+        chase: chase,
+        scenes: scenes,
+        banks: banks,
+        patchedFixtures: fixtures,
+        universes: const [universe],
+        service: service,
+        beatStream: beats.stream,
+        liveBeatSync: () => false,
+        liveBeatAvailable: () => true,
+        flashLength: const Duration(milliseconds: 40),
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      for (var beat = 0; beat < 3; beat++) {
+        beats.add(DateTime.now());
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        expect(service.getChannelValue(universe, 0), 255, reason: 'beat $beat: lit on the beat');
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        expect(service.getChannelValue(universe, 0), 0, reason: 'beat $beat: dark after the flash');
+      }
+      player.stop();
+      await beats.close();
+    });
+
+    test('no beats: the dark step lasts a beat at the show tempo, not the chase hold', () async {
+      final player = ChasePlayer();
+      var flashes = 0;
+      unawaited(player.play(
+        chase: chase,
+        scenes: scenes,
+        banks: banks,
+        patchedFixtures: fixtures,
+        universes: const [universe],
+        service: service,
+        beatStream: const Stream<DateTime>.empty(),
+        liveBeatSync: () => false,
+        liveBeatAvailable: () => false,
+        liveFlashGap: () => const Duration(milliseconds: 150),
+        flashLength: const Duration(milliseconds: 40),
+        onStep: (i) {
+          if (i == 1) flashes++;
+        },
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 1000));
+      player.stop();
+      expect(flashes, greaterThanOrEqualTo(4), reason: 'a flash about every 190 ms, not every 3 s');
+    });
   });
 
   test('a flash bank after a 2× bank in the same chase still flashes on the beat', () async {

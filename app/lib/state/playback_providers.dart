@@ -248,13 +248,15 @@ Future<List<String>> startLayeredChase(
   // The players read through this on every step — see [stableRead].
   read = stableRead(read);
   final service = read(artNetServiceProvider);
-  Stream<DateTime>? beatStream;
-  if (followBeatSync) {
-    beatStream = read(beatPredictorProvider).events;
-  } else if (chase.beatSync) {
-    final beatService = read(activeBeatSourceProvider);
-    if (await beatService.start()) beatStream = read(beatPredictorProvider).events;
+  // A chase on its own beat sync steps on the beat only if the source could
+  // be opened for it; otherwise it falls back to its timers.
+  var ownBeatSync = false;
+  if (!followBeatSync && chase.beatSync) {
+    ownBeatSync = await read(activeBeatSourceProvider).start();
   }
+  // Always wired, even for a chase on its timers: a Beat Flash bank inside
+  // it flashes on the beat whenever beats are coming in.
+  final beatStream = read(beatPredictorProvider).events;
   final lanes = chaseLanes(chase, _layerIds(read));
   releaseLayersFromSmart(read, lanes.keys);
   final started = <String>[];
@@ -274,7 +276,9 @@ Future<List<String>> startLayeredChase(
       liveFlashLength: () => read(flashLengthProvider),
       liveBanks: () => read(banksProvider),
       liveScenes: () => read(scenesProvider),
-      liveBeatSync: followBeatSync ? () => read(beatSyncEnabledProvider) : null,
+      liveBeatSync: followBeatSync ? () => read(beatSyncEnabledProvider) : () => ownBeatSync,
+      liveBeatAvailable: () => read(activeBeatSourceProvider).isListening,
+      liveFlashGap: () => read(tempoProvider).hold,
       onStep: (index) {
         read(layerStepProvider(entry.key).notifier).state = index;
         onStep?.call(entry.key, index);
@@ -462,6 +466,8 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
     service: service,
     beatStream: read(beatPredictorProvider).events,
     liveBeatSync: () => read(beatSyncEnabledProvider),
+    liveBeatAvailable: () => read(activeBeatSourceProvider).isListening,
+    liveFlashGap: () => bank.ownTiming ? bank.hold : read(tempoProvider).hold,
     beatRate: read(beatRateProvider),
     flashLength: read(flashLengthProvider),
     liveBeatRate: () => read(beatRateProvider),
