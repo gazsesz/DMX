@@ -12,7 +12,7 @@ import '../audio/tempo_estimator.dart';
 import 'auto_fade_guard.dart';
 import 'chase_player.dart';
 
-enum SmartProgramZone { base, faster, slower }
+export '../../models/smart_program.dart' show SmartProgramZone;
 
 class SmartProgramStatus {
   final SmartProgramZone zone;
@@ -26,13 +26,16 @@ class SmartProgramStatus {
   const SmartProgramStatus({required this.zone, this.liveBpm, this.isSilent = false});
 }
 
-/// Drives a [SmartProgram]: watches the microphone's live beat tempo and
-/// hands the shared [ChasePlayer] off between the program's base/faster/
-/// slower chases as the song speeds up or slows down — each direction only
-/// switches once the new tempo has held for that direction's configured
-/// duration, so a single early/late beat doesn't cause flicker.
+/// Drives a [SmartProgram]: watches the live beat tempo and, as the song
+/// speeds up or slows down, hands every layer the program drives over to
+/// that layer's own base/faster/slower target — one tempo reading, one
+/// zone, but each layer playing its own thing in it. A switch only happens
+/// once the new tempo has held for that direction's configured duration, so
+/// a single early/late beat doesn't cause flicker.
 class SmartProgramPlayer {
-  final ChasePlayer chasePlayer;
+  /// The player for a layer id — each layer the program drives gets its own,
+  /// the same one that layer uses for everything else.
+  final ChasePlayer Function(String layerId) playerFor;
   final BeatSource beatService;
 
   /// What actually drives [_onBeat] and an embedded chase/bank's own beat
@@ -46,25 +49,18 @@ class SmartProgramPlayer {
   /// The app-wide beat-sync switch, and the rate it's set to — read live
   /// rather than captured, so flipping either from the dock lands on the
   /// running program.
-  ///
-  /// A program already has the beat source open, so with beat sync armed its
-  /// bank or chase steps on the beats themselves instead of on a timer
-  /// derived from the zone's BPM. Without this a bank running inside a
-  /// program simply ignored beat sync: the zone handed the player a chase
-  /// with `beatSync` false and no beat stream, so it ticked along on
-  /// [_zoneHold] no matter what the music did.
   final bool Function() beatSyncEnabled;
   final BeatRate Function() beatRate;
   final Duration Function() flashLength;
 
   /// The app-wide auto-fade switch, read and (temporarily) written — see
-  /// [_suppressAutoFadeFor]. Defaults to a no-op pair so tests and callers
-  /// that don't care about this can ignore it entirely.
+  /// [_updateAutoFadeSuppression]. Defaults to a no-op pair so tests and
+  /// callers that don't care about this can ignore it entirely.
   final bool Function() isAutoFadeOn;
   final void Function(bool) setAutoFade;
 
   SmartProgramPlayer({
-    required this.chasePlayer,
+    required this.playerFor,
     required this.beatService,
     Stream<DateTime>? beatEvents,
     bool Function()? beatSyncEnabled,
@@ -89,6 +85,11 @@ class SmartProgramPlayer {
   bool _isSilent = false;
   final _autoFadeGuard = AutoFadeGuard();
 
+  /// Layers taken back for something else mid-run (a bank fired onto one
+  /// of them, a Stop on just that layer) — the program leaves them alone
+  /// until it's started again.
+  final Set<String> _released = {};
+
   /// How long to wait without a single beat before assuming the music has
   /// stopped (rather than just being between two real beats of a slow song
   /// — even 40 BPM is a beat every 1.5s, so this leaves a wide margin).
@@ -100,6 +101,32 @@ class SmartProgramPlayer {
   bool get isRunning => _program != null;
   String? get activeProgramId => _program?.id;
   SmartProgramZone get currentZone => _confirmedZone;
+
+  /// The layer ids this program is playing on right now.
+  List<String> get drivenLayerIds {
+    final program = _program;
+    if (program == null) return const [];
+    return [
+      for (final l in program.drivenLayers)
+        if (!_released.contains(l.layerId)) l.layerId,
+    ];
+  }
+
+  bool drives(String layerId) => drivenLayerIds.contains(layerId);
+
+  /// Gives [layerId] back: its player is stopped and the program stops
+  /// handing it zones. Returns true when that was the last layer, in which
+  /// case the whole program has been stopped too.
+  bool releaseLayer(String layerId) {
+    if (!drives(layerId)) return false;
+    _released.add(layerId);
+    playerFor(layerId).stop();
+    if (drivenLayerIds.isEmpty) {
+      stop();
+      return true;
+    }
+    return false;
+  }
 
   /// Starts [program]. Returns false if the microphone couldn't be opened.
   Future<bool> start({
@@ -116,6 +143,7 @@ class SmartProgramPlayer {
     if (!started) return false;
 
     _program = program;
+    _released.clear();
     _beatTimes.clear();
     _pendingZone = SmartProgramZone.base;
     _confirmedZone = SmartProgramZone.base;
@@ -153,10 +181,9 @@ class SmartProgramPlayer {
   /// kept driving the old thresholds, targets and fades while the editor
   /// showed the new ones. Now a save lands on the running show.
   ///
-  /// Playback is only re-triggered when the current zone's *target* or
-  /// *fade* actually changed — thresholds and hold times take effect on the
-  /// next beat by themselves, and restarting the chase for those would jump
-  /// the look for no reason.
+  /// Playback is only re-triggered when what the current zone plays on some
+  /// layer — its target, fade or pace — actually changed; thresholds and
+  /// hold times take effect on the next beat by themselves.
   void updateProgram(
     SmartProgram program, {
     required List<Chase> chases,
@@ -169,7 +196,10 @@ class SmartProgramPlayer {
     final current = _program;
     if (current == null || current.id != program.id) return;
     final zone = _confirmedZone;
-    final targetChanged = _targetOf(current, zone) != _targetOf(program, zone);
+    final layerIds = {for (final l in current.layers) l.layerId, for (final l in program.layers) l.layerId};
+    final targetChanged = layerIds.any(
+      (id) => current.targetsFor(id).effective(zone) != program.targetsFor(id).effective(zone),
+    );
     final fadeChanged = _fadeOf(current, zone) != _fadeOf(program, zone);
     final holdChanged = _zoneHold(current, zone) != _zoneHold(program, zone);
     _program = program;
@@ -212,12 +242,6 @@ class SmartProgramPlayer {
     );
   }
 
-  static ProgramTarget? _targetOf(SmartProgram program, SmartProgramZone zone) => switch (zone) {
-    SmartProgramZone.base => program.baseTarget,
-    SmartProgramZone.faster => program.fasterTarget ?? program.baseTarget,
-    SmartProgramZone.slower => program.slowerTarget ?? program.baseTarget,
-  };
-
   static Duration _fadeOf(SmartProgram program, SmartProgramZone zone) => switch (zone) {
     SmartProgramZone.base => program.baseFade,
     SmartProgramZone.faster => program.fasterFade,
@@ -232,16 +256,22 @@ class SmartProgramPlayer {
   /// No beat has arrived for [_silenceTimeout] — the music has presumably
   /// stopped (or was never there). Blacks out and stops stepping instead of
   /// looping the base chase forever with nothing real driving it; a fresh
-  /// beat later restarts cleanly from the base zone.
+  /// beat later restarts cleanly.
   void _enterSilence({required ArtNetService service, required List<UniverseConfig> universes}) {
     final program = _program;
     if (program == null || _isSilent) return;
     _isSilent = true;
     _confirmTimer?.cancel();
-    // Let the rig die out gently over the program's blackout fade instead of
-    // cutting to black — `fadeToBlack` stops playback itself and yields to
-    // anything fired mid-fade.
-    chasePlayer.fadeToBlack(over: program.blackoutFade, service: service, universes: universes);
+    final layerIds = drivenLayerIds;
+    if (layerIds.isEmpty) return;
+    // One fade-out covers the whole rig: every other driven layer stops
+    // first, and the first one dies out gently over the program's blackout
+    // fade instead of cutting to black. `fadeToBlack` yields to anything
+    // fired mid-fade.
+    for (final id in layerIds.skip(1)) {
+      playerFor(id).stop();
+    }
+    playerFor(layerIds.first).fadeToBlack(over: program.blackoutFade, service: service, universes: universes);
     _statusController.add(SmartProgramStatus(zone: _confirmedZone, isSilent: true));
   }
 
@@ -328,12 +358,15 @@ class SmartProgramPlayer {
   }
 
   /// Auto-fade smears the lit→dark transition into a slow cross-fade, which
-  /// is exactly wrong for a Beat Flash bank — so while one of those is the
-  /// zone actually playing, it's forced off, and put back the moment the
+  /// is exactly wrong for a Beat Flash bank — so while one of those is
+  /// playing on any layer, it's forced off, and put back the moment the
   /// program hands off to anything else.
-  void _updateAutoFadeSuppression({required ProgramTarget target, required List<Bank> banks}) {
-    final matches = target.isBank ? banks.where((b) => b.id == target.id) : const <Bank>[];
-    final isFlashBank = matches.isNotEmpty && matches.first.isBeatFlash;
+  void _updateAutoFadeSuppression({required Iterable<ProgramTarget> targets, required List<Bank> banks}) {
+    final isFlashBank = targets.any((target) {
+      if (!target.isBank) return false;
+      final matches = banks.where((b) => b.id == target.id);
+      return matches.isNotEmpty && matches.first.isBeatFlash;
+    });
     final instruction = _autoFadeGuard.onTargetChanged(
       isFlashBank: isFlashBank,
       autoFadeCurrentlyOn: isAutoFadeOn(),
@@ -342,8 +375,8 @@ class SmartProgramPlayer {
   }
 
   SmartProgramZone _classify(SmartProgram program, double bpm) {
-    if (bpm >= program.fasterTriggerBpm && program.fasterTarget != null) return SmartProgramZone.faster;
-    if (bpm <= program.slowerTriggerBpm && program.slowerTarget != null) return SmartProgramZone.slower;
+    if (bpm >= program.fasterTriggerBpm && program.hasFasterTarget) return SmartProgramZone.faster;
+    if (bpm <= program.slowerTriggerBpm && program.hasSlowerTarget) return SmartProgramZone.slower;
     return SmartProgramZone.base;
   }
 
@@ -358,65 +391,76 @@ class SmartProgramPlayer {
   }) {
     final program = _program;
     if (program == null) return;
-    final target = switch (zone) {
-      SmartProgramZone.base => program.baseTarget,
-      SmartProgramZone.faster => program.fasterTarget ?? program.baseTarget,
-      SmartProgramZone.slower => program.slowerTarget ?? program.baseTarget,
-    };
-    if (target == null) return;
-    final fade = switch (zone) {
-      SmartProgramZone.base => program.baseFade,
-      SmartProgramZone.faster => program.fasterFade,
-      SmartProgramZone.slower => program.slowerFade,
-    };
-
-    _updateAutoFadeSuppression(target: target, banks: banks);
-
+    final fade = _fadeOf(program, zone);
     // With beat sync armed the steps land on the detected beats, and the
     // zone's hold only matters as the fallback the player never reaches.
     final onBeat = beatSyncEnabled();
+    final played = <ProgramTarget>[];
 
-    // The program's own per-zone fade always wins over whatever the
-    // chase/bank was configured with — that's the whole point of setting it
-    // here.
-    final Chase toPlay;
+    for (final layer in program.drivenLayers) {
+      if (_released.contains(layer.layerId)) continue;
+      final player = playerFor(layer.layerId);
+      final target = layer.effective(zone);
+      final toPlay = target == null
+          ? null
+          : _chaseFor(target, program: program, zone: zone, fade: fade, onBeat: onBeat, chases: chases, banks: banks);
+      if (toPlay == null) {
+        // Nothing for this layer in this zone (it only has Faster, say, and
+        // the song is at Base) — it sits dark until its zone comes round.
+        player.stop();
+        continue;
+      }
+      played.add(target!);
+      player.play(
+        chase: toPlay,
+        scenes: scenes,
+        banks: banks,
+        patchedFixtures: patchedFixtures,
+        universes: universes,
+        service: service,
+        beatStream: onBeat ? beatEvents : null,
+        beatRate: beatRate(),
+        flashLength: flashLength(),
+        liveBeatRate: beatRate,
+        liveFlashLength: flashLength,
+        onStep: (_) {},
+      );
+    }
+    _updateAutoFadeSuppression(targets: played, banks: banks);
+  }
+
+  /// The chase a zone target becomes on one layer. The program's own
+  /// per-zone fade always wins over whatever the chase/bank was configured
+  /// with — that's the whole point of setting it here — and a chase plays
+  /// all its steps on the layer the program put it on, whatever layers its
+  /// own steps name.
+  Chase? _chaseFor(
+    ProgramTarget target, {
+    required SmartProgram program,
+    required SmartProgramZone zone,
+    required Duration fade,
+    required bool onBeat,
+    required List<Chase> chases,
+    required List<Bank> banks,
+  }) {
     if (target.isBank) {
       final matches = banks.where((b) => b.id == target.id);
-      if (matches.isEmpty) return;
+      if (matches.isEmpty) return null;
       // A bank has no timing of its own, so it becomes a one-step chase
       // stepping through its slots at this zone's pace.
-      toPlay = Chase(
+      return Chase(
         id: 'smart-bank-${target.id}',
         name: matches.first.name,
         beatSync: onBeat,
         steps: [ChaseStep(bankId: target.id, hold: _zoneHold(program, zone), fade: fade)],
       );
-    } else {
-      final matches = chases.where((c) => c.id == target.id);
-      if (matches.isEmpty) return;
-      final source = matches.first;
-      toPlay = source.copyWith(
-        beatSync: onBeat,
-        steps: [
-          for (final step in source.steps)
-            ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: step.hold, fade: fade),
-        ],
-      );
     }
-
-    chasePlayer.play(
-      chase: toPlay,
-      scenes: scenes,
-      banks: banks,
-      patchedFixtures: patchedFixtures,
-      universes: universes,
-      service: service,
-      beatStream: onBeat ? beatEvents : null,
-      beatRate: beatRate(),
-      flashLength: flashLength(),
-      liveBeatRate: beatRate,
-      liveFlashLength: flashLength,
-      onStep: (_) {},
+    final matches = chases.where((c) => c.id == target.id);
+    if (matches.isEmpty) return null;
+    final source = matches.first;
+    return source.copyWith(
+      beatSync: onBeat,
+      steps: [for (final step in source.steps) step.copyWith(fade: fade, clearLayer: true)],
     );
   }
 
@@ -434,7 +478,9 @@ class SmartProgramPlayer {
   }
 
   void stop() {
+    final layerIds = drivenLayerIds;
     _program = null;
+    _released.clear();
     _beatSub?.cancel();
     _beatSub = null;
     _confirmTimer?.cancel();
@@ -444,7 +490,9 @@ class SmartProgramPlayer {
     _isSilent = false;
     final instruction = _autoFadeGuard.onStopped();
     if (instruction != null) setAutoFade(instruction);
-    chasePlayer.stop();
+    for (final id in layerIds) {
+      playerFor(id).stop();
+    }
   }
 
   void dispose() {

@@ -6,9 +6,13 @@ import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
+import '../../core/playback/smart_layer_display.dart';
 import '../../models/layer.dart';
+import '../../state/bank_providers.dart';
+import '../../state/chase_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
+import '../../state/smart_program_providers.dart';
 
 /// Lists every playback layer — what's running on each, and lets the user
 /// stop one, rename it, or add/remove layers. Priority and merge-mode are
@@ -61,9 +65,28 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
     notifier.setMergeHint(layer.id, hintController.text.trim());
   }
 
-  void _resume(Layer layer) {
-    final message = resumeLayer(ref.read, layer.id);
+  Future<void> _resume(Layer layer) async {
+    final message = await resumeLayer(ref.read, layer.id);
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// For a layer a Smart Program drives: what it plays right now, and the
+  /// "Program · Zone" line to go under it.
+  (String, String)? _smartLine(Layer layer, NowPlaying current) {
+    final programs = ref.watch(smartProgramsProvider).where((p) => p.id == current.id);
+    if (programs.isEmpty) return null;
+    final smart = ref.read(smartProgramPlayerProvider);
+    final status = ref.watch(smartProgramStatusProvider).valueOrNull;
+    final zone = status?.zone ?? smart.currentZone;
+    final line = smartLayerLines(
+      programs.first,
+      zone: zone,
+      layers: ref.watch(layersProvider),
+      chases: ref.watch(chasesProvider),
+      banks: ref.watch(banksProvider),
+    ).where((l) => l.layer.id == layer.id).firstOrNull;
+    final zoneText = status?.isSilent == true ? 'No music' : zoneLabel(line?.sourceZone ?? zone);
+    return (line?.targetName ?? '— (sits this zone out)', '${current.name} · $zoneText');
   }
 
   Future<void> _deleteLayer(Layer layer) async {
@@ -122,11 +145,13 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
 
   Widget _layerCard(Layer layer, int index) {
     final current = ref.watch(nowPlayingForLayerProvider(layer.id));
-    final isPlaying = ref.watch(chasePlayerProvider(layer.id)).isPlaying;
+    final isSmart = current?.kind == PlaybackKind.smartProgram && ref.read(smartProgramPlayerProvider).isRunning;
+    final isPlaying = ref.watch(chasePlayerProvider(layer.id)).isPlaying || isSmart;
     final isLayer1 = layer.id == layer1Id;
     // Idle but not blank: what last ran here, offered back with one tap
     // instead of sending the user to Banks mid-show to re-pick it.
     final lastPlayed = current == null ? ref.watch(lastPlayedForLayerProvider(layer.id)) : null;
+    final smartLine = isSmart ? _smartLine(layer, current!) : null;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -142,7 +167,7 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
         ),
         title: Row(
           children: [
-            Flexible(child: Text(current?.name ?? layer.name, overflow: TextOverflow.ellipsis)),
+            Flexible(child: Text(smartLine?.$1 ?? current?.name ?? layer.name, overflow: TextOverflow.ellipsis)),
             if (isPlaying) ...[
               const SizedBox(width: 8),
               Container(
@@ -157,7 +182,7 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
           lastPlayed != null
               ? 'Utoljára: ${lastPlayed.name}\n'
                     'Priority ${layer.priority}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}'
-              : '${current == null ? 'Nincs program fut' : current.kind.name}\n'
+              : '${smartLine?.$2 ?? (current == null ? 'Nincs program fut' : current.kind.name)}\n'
                     'Priority ${layer.priority}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}',
           style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
         ),

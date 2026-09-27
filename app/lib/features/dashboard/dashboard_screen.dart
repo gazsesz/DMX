@@ -3,12 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/playback/chase_player.dart';
+import '../../core/playback/smart_layer_display.dart';
 import '../../core/playback/smart_program_player.dart';
 import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/layer_badge.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/dashboard_prefs.dart';
@@ -53,7 +54,6 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  late final ChasePlayer _player;
   late final SmartProgramPlayer _smartPlayer;
   SmartProgramStatus? _smartStatus;
   StreamSubscription<SmartProgramStatus>? _smartStatusSub;
@@ -61,7 +61,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   @override
   void initState() {
     super.initState();
-    _player = ref.read(playbackControllerProvider);
     _smartPlayer = ref.read(smartProgramPlayerProvider);
     // Seeded from the last status rather than started blank: the stream
     // only reports changes, so a screen built while a program is already
@@ -246,6 +245,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     required String kindLabel,
     required String name,
     required String sub,
+    String? detail,
     required Color color,
     required bool active,
     required VoidCallback onTap,
@@ -299,6 +299,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
+            if (detail != null && detail.isNotEmpty)
+              Flexible(
+                child: Text(
+                  detail,
+                  style: TextStyle(fontSize: boxSize.subFontSize - 0.5, color: active ? AppColors.text : AppColors.textFaint),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
           ],
         ),
       ),
@@ -340,10 +349,32 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   /// picker (or from the Layers tab) shows up here too, not only there.
   Widget _buildLayerRow(int index, Layer layer) {
     final nowPlaying = ref.watch(nowPlayingForLayerProvider(layer.id));
-    final isPlaying = ref.watch(chasePlayerProvider(layer.id)).isPlaying;
+    final isSmart = nowPlaying?.kind == PlaybackKind.smartProgram;
+    // A Smart Program layer counts as running even in a zone it sits out —
+    // the program still owns it and will bring it back.
+    final isPlaying = ref.watch(chasePlayerProvider(layer.id)).isPlaying || (isSmart && _smartPlayer.isRunning);
     // Idle but not blank: offer to pick back up whatever last ran here,
     // instead of sending the user back to Banks mid-show to re-pick it.
     final lastPlayed = isPlaying ? null : ref.watch(lastPlayedForLayerProvider(layer.id));
+    String? title = nowPlaying?.name ?? lastPlayed?.name;
+    var subtitle = lastPlayed != null && nowPlaying == null ? '${layer.name} · tap to resume' : layer.name;
+    if (isSmart && isPlaying) {
+      final programs = ref.watch(smartProgramsProvider).where((p) => p.id == nowPlaying!.id);
+      final zone = _smartStatus?.zone ?? _smartPlayer.currentZone;
+      final line = programs.isEmpty
+          ? null
+          : smartLayerLines(
+              programs.first,
+              zone: zone,
+              layers: ref.watch(layersProvider),
+              chases: ref.watch(chasesProvider),
+              banks: ref.watch(banksProvider),
+            ).where((l) => l.layer.id == layer.id).firstOrNull;
+      title = line?.targetName ?? '— (sits this zone out)';
+      subtitle = _smartStatus?.isSilent == true
+          ? '${nowPlaying!.name} · No music'
+          : '${nowPlaying!.name} · ${zoneLabel(line?.sourceZone ?? zone)}';
+    }
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
       color: isPlaying ? AppColors.accent2.withValues(alpha: 0.14) : null,
@@ -355,20 +386,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         dense: true,
         leading: CircleAvatar(
           radius: 14,
-          backgroundColor: AppColors.accent2On,
+          backgroundColor: layerColor(index).withValues(alpha: 0.16),
           child: Text(
             'L${index + 1}',
-            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.accent2),
+            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: layerColor(index)),
           ),
         ),
         title: Text(
-          nowPlaying?.name ?? lastPlayed?.name ?? 'Empty',
+          title ?? 'Empty',
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isPlaying ? AppColors.accent2 : null),
         ),
-        subtitle: Text(
-          lastPlayed != null && nowPlaying == null ? '${layer.name} · tap to resume' : layer.name,
-          style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-        ),
+        subtitle: Text(subtitle, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
         trailing: isPlaying
             ? const Icon(Icons.stop_circle, color: AppColors.accent2)
             : Icon(
@@ -379,7 +407,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         onTap: isPlaying
             ? () => stopLayer(ref.read, layer.id)
             : lastPlayed != null
-            ? () => _reportIfProblem(resumeLayer(ref.read, layer.id))
+            ? () async => _reportIfProblem(await resumeLayer(ref.read, layer.id))
             : null,
       ),
     );
@@ -480,13 +508,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     final triggers = _triggers();
     final smartPrograms = ref.watch(smartProgramsProvider);
-    final nowPlaying = ref.watch(nowPlayingProvider);
     // Derived straight from the shared NowPlaying state — not a local flag —
     // so a trigger fired from the Banks or Chase tab shows as active here
-    // too, and vice versa.
-    final activeTriggerId = (_player.isPlaying && nowPlaying?.kind != PlaybackKind.smartProgram)
-        ? nowPlaying?.id
-        : null;
+    // too, and vice versa; on any layer, since a chase's lanes may leave
+    // Layer 1 out entirely.
+    for (final layer in ref.watch(layersProvider)) {
+      ref.watch(nowPlayingForLayerProvider(layer.id));
+    }
+    final activeTriggerIds = {for (final t in triggers) if (layersPlaying(ref.read, t.id).isNotEmpty) t.id};
 
     return Scaffold(
       appBar: AppBar(
@@ -601,7 +630,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   tileBuilders: [
                     for (final trigger in triggers)
                       (mosaic) {
-                        final active = activeTriggerId == trigger.id;
+                        final active = activeTriggerIds.contains(trigger.id);
                         final color = _kindColor(trigger.kind);
                         final name = trigger.kind == TriggerKind.bank ? 'BANK' : 'CHASE';
                         return mosaic
@@ -677,22 +706,29 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       (mosaic) {
                         final active = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
                         final status = active ? _smartStatus : null;
-                        final zoneLabel = status?.isSilent == true
-                            ? 'No music'
-                            : switch (status?.zone) {
-                                SmartProgramZone.faster => 'Faster',
-                                SmartProgramZone.slower => 'Slower',
-                                _ => 'Base',
-                              };
+                        final zone = active ? (status?.zone ?? _smartPlayer.currentZone) : null;
+                        final zoneText = status?.isSilent == true ? 'No music' : zoneLabel(zone ?? SmartProgramZone.base);
                         final sub = active
-                            ? '$zoneLabel${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM' : ''}'
+                            ? '$zoneText${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM' : ''}'
                             : '${program.baseBpm.round()} BPM base';
+                        // Layer by layer, what's playing (or what each
+                        // layer starts on, while the program is idle).
+                        final layersLine = smartLayerSummary(
+                          smartLayerLines(
+                            program,
+                            zone: zone,
+                            layers: ref.watch(layersProvider),
+                            chases: ref.watch(chasesProvider),
+                            banks: ref.watch(banksProvider),
+                          ),
+                        );
                         return mosaic
                             ? _buildMosaicTile(
                                 boxSize: boxSize,
                                 kindLabel: 'SMART',
                                 name: program.name,
                                 sub: sub,
+                                detail: layersLine,
                                 color: AppColors.accent2,
                                 active: active,
                                 onTap: () => _toggleSmartProgram(program),
@@ -700,7 +736,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                             : _buildListRow(
                                 icon: Icons.auto_graph,
                                 name: program.name,
-                                sub: sub,
+                                sub: layersLine.isEmpty ? sub : '$sub\n$layersLine',
                                 color: AppColors.accent2,
                                 active: active,
                                 onTap: () => _toggleSmartProgram(program),

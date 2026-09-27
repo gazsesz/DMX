@@ -1,12 +1,14 @@
 
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
+import '../../models/layer.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/provider_reader.dart';
 import '../../state/scene_providers.dart';
@@ -15,34 +17,25 @@ import '../../state/tempo_providers.dart';
 
 export '../../state/provider_reader.dart' show ReadProvider;
 
-/// Fires [chase] on the shared player exactly the way the Dashboard does:
-/// superseding any Smart Program, and wiring up beat sync when armed.
+/// Fires [chase] exactly the way the Dashboard does: one lane per layer its
+/// steps name, each taking its layer back from the Smart Program, with beat
+/// sync wired up when armed. Every started lane is marked as [playing].
+/// Returns the layers that started.
 ///
 /// [dashboardTiming] says whether this chase is one the Dashboard's own
 /// Hold/Fade governs — always true for a bank, and for a saved chase only
 /// while "Override saved timing" is on. Auto-fade rides on the same rule:
 /// a chase keeping its own timing keeps its own fades too.
-Future<void> startChase(ReadProvider read, Chase chase, {bool dashboardTiming = true}) async {
-  read(smartProgramPlayerProvider).stop();
-  final service = read(artNetServiceProvider);
-  Stream<DateTime>? beatStream;
-  if (chase.beatSync) {
-    final beatService = read(activeBeatSourceProvider);
-    if (await beatService.start()) beatStream = read(beatPredictorProvider).events;
-  }
-  read(playbackControllerProvider).play(
-    chase: chase,
-    scenes: read(scenesProvider),
-    banks: read(banksProvider),
-    patchedFixtures: read(patchedFixturesProvider),
-    universes: read(universesProvider),
-    service: service,
-    beatStream: beatStream,
-    beatRate: read(beatRateProvider),
-    flashLength: read(flashLengthProvider),
-    liveBeatRate: () => read(beatRateProvider),
-    liveFlashLength: () => read(flashLengthProvider),
-    onStep: (_) {},
+Future<List<String>> startChase(
+  ReadProvider read,
+  Chase chase, {
+  required NowPlaying playing,
+  bool dashboardTiming = true,
+}) {
+  return startLayeredChase(
+    read,
+    chase,
+    playing: playing,
     // Read fresh on every step rather than captured here, so tempo changes
     // reach the rig without restarting the chase. Returns null while
     // auto-fade is off, leaving the step's own fade alone.
@@ -76,10 +69,7 @@ Chase chaseAsDashboardPlaysIt(ReadProvider read, Chase saved) {
   if (!tempo.overrideTiming) return saved.copyWith(beatSync: beatSync);
   return saved.copyWith(
     beatSync: beatSync,
-    steps: [
-      for (final step in saved.steps)
-        ChaseStep(sceneId: step.sceneId, bankId: step.bankId, hold: tempo.hold, fade: tempo.fade),
-    ],
+    steps: [for (final step in saved.steps) step.copyWith(hold: tempo.hold, fade: tempo.fade)],
   );
 }
 
@@ -91,12 +81,8 @@ Future<String> togglePlayable(
   required bool isBank,
   required String name,
 }) async {
-  final player = read(playbackControllerProvider);
-  final current = read(nowPlayingProvider);
-  final isThisActive = player.isPlaying && current?.id == id && current?.kind != PlaybackKind.smartProgram;
-  if (isThisActive) {
-    player.stop();
-    read(nowPlayingProvider.notifier).state = null;
+  if (layersPlaying(read, id).isNotEmpty) {
+    stopEverywhere(read, id);
     return 'Stopped $name';
   }
   if (!read(artNetServiceProvider).isConnected) return 'Not connected — check Settings';
@@ -109,17 +95,17 @@ Future<String> togglePlayable(
     if (matches.isEmpty) return 'Chase no longer exists';
     chase = chaseAsDashboardPlaysIt(read, matches.first);
   }
-  await startChase(read, chase, dashboardTiming: isBank || read(tempoProvider).overrideTiming);
+  final started = await startChase(
+    read,
+    chase,
+    playing: NowPlaying(id: id, kind: isBank ? PlaybackKind.bank : PlaybackKind.chase, name: name),
+    dashboardTiming: isBank || read(tempoProvider).overrideTiming,
+  );
   // A step whose scene or bank no longer exists (deleted out from under it)
   // flattens to nothing, and `play` quietly declines to run zero steps —
   // reporting "Started" anyway would leave nowPlaying pointing at a bank
   // or chase that isn't actually doing anything.
-  if (!player.isPlaying) return '$name has no valid steps to play';
-  read(nowPlayingProvider.notifier).state = NowPlaying(
-    id: id,
-    kind: isBank ? PlaybackKind.bank : PlaybackKind.chase,
-    name: name,
-  );
+  if (started.isEmpty) return '$name has no valid steps to play';
   return 'Started $name';
 }
 
@@ -131,32 +117,10 @@ Future<String> toggleSmartProgramById(ReadProvider read, String programId) async
   final program = matches.first;
 
   if (smartPlayer.isRunning && smartPlayer.activeProgramId == programId) {
-    smartPlayer.stop();
-    read(nowPlayingProvider.notifier).state = null;
+    stopSmartProgram(read);
     return 'Stopped ${program.name}';
   }
-  final service = read(artNetServiceProvider);
-  if (!service.isConnected) return 'Not connected — check Settings';
-  if (!program.hasBaseTarget) return '${program.name} has no base chase or bank set';
-
-  read(playbackControllerProvider).stop();
-  read(nowPlayingProvider.notifier).state = null;
-  final started = await smartPlayer.start(
-    program: program,
-    chases: read(chasesProvider),
-    scenes: read(scenesProvider),
-    banks: read(banksProvider),
-    patchedFixtures: read(patchedFixturesProvider),
-    universes: read(universesProvider),
-    service: service,
-  );
-  if (!started) return 'Could not open the microphone for tempo tracking';
-  read(nowPlayingProvider.notifier).state = NowPlaying(
-    id: program.id,
-    kind: PlaybackKind.smartProgram,
-    name: program.name,
-  );
-  return 'Started ${program.name}';
+  return startSmartProgram(read, program);
 }
 
 /// Re-fires whatever bank or chase is playing so it picks up a changed
@@ -175,12 +139,9 @@ Future<String> toggleSmartProgramById(ReadProvider read, String programId) async
 /// zone is fired, so without this the switch did nothing to the bank a
 /// program was already running.
 Future<void> restartActiveTrigger(ReadProvider read, {bool timingOnly = false}) async {
-  final player = read(playbackControllerProvider);
-  final current = read(nowPlayingProvider);
-  if (!player.isPlaying || current == null) return;
-  if (current.kind == PlaybackKind.smartProgram) {
-    if (timingOnly) return;
-    read(smartProgramPlayerProvider).replayCurrentZone(
+  final smart = read(smartProgramPlayerProvider);
+  if (smart.isRunning && !timingOnly) {
+    smart.replayCurrentZone(
       chases: read(chasesProvider),
       scenes: read(scenesProvider),
       banks: read(banksProvider),
@@ -188,25 +149,40 @@ Future<void> restartActiveTrigger(ReadProvider read, {bool timingOnly = false}) 
       universes: read(universesProvider),
       service: read(artNetServiceProvider),
     );
-    return;
   }
 
-  final Chase chase;
-  if (current.kind == PlaybackKind.bank) {
-    final banks = read(banksProvider).where((b) => b.id == current.id);
-    if (banks.isEmpty) return;
-    chase = bankChase(read, bankId: current.id, name: banks.first.name);
-  } else {
-    if (timingOnly && !read(tempoProvider).overrideTiming) return;
+  // Everything else plain-playing, layer by layer. A chase is restarted
+  // once, which brings all its lanes back together.
+  final restartedChases = <String>{};
+  for (final layer in read(layersProvider)) {
+    final current = read(nowPlayingForLayerProvider(layer.id));
+    if (current == null || current.kind == PlaybackKind.smartProgram) continue;
+    if (!read(chasePlayerProvider(layer.id)).isPlaying) continue;
+    if (current.kind == PlaybackKind.bank) {
+      final banks = read(banksProvider).where((b) => b.id == current.id);
+      if (banks.isEmpty) continue;
+      if (layer.id == layer1Id) {
+        await startChase(
+          read,
+          bankChase(read, bankId: current.id, name: banks.first.name),
+          playing: current,
+        );
+      } else {
+        runBankOnLayer(read, bank: banks.first, layerId: layer.id);
+      }
+      continue;
+    }
+    if (timingOnly && !read(tempoProvider).overrideTiming) continue;
+    if (!restartedChases.add(current.id)) continue;
     final saved = read(chasesProvider).where((c) => c.id == current.id);
-    if (saved.isEmpty) return;
-    chase = chaseAsDashboardPlaysIt(read, saved.first);
+    if (saved.isEmpty) continue;
+    await startChase(
+      read,
+      chaseAsDashboardPlaysIt(read, saved.first),
+      playing: current,
+      dashboardTiming: read(tempoProvider).overrideTiming,
+    );
   }
-  await startChase(
-    read,
-    chase,
-    dashboardTiming: current.kind == PlaybackKind.bank || read(tempoProvider).overrideTiming,
-  );
 }
 
 /// Starts whatever played last again — what the control dock's Start
@@ -226,20 +202,11 @@ Future<String> resumeLastPlayed(ReadProvider read) async {
 /// until it was stopped and started again — the runner holds the program it
 /// was handed at start, so the editor and the rig disagreed.
 void syncRunningSmartProgram(ReadProvider read) {
-  final player = read(smartProgramPlayerProvider);
-  final id = player.activeProgramId;
+  final id = read(smartProgramPlayerProvider).activeProgramId;
   if (id == null) return;
   final matches = read(smartProgramsProvider).where((p) => p.id == id);
   if (matches.isEmpty) return;
-  player.updateProgram(
-    matches.first,
-    chases: read(chasesProvider),
-    scenes: read(scenesProvider),
-    banks: read(banksProvider),
-    patchedFixtures: read(patchedFixturesProvider),
-    universes: read(universesProvider),
-    service: read(artNetServiceProvider),
-  );
+  updateRunningSmartProgram(read, matches.first);
 }
 
 /// Arms or disarms mic beat sync — the same app-wide switch the Dashboard,

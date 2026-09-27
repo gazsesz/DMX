@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/layer_badge.dart';
+import '../../models/layer.dart';
 import '../../models/smart_program.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
+import '../../state/layer_providers.dart';
 import '../../state/smart_program_providers.dart';
 
 class SmartProgramEditorScreen extends ConsumerStatefulWidget {
@@ -20,42 +23,46 @@ class SmartProgramEditorScreen extends ConsumerStatefulWidget {
 
 class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScreen> {
   late final TextEditingController _nameController;
-  // Each zone's pick is held as a "chase:<id>" / "bank:<id>" key so one
-  // dropdown can offer both kinds; it's split back into the model's two id
-  // fields on save.
-  late String? _baseKey;
+
+  /// Every layer's three zone targets, keyed by layer id — including layers
+  /// with nothing set yet, so each one gets its row in every zone.
+  late final Map<String, LayerZoneTargets> _targets;
   late double _baseBpm;
   late ThresholdMode _mode;
   late double _baseFadeSeconds;
-  late String? _fasterKey;
   late double _fasterThreshold;
   late double _fasterHoldSeconds;
   late double _fasterFadeSeconds;
-  late String? _slowerKey;
   late double _slowerThreshold;
   late double _slowerHoldSeconds;
   late double _slowerFadeSeconds;
   late double _blackoutFadeSeconds;
 
+  // Each pick is held as a "chase:<id>" / "bank:<id>" key so one dropdown
+  // can offer both kinds.
   static String? _keyFor(ProgramTarget? target) =>
       target == null ? null : '${target.isBank ? 'bank' : 'chase'}:${target.id}';
-  static String? _chaseIdOf(String? key) => key != null && key.startsWith('chase:') ? key.substring(6) : null;
-  static String? _bankIdOf(String? key) => key != null && key.startsWith('bank:') ? key.substring(5) : null;
+  static ProgramTarget? _targetOf(String? key) {
+    if (key == null) return null;
+    if (key.startsWith('chase:')) return ProgramTarget(id: key.substring(6), isBank: false);
+    if (key.startsWith('bank:')) return ProgramTarget(id: key.substring(5), isBank: true);
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
     final p = widget.existing;
     _nameController = TextEditingController(text: p.name);
-    _baseKey = _keyFor(p.baseTarget);
+    _targets = {
+      for (final layer in ref.read(layersProvider)) layer.id: p.targetsFor(layer.id),
+    };
     _baseBpm = p.baseBpm;
     _mode = p.thresholdMode;
     _baseFadeSeconds = p.baseFade.inMilliseconds / 1000;
-    _fasterKey = _keyFor(p.fasterTarget);
     _fasterThreshold = p.fasterThreshold;
     _fasterHoldSeconds = p.fasterHold.inMilliseconds / 1000;
     _fasterFadeSeconds = p.fasterFade.inMilliseconds / 1000;
-    _slowerKey = _keyFor(p.slowerTarget);
     _slowerThreshold = p.slowerThreshold;
     _slowerHoldSeconds = p.slowerHold.inMilliseconds / 1000;
     _slowerFadeSeconds = p.slowerFade.inMilliseconds / 1000;
@@ -68,31 +75,21 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     super.dispose();
   }
 
-  SmartProgram get _current => widget.existing.copyWith(
-    name: _nameController.text.trim().isEmpty ? widget.existing.name : _nameController.text.trim(),
-    // The pickers are authoritative for every zone's target, so pass both
-    // ids explicitly (clear* makes copyWith take them verbatim, nulls and
-    // all) rather than merging with whatever was set before.
-    baseChaseId: _chaseIdOf(_baseKey),
-    baseBankId: _bankIdOf(_baseKey),
-    clearBase: true,
-    baseBpm: _baseBpm,
-    thresholdMode: _mode,
-    baseFade: Duration(milliseconds: (_baseFadeSeconds * 1000).round()),
-    fasterChaseId: _chaseIdOf(_fasterKey),
-    fasterBankId: _bankIdOf(_fasterKey),
-    clearFaster: true,
-    fasterThreshold: _fasterThreshold,
-    fasterHold: Duration(milliseconds: (_fasterHoldSeconds * 1000).round()),
-    fasterFade: Duration(milliseconds: (_fasterFadeSeconds * 1000).round()),
-    slowerChaseId: _chaseIdOf(_slowerKey),
-    slowerBankId: _bankIdOf(_slowerKey),
-    clearSlower: true,
-    slowerThreshold: _slowerThreshold,
-    slowerHold: Duration(milliseconds: (_slowerHoldSeconds * 1000).round()),
-    slowerFade: Duration(milliseconds: (_slowerFadeSeconds * 1000).round()),
-    blackoutFade: Duration(milliseconds: (_blackoutFadeSeconds * 1000).round()),
-  );
+  SmartProgram get _current => widget.existing
+      .copyWith(
+        name: _nameController.text.trim().isEmpty ? widget.existing.name : _nameController.text.trim(),
+        baseBpm: _baseBpm,
+        thresholdMode: _mode,
+        baseFade: Duration(milliseconds: (_baseFadeSeconds * 1000).round()),
+        fasterThreshold: _fasterThreshold,
+        fasterHold: Duration(milliseconds: (_fasterHoldSeconds * 1000).round()),
+        fasterFade: Duration(milliseconds: (_fasterFadeSeconds * 1000).round()),
+        slowerThreshold: _slowerThreshold,
+        slowerHold: Duration(milliseconds: (_slowerHoldSeconds * 1000).round()),
+        slowerFade: Duration(milliseconds: (_slowerFadeSeconds * 1000).round()),
+        blackoutFade: Duration(milliseconds: (_blackoutFadeSeconds * 1000).round()),
+      )
+      .withLayerTargets(_targets.values.toList());
 
   void _save() {
     ref.read(smartProgramsProvider.notifier).upsert(_current);
@@ -104,26 +101,60 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
 
   String get _unit => _mode == ThresholdMode.percent ? '%' : 'BPM';
 
-  /// One zone's target picker, offering every saved chase *and* every bank.
-  Widget _targetPicker({
-    required String label,
-    required String emptyLabel,
-    required String? value,
-    required ValueChanged<String?> onChanged,
-  }) {
+  bool get _anyFaster => _targets.values.any((t) => t.faster != null);
+  bool get _anySlower => _targets.values.any((t) => t.slower != null);
+
+  /// One layer's pick for one zone, offering every saved chase *and* every
+  /// bank.
+  Widget _layerPicker(Layer layer, int index, SmartProgramZone zone) {
     final chases = ref.watch(chasesProvider);
     final banks = ref.watch(banksProvider);
-    return DropdownButtonFormField<String?>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(labelText: label),
-      items: [
-        DropdownMenuItem(value: null, child: Text(emptyLabel)),
-        for (final chase in chases)
-          DropdownMenuItem(value: 'chase:${chase.id}', child: Text('Chase · ${chase.name}')),
-        for (final bank in banks) DropdownMenuItem(value: 'bank:${bank.id}', child: Text('Bank · ${bank.name}')),
+    final targets = _targets[layer.id]!;
+    final value = _keyFor(targets.explicit(zone));
+    final String emptyLabel;
+    if (zone == SmartProgramZone.base) {
+      emptyLabel = '— nincs —';
+    } else if (targets.base != null) {
+      emptyLabel = '— marad a Base —';
+    } else {
+      emptyLabel = '— nincs —';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          SizedBox(width: 30, child: LayerBadge(index: index)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<String?>(
+              // Keyed so a value set here elsewhere (none today, but cheap)
+              // still redraws the field instead of keeping its first pick.
+              key: ValueKey('${layer.id}-${zone.name}-$value'),
+              initialValue: value,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: layer.name, isDense: true),
+              items: [
+                DropdownMenuItem(value: null, child: Text(emptyLabel, style: const TextStyle(color: AppColors.textFaint))),
+                for (final chase in chases)
+                  DropdownMenuItem(value: 'chase:${chase.id}', child: Text('Chase · ${chase.name}')),
+                for (final bank in banks) DropdownMenuItem(value: 'bank:${bank.id}', child: Text('Bank · ${bank.name}')),
+              ],
+              onChanged: (v) => setState(() => _targets[layer.id] = targets.withZone(zone, _targetOf(v))),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _layerPickers(SmartProgramZone zone) {
+    final layers = ref.watch(layersProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < layers.length; i++)
+          if (_targets.containsKey(layers[i].id)) _layerPicker(layers[i], i, zone),
       ],
-      onChanged: onChanged,
     );
   }
 
@@ -140,6 +171,11 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
   @override
   Widget build(BuildContext context) {
     final current = _current;
+    // A layer added on the Layers tab while this editor is open still gets
+    // its rows.
+    for (final layer in ref.watch(layersProvider)) {
+      _targets.putIfAbsent(layer.id, () => LayerZoneTargets(layerId: layer.id));
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -161,13 +197,13 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const Text(
-            'The base chase plays at the song\'s normal tempo. When the live '
-            'beat tempo drifts away from Base BPM by more than a threshold — '
-            'and *stays* there for that direction\'s hold time — playback '
-            'switches to the faster or slower chase, using that zone\'s own '
-            'fade time. It switches back once the tempo returns to normal '
-            'for the hold time again. The Dashboard\'s own Fade/Hold sliders '
-            'disable themselves while this program runs.',
+            'One tempo reading switches the whole program between Base, Faster '
+            'and Slower once the live tempo has stayed past a threshold for '
+            'that direction\'s hold time — but each layer plays its own chase '
+            'or bank in each zone. A layer with nothing set for a zone keeps '
+            'its Base through it; a layer with no Base sits dark until one of '
+            'its zones comes round. A chase picked here plays entirely on this '
+            'layer, whatever layers its own steps name.',
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 20),
@@ -179,13 +215,8 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _targetPicker(
-                    label: 'Base Program (normal tempo)',
-                    emptyLabel: '— none —',
-                    value: _baseKey,
-                    onChanged: (v) => setState(() => _baseKey = v),
-                  ),
-                  const SizedBox(height: 14),
+                  _layerPickers(SmartProgramZone.base),
+                  const SizedBox(height: 6),
                   Text('Base BPM: ${_baseBpm.round()}', style: appMonoStyle(fontSize: 12)),
                   Slider(
                     value: _baseBpm,
@@ -231,14 +262,9 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _targetPicker(
-                    label: 'Faster Program',
-                    emptyLabel: '— disabled —',
-                    value: _fasterKey,
-                    onChanged: (v) => setState(() => _fasterKey = v),
-                  ),
-                  if (_fasterKey != null) ...[
-                    const SizedBox(height: 14),
+                  _layerPickers(SmartProgramZone.faster),
+                  if (_anyFaster) ...[
+                    const SizedBox(height: 6),
                     Text('Speed up by: +${_fasterThreshold.toStringAsFixed(0)}$_unit', style: appMonoStyle(fontSize: 12)),
                     Slider(
                       value: _fasterThreshold,
@@ -264,7 +290,11 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                       (v) => setState(() => _fasterFadeSeconds = v),
                       color: AppColors.accent2,
                     ),
-                  ],
+                  ] else
+                    const Text(
+                      'No layer has a Faster pick — the program stays on Base when the song speeds up.',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
                 ],
               ),
             ),
@@ -289,14 +319,9 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _targetPicker(
-                    label: 'Slower Program',
-                    emptyLabel: '— disabled —',
-                    value: _slowerKey,
-                    onChanged: (v) => setState(() => _slowerKey = v),
-                  ),
-                  if (_slowerKey != null) ...[
-                    const SizedBox(height: 14),
+                  _layerPickers(SmartProgramZone.slower),
+                  if (_anySlower) ...[
+                    const SizedBox(height: 6),
                     Text('Slow down by: -${_slowerThreshold.toStringAsFixed(0)}$_unit', style: appMonoStyle(fontSize: 12)),
                     Slider(
                       value: _slowerThreshold,
@@ -316,7 +341,11 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                     ),
                     const SizedBox(height: 8),
                     _fadeSlider(_slowerFadeSeconds, (v) => setState(() => _slowerFadeSeconds = v)),
-                  ],
+                  ] else
+                    const Text(
+                      'No layer has a Slower pick — the program stays on Base when the song slows down.',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
                 ],
               ),
             ),
@@ -341,7 +370,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                 children: [
                   const Text(
                     'After 4s without a beat the rig fades out and waits. The '
-                    'first beat back brings the slower program up again.',
+                    'first beat back brings the slower picks up again.',
                     style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 10),

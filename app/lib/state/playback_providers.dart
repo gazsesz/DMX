@@ -5,14 +5,17 @@ import '../core/playback/smart_program_player.dart';
 import '../models/bank.dart';
 import '../models/chase.dart';
 import '../models/layer.dart';
+import '../models/smart_program.dart';
 import 'artnet_providers.dart';
 import 'bank_providers.dart';
+import 'chase_providers.dart';
 import 'fixture_providers.dart';
 import 'layer_providers.dart';
 import 'momentary_fx_providers.dart';
 import 'provider_reader.dart';
 import 'audio_providers.dart';
 import 'scene_providers.dart';
+import 'smart_program_providers.dart';
 import 'tempo_providers.dart';
 
 /// One independent [ChasePlayer] per layer id — Layer 1's entry is what
@@ -41,15 +44,15 @@ final nowPlayingForLayerProvider = StateProvider.family<NowPlaying?, String>((re
 /// loops racing over the same universes.
 final playbackControllerProvider = chasePlayerProvider(layer1Id);
 
-/// The single Smart Program runner, sharing the same [ChasePlayer] above —
-/// so a Smart Program's tempo-driven chase switches use the exact same
-/// "only one thing plays" machinery as a plain bank/chase trigger. Anything
-/// that starts a *plain* trigger directly on [playbackControllerProvider]
-/// must call `stop()` on this first, since this player's own beat listener
-/// would otherwise try to reassert its chase on the next beat.
+/// The single Smart Program runner. It plays on each layer's own
+/// [ChasePlayer] above — so a program's zone switches use the same
+/// machinery as a plain bank/chase on that layer. Anything that starts
+/// something else on a layer the program is driving must take that layer
+/// back first ([releaseLayersFromSmart]), or the program's beat listener
+/// would reassert its own target there on the next zone change.
 final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
   final player = SmartProgramPlayer(
-    chasePlayer: ref.watch(playbackControllerProvider),
+    playerFor: (layerId) => ref.read(chasePlayerProvider(layerId)),
     beatService: ref.watch(activeBeatSourceProvider),
     // Read, not watched: the program is driven from callbacks, and a
     // rebuilt player would drop the running show on the floor.
@@ -146,10 +149,10 @@ Future<void> blackoutEverything(ReadProvider read) async {
   // First: a held Freeze pushes its own frame over the top of everything
   // else on the way out, blackout included. The panic button has to win.
   read(momentaryFxProvider.notifier).releaseAll();
+  stopSmartProgram(read);
   for (final layer in read(layersProvider)) {
     stopLayer(read, layer.id);
   }
-  read(smartProgramPlayerProvider).stop();
   final service = read(artNetServiceProvider);
   if (!service.isConnected) {
     await service.connect(read(artNetSettingsProvider));
@@ -160,10 +163,10 @@ Future<void> blackoutEverything(ReadProvider read) async {
 /// Stops whatever is playing without blacking the rig out — the fixtures
 /// hold their current look.
 void stopPlayback(ReadProvider read) {
+  stopSmartProgram(read);
   for (final layer in read(layersProvider)) {
     stopLayer(read, layer.id);
   }
-  read(smartProgramPlayerProvider).stop();
 }
 
 /// What last played on a given layer id before it stopped — the per-layer
@@ -176,8 +179,11 @@ final lastPlayedForLayerProvider = StateProvider.family<NowPlaying?, String>((re
 
 /// Stops just [layerId]'s player and clears its now-playing state, leaving
 /// every other layer untouched — remembering what was running first, so
-/// [resumeLayer] can bring it back.
+/// [resumeLayer] can bring it back. A layer the Smart Program is driving is
+/// handed back from it, so the next zone change doesn't restart it.
 void stopLayer(ReadProvider read, String layerId) {
+  final smart = read(smartProgramPlayerProvider);
+  if (smart.drives(layerId)) smart.releaseLayer(layerId);
   read(chasePlayerProvider(layerId)).stop();
   final current = read(nowPlayingForLayerProvider(layerId));
   if (current != null) {
@@ -186,32 +192,227 @@ void stopLayer(ReadProvider read, String layerId) {
   read(nowPlayingForLayerProvider(layerId).notifier).state = null;
 }
 
-/// Re-starts whatever [lastPlayedForLayerProvider] remembers for [layerId].
-/// Only a bank can be resumed on a layer other than [layer1Id] today — that's
-/// the only kind of thing the layer picker can start there in the first
-/// place. Returns a message to report.
-String resumeLayer(ReadProvider read, String layerId) {
+/// Takes [layerIds] back from the Smart Program before something else is
+/// started on them. The program keeps running on its other layers.
+void releaseLayersFromSmart(ReadProvider read, Iterable<String> layerIds) {
+  final smart = read(smartProgramPlayerProvider);
+  for (final id in layerIds) {
+    if (smart.drives(id)) stopLayer(read, id);
+  }
+}
+
+/// The layer ids that currently exist, Layer 1 first.
+List<String> _layerIds(ReadProvider read) => [for (final l in read(layersProvider)) l.id];
+
+/// Which layer a chase step plays on: its own layer when that still exists,
+/// Layer 1 otherwise (never set, or its layer was deleted since).
+String laneOf(ChaseStep step, List<String> existingLayerIds) {
+  final id = step.layerId;
+  return id != null && existingLayerIds.contains(id) ? id : layer1Id;
+}
+
+/// Splits [chase] into one chase per layer its steps name, in layer order —
+/// each lane keeps its steps' order and plays alongside the others.
+Map<String, Chase> chaseLanes(Chase chase, List<String> existingLayerIds) {
+  final byLayer = <String, List<ChaseStep>>{};
+  for (final step in chase.steps) {
+    byLayer.putIfAbsent(laneOf(step, existingLayerIds), () => []).add(step);
+  }
+  return {
+    for (final id in existingLayerIds)
+      if (byLayer.containsKey(id)) id: chase.copyWith(steps: byLayer[id]),
+  };
+}
+
+/// The layers a chase's steps play on, in layer order.
+List<String> chaseLayerIds(ReadProvider read, Chase chase) =>
+    chaseLanes(chase, _layerIds(read)).keys.toList();
+
+/// Starts [chase] as parallel lanes — each layer its steps name runs its
+/// own steps on its own player, all at once — and marks each started lane
+/// as [playing]. Starting a lane takes its layer back from the Smart
+/// Program first. Returns the layer ids that actually started (a lane whose
+/// scenes/banks were all deleted flattens to nothing and doesn't).
+Future<List<String>> startLayeredChase(
+  ReadProvider read,
+  Chase chase, {
+  required NowPlaying playing,
+  Duration? Function()? fadeOverride,
+  void Function(String layerId, int instantIndex)? onStep,
+}) async {
+  final service = read(artNetServiceProvider);
+  Stream<DateTime>? beatStream;
+  if (chase.beatSync) {
+    final beatService = read(activeBeatSourceProvider);
+    if (await beatService.start()) beatStream = read(beatPredictorProvider).events;
+  }
+  final lanes = chaseLanes(chase, _layerIds(read));
+  releaseLayersFromSmart(read, lanes.keys);
+  final started = <String>[];
+  for (final entry in lanes.entries) {
+    final player = read(chasePlayerProvider(entry.key));
+    player.play(
+      chase: entry.value,
+      scenes: read(scenesProvider),
+      banks: read(banksProvider),
+      patchedFixtures: read(patchedFixturesProvider),
+      universes: read(universesProvider),
+      service: service,
+      beatStream: beatStream,
+      beatRate: read(beatRateProvider),
+      flashLength: read(flashLengthProvider),
+      liveBeatRate: () => read(beatRateProvider),
+      liveFlashLength: () => read(flashLengthProvider),
+      onStep: onStep == null ? null : (index) => onStep(entry.key, index),
+      fadeOverride: fadeOverride,
+    );
+    if (!player.isPlaying) continue;
+    read(nowPlayingForLayerProvider(entry.key).notifier).state = playing;
+    started.add(entry.key);
+  }
+  return started;
+}
+
+/// The layers currently playing [id] as a plain bank/chase (not a Smart
+/// Program).
+List<String> layersPlaying(ReadProvider read, String id) => [
+  for (final layerId in _layerIds(read))
+    if (_isPlainPlaying(read, layerId, id)) layerId,
+];
+
+bool _isPlainPlaying(ReadProvider read, String layerId, String id) {
+  final np = read(nowPlayingForLayerProvider(layerId));
+  return np != null &&
+      np.kind != PlaybackKind.smartProgram &&
+      np.id == id &&
+      read(chasePlayerProvider(layerId)).isPlaying;
+}
+
+/// Stops [id] on every layer it's playing on.
+void stopEverywhere(ReadProvider read, String id) {
+  for (final layerId in layersPlaying(read, id)) {
+    stopLayer(read, layerId);
+  }
+}
+
+/// Stops the running Smart Program and clears it off every layer it drove.
+void stopSmartProgram(ReadProvider read) {
+  final smart = read(smartProgramPlayerProvider);
+  final programId = smart.activeProgramId;
+  final layerIds = smart.drivenLayerIds;
+  smart.stop();
+  if (programId == null) return;
+  for (final layerId in {...layerIds, ..._layerIds(read)}) {
+    final np = read(nowPlayingForLayerProvider(layerId));
+    if (np?.kind != PlaybackKind.smartProgram || np?.id != programId) continue;
+    read(lastPlayedForLayerProvider(layerId).notifier).state = np;
+    read(nowPlayingForLayerProvider(layerId).notifier).state = null;
+  }
+}
+
+/// Starts [program] on every layer it has targets for, replacing whatever
+/// those layers were playing; other layers keep going. Returns a message
+/// to report.
+Future<String> startSmartProgram(ReadProvider read, SmartProgram program) async {
+  final service = read(artNetServiceProvider);
+  if (!service.isConnected) return 'Not connected — check Settings';
+  final existing = _layerIds(read);
+  final effective = program.withLayerTargets([
+    for (final l in program.layers)
+      if (existing.contains(l.layerId)) l,
+  ]);
+  if (!effective.hasAnyTarget) return '${program.name} has no chase or bank set on any layer';
+  stopSmartProgram(read);
+  for (final layer in effective.drivenLayers) {
+    stopLayer(read, layer.layerId);
+  }
+  final started = await read(smartProgramPlayerProvider).start(
+    program: effective,
+    chases: read(chasesProvider),
+    scenes: read(scenesProvider),
+    banks: read(banksProvider),
+    patchedFixtures: read(patchedFixturesProvider),
+    universes: read(universesProvider),
+    service: service,
+  );
+  if (!started) return 'Could not open the microphone for tempo tracking';
+  _markSmartLayers(read, effective);
+  return 'Started ${program.name}';
+}
+
+/// Points every layer the running [program] drives at it — also after an
+/// edit adds a layer to a program that's already playing.
+void _markSmartLayers(ReadProvider read, SmartProgram program) {
+  final smart = read(smartProgramPlayerProvider);
+  for (final layerId in smart.drivenLayerIds) {
+    read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
+      id: program.id,
+      kind: PlaybackKind.smartProgram,
+      name: program.name,
+    );
+  }
+}
+
+/// Pushes an edited [program] onto the runner if it's the one playing.
+void updateRunningSmartProgram(ReadProvider read, SmartProgram program) {
+  final smart = read(smartProgramPlayerProvider);
+  if (smart.activeProgramId != program.id) return;
+  final before = smart.drivenLayerIds.toSet();
+  smart.updateProgram(
+    program,
+    chases: read(chasesProvider),
+    scenes: read(scenesProvider),
+    banks: read(banksProvider),
+    patchedFixtures: read(patchedFixturesProvider),
+    universes: read(universesProvider),
+    service: read(artNetServiceProvider),
+  );
+  // A layer the edit took off the program goes quiet and blank.
+  for (final layerId in before.difference(smart.drivenLayerIds.toSet())) {
+    read(chasePlayerProvider(layerId)).stop();
+    read(nowPlayingForLayerProvider(layerId).notifier).state = null;
+  }
+  _markSmartLayers(read, program);
+}
+
+/// Re-starts whatever [lastPlayedForLayerProvider] remembers for [layerId]:
+/// a bank back on this layer, a chase on all its lanes, a Smart Program on
+/// all its layers. Returns a message to report.
+Future<String> resumeLayer(ReadProvider read, String layerId) async {
   final last = read(lastPlayedForLayerProvider(layerId));
   if (last == null) return 'Nothing has played on this layer yet';
-  if (last.kind != PlaybackKind.bank) {
-    return 'Only a bank can be resumed here — start it again from Chases';
+  switch (last.kind) {
+    case PlaybackKind.bank:
+      final matches = read(banksProvider).where((b) => b.id == last.id);
+      if (matches.isEmpty) return 'That bank no longer exists';
+      final error = runBankOnLayer(read, bank: matches.first, layerId: layerId);
+      return error ?? 'Started ${matches.first.name}';
+    case PlaybackKind.chase:
+      final matches = read(chasesProvider).where((c) => c.id == last.id);
+      if (matches.isEmpty) return 'That chase no longer exists';
+      if (!read(artNetServiceProvider).isConnected) return 'Not connected — check Settings';
+      final started = await startLayeredChase(
+        read,
+        matches.first,
+        playing: NowPlaying(id: last.id, kind: PlaybackKind.chase, name: matches.first.name),
+      );
+      return started.isEmpty ? '${matches.first.name} has no valid steps to play' : 'Started ${matches.first.name}';
+    case PlaybackKind.smartProgram:
+      final matches = read(smartProgramsProvider).where((p) => p.id == last.id);
+      if (matches.isEmpty) return 'That smart program no longer exists';
+      return startSmartProgram(read, matches.first);
   }
-  final matches = read(banksProvider).where((b) => b.id == last.id);
-  if (matches.isEmpty) return 'That bank no longer exists';
-  final error = runBankOnLayer(read, bank: matches.first, layerId: layerId);
-  return error ?? 'Started ${matches.first.name}';
 }
 
 /// Builds a synthetic one-step chase from [bank] (using the app's shared
 /// tempo/beat settings, exactly like the Banks "Run Bank" button) and starts
 /// it on [layerId]'s player. Returns an error message to show the user, or
-/// null on success. Only stops the Smart Program player when targeting
-/// [layer1Id] — that's the one player a Smart Program can reassert a chase
-/// onto.
+/// null on success. A layer the Smart Program was driving is taken back
+/// from it first; the program keeps its other layers.
 String? runBankOnLayer(ReadProvider read, {required Bank bank, required String layerId}) {
   final service = read(artNetServiceProvider);
   if (!service.isConnected) return 'Not connected — check Settings';
-  if (layerId == layer1Id) read(smartProgramPlayerProvider).stop();
+  releaseLayersFromSmart(read, [layerId]);
   final beatSync = read(beatSyncEnabledProvider);
   final tempo = read(tempoProvider);
   final chase = Chase(

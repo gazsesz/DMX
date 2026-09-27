@@ -29,22 +29,7 @@ class SmartProgramsNotifier extends StateNotifier<List<SmartProgram>> {
     final source = state.where((p) => p.id == id);
     if (source.isEmpty) return;
     final copy = source.first;
-    state = [
-      ...state,
-      SmartProgram(
-        id: _uuid.v4(),
-        name: '${copy.name} Copy',
-        baseChaseId: copy.baseChaseId,
-        baseBpm: copy.baseBpm,
-        thresholdMode: copy.thresholdMode,
-        fasterChaseId: copy.fasterChaseId,
-        fasterThreshold: copy.fasterThreshold,
-        fasterHold: copy.fasterHold,
-        slowerChaseId: copy.slowerChaseId,
-        slowerThreshold: copy.slowerThreshold,
-        slowerHold: copy.slowerHold,
-      ),
-    ];
+    state = [...state, copy.duplicateAs(_uuid.v4(), '${copy.name} Copy')];
   }
 
   void remove(String id) {

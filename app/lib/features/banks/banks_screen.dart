@@ -86,7 +86,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       );
       return;
     }
-    ref.read(smartProgramPlayerProvider).stop();
+    releaseLayersFromSmart(ref.read, const [layer1Id]);
     final beatSync = ref.read(beatSyncEnabledProvider);
     // One set of timing for the whole app — this screen's own Hold/Fade
     // sliders are gone, and the dock's panel is where they live now.

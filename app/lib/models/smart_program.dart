@@ -1,6 +1,64 @@
+import 'layer.dart';
+
 /// Whether a Smart Program's tempo thresholds are expressed as a percentage
 /// change from the base BPM, or as a flat BPM difference.
 enum ThresholdMode { percent, bpm }
+
+enum SmartProgramZone { base, faster, slower }
+
+/// What one layer plays in each of a Smart Program's three zones. A zone
+/// left empty on a layer means that layer keeps its Base through it; a
+/// layer with no Base either sits idle whenever its own zone isn't the one
+/// playing — e.g. robots that only join in when the song speeds up.
+class LayerZoneTargets {
+  final String layerId;
+  final ProgramTarget? base;
+  final ProgramTarget? faster;
+  final ProgramTarget? slower;
+
+  const LayerZoneTargets({required this.layerId, this.base, this.faster, this.slower});
+
+  bool get isEmpty => base == null && faster == null && slower == null;
+
+  ProgramTarget? explicit(SmartProgramZone zone) => switch (zone) {
+    SmartProgramZone.base => base,
+    SmartProgramZone.faster => faster,
+    SmartProgramZone.slower => slower,
+  };
+
+  /// What this layer actually plays in [zone] — its own target for it, or
+  /// its Base when it has none.
+  ProgramTarget? effective(SmartProgramZone zone) => explicit(zone) ?? base;
+
+  /// Whether [effective] for [zone] is the Base standing in for a missing
+  /// zone target — worth saying so on screen.
+  bool fallsBackToBase(SmartProgramZone zone) =>
+      zone != SmartProgramZone.base && explicit(zone) == null && base != null;
+
+  LayerZoneTargets withZone(SmartProgramZone zone, ProgramTarget? target) => LayerZoneTargets(
+    layerId: layerId,
+    base: zone == SmartProgramZone.base ? target : base,
+    faster: zone == SmartProgramZone.faster ? target : faster,
+    slower: zone == SmartProgramZone.slower ? target : slower,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'layerId': layerId,
+    'baseChaseId': base?.chaseId,
+    'baseBankId': base?.bankId,
+    'fasterChaseId': faster?.chaseId,
+    'fasterBankId': faster?.bankId,
+    'slowerChaseId': slower?.chaseId,
+    'slowerBankId': slower?.bankId,
+  };
+
+  factory LayerZoneTargets.fromJson(Map<String, dynamic> json) => LayerZoneTargets(
+    layerId: json['layerId'] as String,
+    base: ProgramTarget.from(chaseId: json['baseChaseId'] as String?, bankId: json['baseBankId'] as String?),
+    faster: ProgramTarget.from(chaseId: json['fasterChaseId'] as String?, bankId: json['fasterBankId'] as String?),
+    slower: ProgramTarget.from(chaseId: json['slowerChaseId'] as String?, bankId: json['slowerBankId'] as String?),
+  );
+}
 
 /// A tempo-aware program: a base chase plays at the song's normal speed,
 /// then hands off to a faster/slower chase when the live beat tempo drifts
@@ -41,6 +99,12 @@ class SmartProgram {
   /// dying out should look like a sunset, not a step.
   final Duration blackoutFade;
 
+  /// Every layer other than Layer 1 this program drives, each with its own
+  /// three zone targets. Layer 1's targets stay in the fields above, where
+  /// every project saved before layers existed already keeps them — so an
+  /// old show loads as a Layer-1-only program, unchanged.
+  final List<LayerZoneTargets> extraLayers;
+
   const SmartProgram({
     required this.id,
     required this.name,
@@ -60,9 +124,87 @@ class SmartProgram {
     this.slowerHold = const Duration(seconds: 3),
     this.slowerFade = const Duration(milliseconds: 300),
     this.blackoutFade = const Duration(seconds: 3),
+    this.extraLayers = const [],
   });
 
-  bool get hasBaseTarget => baseChaseId != null || baseBankId != null;
+  /// Layer 1's targets plus every extra layer's — one entry per layer, Layer
+  /// 1 first, whether or not a layer has anything set.
+  List<LayerZoneTargets> get layers => [
+    LayerZoneTargets(layerId: layer1Id, base: baseTarget, faster: fasterTarget, slower: slowerTarget),
+    for (final l in extraLayers)
+      if (l.layerId != layer1Id) l,
+  ];
+
+  /// The layers this program actually plays something on.
+  List<LayerZoneTargets> get drivenLayers => [for (final l in layers) if (!l.isEmpty) l];
+
+  LayerZoneTargets targetsFor(String layerId) => layers.firstWhere(
+    (l) => l.layerId == layerId,
+    orElse: () => LayerZoneTargets(layerId: layerId),
+  );
+
+  bool get hasAnyTarget => drivenLayers.isNotEmpty;
+
+  /// Whether any layer has its own Faster/Slower target — without one the
+  /// program never leaves Base in that direction.
+  bool get hasFasterTarget => layers.any((l) => l.faster != null);
+  bool get hasSlowerTarget => layers.any((l) => l.slower != null);
+
+  /// Whether any zone on any layer plays the chase [chaseId].
+  bool usesChase(String chaseId) => layers.any(
+    (l) => [l.base, l.faster, l.slower].any((t) => t != null && !t.isBank && t.id == chaseId),
+  );
+
+  /// This program with every layer's targets replaced by [all] — Layer 1's
+  /// go back into the legacy fields, the rest into [extraLayers]; empty
+  /// extra layers are dropped.
+  SmartProgram withLayerTargets(List<LayerZoneTargets> all) {
+    final l1 = all.firstWhere((l) => l.layerId == layer1Id, orElse: () => const LayerZoneTargets(layerId: layer1Id));
+    return SmartProgram(
+      id: id,
+      name: name,
+      baseChaseId: l1.base?.chaseId,
+      baseBankId: l1.base?.bankId,
+      baseBpm: baseBpm,
+      thresholdMode: thresholdMode,
+      baseFade: baseFade,
+      fasterChaseId: l1.faster?.chaseId,
+      fasterBankId: l1.faster?.bankId,
+      fasterThreshold: fasterThreshold,
+      fasterHold: fasterHold,
+      fasterFade: fasterFade,
+      slowerChaseId: l1.slower?.chaseId,
+      slowerBankId: l1.slower?.bankId,
+      slowerThreshold: slowerThreshold,
+      slowerHold: slowerHold,
+      slowerFade: slowerFade,
+      blackoutFade: blackoutFade,
+      extraLayers: [for (final l in all) if (l.layerId != layer1Id && !l.isEmpty) l],
+    );
+  }
+
+  /// A full copy under a new [newId] and [newName].
+  SmartProgram duplicateAs(String newId, String newName) => SmartProgram(
+    id: newId,
+    name: newName,
+    baseChaseId: baseChaseId,
+    baseBankId: baseBankId,
+    baseBpm: baseBpm,
+    thresholdMode: thresholdMode,
+    baseFade: baseFade,
+    fasterChaseId: fasterChaseId,
+    fasterBankId: fasterBankId,
+    fasterThreshold: fasterThreshold,
+    fasterHold: fasterHold,
+    fasterFade: fasterFade,
+    slowerChaseId: slowerChaseId,
+    slowerBankId: slowerBankId,
+    slowerThreshold: slowerThreshold,
+    slowerHold: slowerHold,
+    slowerFade: slowerFade,
+    blackoutFade: blackoutFade,
+    extraLayers: extraLayers,
+  );
 
   /// The BPM at/above which the "faster" chase should take over.
   double get fasterTriggerBpm =>
@@ -120,6 +262,7 @@ class SmartProgram {
       slowerHold: slowerHold ?? this.slowerHold,
       slowerFade: slowerFade ?? this.slowerFade,
       blackoutFade: blackoutFade ?? this.blackoutFade,
+      extraLayers: extraLayers,
     );
   }
 
@@ -142,6 +285,7 @@ class SmartProgram {
     'slowerHoldMs': slowerHold.inMilliseconds,
     'slowerFadeMs': slowerFade.inMilliseconds,
     'blackoutFadeMs': blackoutFade.inMilliseconds,
+    if (extraLayers.isNotEmpty) 'extraLayers': extraLayers.map((l) => l.toJson()).toList(),
   };
 
   factory SmartProgram.fromJson(Map<String, dynamic> json) {
@@ -170,6 +314,9 @@ class SmartProgram {
       slowerHold: Duration(milliseconds: json['slowerHoldMs'] as int? ?? 3000),
       slowerFade: Duration(milliseconds: json['slowerFadeMs'] as int? ?? legacyFadeMs),
       blackoutFade: Duration(milliseconds: json['blackoutFadeMs'] as int? ?? 3000),
+      extraLayers: (json['extraLayers'] as List? ?? [])
+          .map((l) => LayerZoneTargets.fromJson(l as Map<String, dynamic>))
+          .toList(),
     );
   }
 }
@@ -180,6 +327,9 @@ class ProgramTarget {
   final bool isBank;
 
   const ProgramTarget({required this.id, required this.isBank});
+
+  String? get chaseId => isBank ? null : id;
+  String? get bankId => isBank ? id : null;
 
   static ProgramTarget? from({String? chaseId, String? bankId}) {
     if (chaseId != null) return ProgramTarget(id: chaseId, isBank: false);
