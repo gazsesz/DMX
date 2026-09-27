@@ -202,6 +202,11 @@ class ConnectionStatusNotifier extends StateNotifier<ConnectionStatus> {
   Timer? _watchdog;
   bool _polling = false;
 
+  /// How many polls in a row got no reply. A single miss is normal UDP
+  /// packet loss and not worth acting on; two in a row is treated as a
+  /// socket that's open but not actually working — see [_poll].
+  int _consecutiveMisses = 0;
+
   ConnectionStatusNotifier(this._service, this._currentSettings) : super(const ConnectionStatus());
 
   /// Opens the socket and starts verifying the node in the background,
@@ -210,7 +215,8 @@ class ConnectionStatusNotifier extends StateNotifier<ConnectionStatus> {
   /// connection settings change.
   Future<void> startAutoConnect() async {
     _watchdog?.cancel();
-    await _reconnect();
+    _consecutiveMisses = 0;
+    await _reconnect(force: true);
     unawaited(_poll());
     _watchdog = Timer.periodic(_watchdogInterval, (_) => unawaited(_poll()));
   }
@@ -218,14 +224,21 @@ class ConnectionStatusNotifier extends StateNotifier<ConnectionStatus> {
   /// The Test button: same check, but awaited so the button can show a
   /// spinner and the caller knows when there's a result to read.
   Future<void> testConnection() async {
-    await _reconnect();
+    await _reconnect(force: true);
     await _poll();
   }
 
-  Future<void> _reconnect() async {
+  /// Opens (or re-opens) the socket. [force] rebinds even when [_service]
+  /// already reports connected — needed because a socket bound to the wrong
+  /// outbound interface (seen on Windows binding to "any" right at app
+  /// launch, before the OS has settled on a default route) stays open and
+  /// makes `isConnected` true forever, without ever actually delivering a
+  /// packet. Only a fresh bind fixes that; before this, the only way to
+  /// trigger one was re-toggling Demo mode in Settings by hand.
+  Future<void> _reconnect({bool force = false}) async {
     final settings = _currentSettings();
     try {
-      if (!_service.isConnected || _service.isDemoMode != settings.demoMode) {
+      if (force || !_service.isConnected || _service.isDemoMode != settings.demoMode) {
         await _service.connect(settings);
       } else {
         _service.updateSettings(settings);
@@ -239,6 +252,7 @@ class ConnectionStatusNotifier extends StateNotifier<ConnectionStatus> {
     if (_polling) return;
     final settings = _currentSettings();
     if (settings.demoMode) {
+      _consecutiveMisses = 0;
       state = const ConnectionStatus(attempted: true, success: true, demo: true);
       return;
     }
@@ -258,11 +272,16 @@ class ConnectionStatusNotifier extends StateNotifier<ConnectionStatus> {
     if (mounted) state = state.copyWith(checking: true);
     try {
       // Re-open if the socket went away (Wi-Fi dropped, demo mode toggled
-      // off) — otherwise the poll would fail for a reason the user can't
-      // see and can only fix by restarting the app.
-      if (!_service.isConnected) await _reconnect();
+      // off), or force a fresh bind after two misses in a row — see
+      // [_reconnect] for why a merely-open socket isn't enough to trust.
+      if (!_service.isConnected) {
+        await _reconnect();
+      } else if (_consecutiveMisses >= 1) {
+        await _reconnect(force: true);
+      }
       final result = await _service.testConnection();
       if (!mounted) return;
+      _consecutiveMisses = result.success ? 0 : _consecutiveMisses + 1;
       state = ConnectionStatus(
         attempted: true,
         success: result.success,
@@ -270,6 +289,7 @@ class ConnectionStatusNotifier extends StateNotifier<ConnectionStatus> {
         error: result.success ? null : 'No ArtPollReply received from ${settings.host}',
       );
     } catch (e) {
+      _consecutiveMisses++;
       if (mounted) state = ConnectionStatus(attempted: true, success: false, error: e.toString());
     } finally {
       _polling = false;

@@ -13,6 +13,7 @@ import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/dashboard_prefs.dart';
 import '../../models/dashboard_trigger.dart';
+import '../../models/layer.dart';
 import '../../models/smart_program.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
@@ -20,6 +21,7 @@ import '../../state/chase_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/dashboard_prefs_providers.dart';
 import '../../state/dashboard_providers.dart';
+import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
@@ -333,6 +335,56 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  /// A compact status row for one playback layer — what it's running, or
+  /// "Empty" — so a bank started on Layer 2+ from the Banks screen's layer
+  /// picker (or from the Layers tab) shows up here too, not only there.
+  Widget _buildLayerRow(int index, Layer layer) {
+    final nowPlaying = ref.watch(nowPlayingForLayerProvider(layer.id));
+    final isPlaying = ref.watch(chasePlayerProvider(layer.id)).isPlaying;
+    // Idle but not blank: offer to pick back up whatever last ran here,
+    // instead of sending the user back to Banks mid-show to re-pick it.
+    final lastPlayed = isPlaying ? null : ref.watch(lastPlayedForLayerProvider(layer.id));
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      color: isPlaying ? AppColors.accent2.withValues(alpha: 0.14) : null,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: isPlaying ? AppColors.accent2 : Colors.transparent, width: 1.5),
+      ),
+      child: ListTile(
+        dense: true,
+        leading: CircleAvatar(
+          radius: 14,
+          backgroundColor: AppColors.accent2On,
+          child: Text(
+            'L${index + 1}',
+            style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w800, color: AppColors.accent2),
+          ),
+        ),
+        title: Text(
+          nowPlaying?.name ?? lastPlayed?.name ?? 'Empty',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isPlaying ? AppColors.accent2 : null),
+        ),
+        subtitle: Text(
+          lastPlayed != null && nowPlaying == null ? '${layer.name} · tap to resume' : layer.name,
+          style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+        ),
+        trailing: isPlaying
+            ? const Icon(Icons.stop_circle, color: AppColors.accent2)
+            : Icon(
+                lastPlayed != null ? Icons.play_circle_outline : Icons.circle_outlined,
+                size: lastPlayed != null ? 20 : 14,
+                color: lastPlayed != null ? AppColors.accent : AppColors.textFaint,
+              ),
+        onTap: isPlaying
+            ? () => stopLayer(ref.read, layer.id)
+            : lastPlayed != null
+            ? () => _reportIfProblem(resumeLayer(ref.read, layer.id))
+            : null,
+      ),
+    );
+  }
+
   /// Renders a list of tiles in either mosaic or list layout, per the shared
   /// Dashboard tile-size/layout preference.
   /// Wraps a tile so long-pressing drags it and dropping it on another tile
@@ -575,6 +627,22 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       },
                   ],
                 ),
+              const SizedBox(height: 22),
+              const Text(
+                'LAYERS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                  color: AppColors.textFaint,
+                ),
+              ),
+              const Text(
+                'What each playback layer is running right now',
+                style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              ),
+              const SizedBox(height: 8),
+              for (final entry in ref.watch(layersProvider).indexed) _buildLayerRow(entry.$1, entry.$2),
               const SizedBox(height: 22),
               const Text(
                 'SMART PROGRAMS',

@@ -76,7 +76,16 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
 
   Widget _layerRow(Layer layer, int index) {
     final current = ref.watch(nowPlayingForLayerProvider(layer.id));
+    final lastPlayed = current == null ? ref.watch(lastPlayedForLayerProvider(layer.id)) : null;
     final selected = _selectedLayerId == layer.id;
+    final String subtitle;
+    if (current != null) {
+      subtitle = 'most: ${current.name} fut · felülírja';
+    } else if (lastPlayed != null) {
+      subtitle = 'utoljára: ${lastPlayed.name}';
+    } else {
+      subtitle = 'jelenleg üres';
+    }
     return ListTile(
       dense: true,
       contentPadding: EdgeInsets.zero,
@@ -91,7 +100,7 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
       ),
       title: Text('Layer ${index + 1} - ${layer.name}', style: const TextStyle(fontSize: 13.5)),
       subtitle: Text(
-        current == null ? 'jelenleg üres' : 'most: ${current.name} fut · felülírja',
+        subtitle,
         style: TextStyle(fontSize: 11, color: current == null ? AppColors.textFaint : AppColors.accent2),
       ),
       onTap: () => setState(() => _selectedLayerId = layer.id),
@@ -102,7 +111,7 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
     final layerId = _selectedLayerId;
     if (layerId == null) return;
     final messenger = ScaffoldMessenger.of(context);
-    final error = runBankOnLayer(ref, bank: widget.bank, layerId: layerId);
+    final error = runBankOnLayer(ref.read, bank: widget.bank, layerId: layerId);
     Navigator.pop(context);
     if (error != null) {
       messenger.showSnackBar(SnackBar(content: Text(error)));

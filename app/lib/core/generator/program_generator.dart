@@ -535,34 +535,33 @@ List<Scene> buildBeatFlashScenes({
 }) {
   if (fixtures.isEmpty) return const [];
 
-  Map<String, List<int>> valuesFor({required bool lit}) {
-    final result = <String, List<int>>{};
+  Map<String, Map<int, int>> valuesFor({required bool lit}) {
+    final result = <String, Map<int, int>>{};
     for (final fixture in fixtures) {
-      final channels = fixture.profile.channels;
-      final values = List<int>.filled(channels.length, 0);
-      for (var i = 0; i < channels.length; i++) {
-        switch (channels[i].function) {
+      final values = <int, int>{};
+      for (final channel in fixture.profile.channels) {
+        switch (channel.function) {
           case ChannelFunction.dimmer:
-            values[i] = lit ? 255 : 0;
+            values[channel.offset] = lit ? 255 : 0;
             break;
           case ChannelFunction.red:
-            values[i] = lit ? color[0] : 0;
+            values[channel.offset] = lit ? color[0] : 0;
             break;
           case ChannelFunction.green:
-            values[i] = lit ? color[1] : 0;
+            values[channel.offset] = lit ? color[1] : 0;
             break;
           case ChannelFunction.blue:
-            values[i] = lit ? color[2] : 0;
+            values[channel.offset] = lit ? color[2] : 0;
             break;
           case ChannelFunction.white:
             // Only as much white as the colour has in common across R/G/B —
             // full on a white flash, off on a saturated one, where the white
             // emitter would just wash the colour out.
-            values[i] = lit ? color.reduce(min) : 0;
+            values[channel.offset] = lit ? color.reduce(min) : 0;
             break;
           case ChannelFunction.pan:
           case ChannelFunction.tilt:
-            values[i] = 128;
+            values[channel.offset] = 128;
             break;
           default:
             break;

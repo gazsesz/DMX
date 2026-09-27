@@ -145,7 +145,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           SizedBox(
-            width: 48,
+            width: 64,
             child: TextField(
               controller: row.min,
               keyboardType: TextInputType.number,
@@ -156,7 +156,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
           ),
           const SizedBox(width: 6),
           SizedBox(
-            width: 48,
+            width: 64,
             child: TextField(
               controller: row.max,
               keyboardType: TextInputType.number,
@@ -175,7 +175,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
           ),
           const SizedBox(width: 6),
           SizedBox(
-            width: 74,
+            width: 92,
             child: DropdownButtonFormField<CapabilityKind>(
               initialValue: row.kind,
               isExpanded: true,
@@ -205,7 +205,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
       backgroundColor: AppColors.panel,
       title: Text('${widget.channelLabel} — value ranges'),
       content: SizedBox(
-        width: 520,
+        width: 560,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

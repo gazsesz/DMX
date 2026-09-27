@@ -8,7 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// group that hasn't had its colour changed yet) — see `SceneEditorScreen`.
 void main() {
   test('a scene with no grouping saved omits the field entirely', () {
-    const scene = Scene(id: 's1', name: 'Plain', fixtureValues: {'f1': [255]});
+    const scene = Scene(id: 's1', name: 'Plain', fixtureValues: {'f1': {0: 255}});
     expect(scene.fixtureGroups, isNull);
     expect(scene.toJson().containsKey('fixtureGroups'), isFalse);
   });
@@ -17,7 +17,11 @@ void main() {
     const scene = Scene(
       id: 's1',
       name: 'Mixed',
-      fixtureValues: {'f1': [255, 0, 0], 'f2': [255, 0, 0], 'f3': [0, 0, 255]},
+      fixtureValues: {
+        'f1': {0: 255, 1: 0, 2: 0},
+        'f2': {0: 255, 1: 0, 2: 0},
+        'f3': {0: 0, 1: 0, 2: 255},
+      },
       fixtureGroups: [
         ['f1', 'f2'],
         ['f3'],
@@ -43,7 +47,7 @@ void main() {
     const scene = Scene(
       id: 's1',
       name: 'Mixed',
-      fixtureValues: {'f1': [1]},
+      fixtureValues: {'f1': {0: 1}},
       fixtureGroups: [['f1']],
     );
     final renamed = scene.copyWith(name: 'Renamed');

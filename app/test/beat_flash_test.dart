@@ -44,9 +44,9 @@ void main() {
 
       expect(scenes, hasLength(2));
       expect(scenes.first.name, 'Beat Flash Out');
-      expect(scenes.first.fixtureValues['f-0'], [0, 0, 0, 0]);
+      expect(scenes.first.fixtureValues['f-0'], {0: 0, 1: 0, 2: 0, 3: 0});
       expect(scenes.last.name, 'Beat Flash Up');
-      expect(scenes.last.fixtureValues['f-0'], [255, 255, 255, 255]);
+      expect(scenes.last.fixtureValues['f-0'], {0: 255, 1: 255, 2: 255, 3: 255});
     });
 
     test('lights every patched lamp, not just the first', () {
@@ -57,7 +57,7 @@ void main() {
 
       expect(scenes.last.fixtureValues.keys, hasLength(4));
       for (final values in scenes.last.fixtureValues.values) {
-        expect(values, [255, 255, 255, 255]);
+        expect(values, {0: 255, 1: 255, 2: 255, 3: 255});
       }
     });
 
@@ -68,8 +68,8 @@ void main() {
       final dimmerPack = profile('pack', [ChannelFunction.dimmer]);
       final scenes = buildBeatFlashScenes(fixtures: [patch(dimmerPack, 0)], idGenerator: nextId);
 
-      expect(scenes.first.fixtureValues['f-0'], [0]);
-      expect(scenes.last.fixtureValues['f-0'], [255]);
+      expect(scenes.first.fixtureValues['f-0'], {0: 0});
+      expect(scenes.last.fixtureValues['f-0'], {0: 255});
     });
 
     test('parks a moving head at centre in both scenes so the beam holds still', () {
@@ -81,8 +81,11 @@ void main() {
       ]);
       final scenes = buildBeatFlashScenes(fixtures: [patch(mover, 0)], idGenerator: nextId);
 
-      expect(scenes.first.fixtureValues['f-0'], [128, 128, 0, 0]);
-      expect(scenes.last.fixtureValues['f-0'], [128, 128, 255, 0]);
+      // Gobo is left out entirely rather than zeroed — Beat Flash never
+      // touches it, so another program (or manual control) keeps whatever
+      // it already had it set to.
+      expect(scenes.first.fixtureValues['f-0'], {0: 128, 1: 128, 2: 0});
+      expect(scenes.last.fixtureValues['f-0'], {0: 128, 1: 128, 2: 255});
     });
 
     test('only runs the white emitter up as far as the colour is white', () {
@@ -94,14 +97,14 @@ void main() {
       ]);
 
       final white = buildBeatFlashScenes(fixtures: [patch(rgbw, 0)], idGenerator: nextId);
-      expect(white.last.fixtureValues['f-0'], [255, 255, 255, 255]);
+      expect(white.last.fixtureValues['f-0'], {0: 255, 1: 255, 2: 255, 3: 255});
 
       final red = buildBeatFlashScenes(
         fixtures: [patch(rgbw, 0)],
         idGenerator: nextId,
         color: const [255, 0, 0],
       );
-      expect(red.last.fixtureValues['f-0'], [255, 0, 0, 0]);
+      expect(red.last.fixtureValues['f-0'], {0: 255, 1: 0, 2: 0, 3: 0});
     });
 
     test('gives every scene its own id', () {

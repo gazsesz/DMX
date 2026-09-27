@@ -61,6 +61,11 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
     notifier.setMergeHint(layer.id, hintController.text.trim());
   }
 
+  void _resume(Layer layer) {
+    final message = resumeLayer(ref.read, layer.id);
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _deleteLayer(Layer layer) async {
     final current = ref.read(nowPlayingForLayerProvider(layer.id));
     final ok = await confirmDelete(
@@ -71,7 +76,7 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
           : 'This will stop "${current.name}", currently running on this layer.',
     );
     if (!ok || !mounted) return;
-    stopLayer(ref, layer.id);
+    stopLayer(ref.read, layer.id);
     ref.read(layersProvider.notifier).remove(layer.id);
   }
 
@@ -119,6 +124,9 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
     final current = ref.watch(nowPlayingForLayerProvider(layer.id));
     final isPlaying = ref.watch(chasePlayerProvider(layer.id)).isPlaying;
     final isLayer1 = layer.id == layer1Id;
+    // Idle but not blank: what last ran here, offered back with one tap
+    // instead of sending the user to Banks mid-show to re-pick it.
+    final lastPlayed = current == null ? ref.watch(lastPlayedForLayerProvider(layer.id)) : null;
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -146,20 +154,31 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
           ],
         ),
         subtitle: Text(
-          '${current == null ? 'Nincs program fut' : current.kind.name}\n'
-          'Priority ${layer.priority}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}',
+          lastPlayed != null
+              ? 'Utoljára: ${lastPlayed.name}\n'
+                    'Priority ${layer.priority}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}'
+              : '${current == null ? 'Nincs program fut' : current.kind.name}\n'
+                    'Priority ${layer.priority}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}',
           style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
         ),
         isThreeLine: true,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            IconButton(
-              icon: const Icon(Icons.stop_circle_outlined),
-              tooltip: 'Stop',
-              color: isPlaying ? AppColors.danger : AppColors.textFaint,
-              onPressed: isPlaying ? () => stopLayer(ref, layer.id) : null,
-            ),
+            if (lastPlayed != null)
+              IconButton(
+                icon: const Icon(Icons.play_circle_outline),
+                tooltip: 'Resume "${lastPlayed.name}"',
+                color: AppColors.accent,
+                onPressed: () => _resume(layer),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.stop_circle_outlined),
+                tooltip: 'Stop',
+                color: isPlaying ? AppColors.danger : AppColors.textFaint,
+                onPressed: isPlaying ? () => stopLayer(ref.read, layer.id) : null,
+              ),
             IconButton(
               icon: const Icon(Icons.delete_outline),
               tooltip: 'Delete layer',

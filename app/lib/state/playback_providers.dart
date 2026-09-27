@@ -147,8 +147,7 @@ Future<void> blackoutEverything(ReadProvider read) async {
   // else on the way out, blackout included. The panic button has to win.
   read(momentaryFxProvider.notifier).releaseAll();
   for (final layer in read(layersProvider)) {
-    read(chasePlayerProvider(layer.id)).stop();
-    read(nowPlayingForLayerProvider(layer.id).notifier).state = null;
+    stopLayer(read, layer.id);
   }
   read(smartProgramPlayerProvider).stop();
   final service = read(artNetServiceProvider);
@@ -162,17 +161,45 @@ Future<void> blackoutEverything(ReadProvider read) async {
 /// hold their current look.
 void stopPlayback(ReadProvider read) {
   for (final layer in read(layersProvider)) {
-    read(chasePlayerProvider(layer.id)).stop();
-    read(nowPlayingForLayerProvider(layer.id).notifier).state = null;
+    stopLayer(read, layer.id);
   }
   read(smartProgramPlayerProvider).stop();
 }
 
+/// What last played on a given layer id before it stopped — the per-layer
+/// equivalent of [lastPlayedProvider], so a live show doesn't have to re-pick
+/// a bank from scratch every time a layer is stopped and restarted. Set by
+/// [stopLayer] rather than tracked via a listener: a live-show restart is a
+/// deliberate "put this back" action, not something that has to already be
+/// watching before the very first play to avoid missing it.
+final lastPlayedForLayerProvider = StateProvider.family<NowPlaying?, String>((ref, layerId) => null);
+
 /// Stops just [layerId]'s player and clears its now-playing state, leaving
-/// every other layer untouched.
-void stopLayer(WidgetRef ref, String layerId) {
-  ref.read(chasePlayerProvider(layerId)).stop();
-  ref.read(nowPlayingForLayerProvider(layerId).notifier).state = null;
+/// every other layer untouched — remembering what was running first, so
+/// [resumeLayer] can bring it back.
+void stopLayer(ReadProvider read, String layerId) {
+  read(chasePlayerProvider(layerId)).stop();
+  final current = read(nowPlayingForLayerProvider(layerId));
+  if (current != null) {
+    read(lastPlayedForLayerProvider(layerId).notifier).state = current;
+  }
+  read(nowPlayingForLayerProvider(layerId).notifier).state = null;
+}
+
+/// Re-starts whatever [lastPlayedForLayerProvider] remembers for [layerId].
+/// Only a bank can be resumed on a layer other than [layer1Id] today — that's
+/// the only kind of thing the layer picker can start there in the first
+/// place. Returns a message to report.
+String resumeLayer(ReadProvider read, String layerId) {
+  final last = read(lastPlayedForLayerProvider(layerId));
+  if (last == null) return 'Nothing has played on this layer yet';
+  if (last.kind != PlaybackKind.bank) {
+    return 'Only a bank can be resumed here — start it again from Chases';
+  }
+  final matches = read(banksProvider).where((b) => b.id == last.id);
+  if (matches.isEmpty) return 'That bank no longer exists';
+  final error = runBankOnLayer(read, bank: matches.first, layerId: layerId);
+  return error ?? 'Started ${matches.first.name}';
 }
 
 /// Builds a synthetic one-step chase from [bank] (using the app's shared
@@ -181,12 +208,12 @@ void stopLayer(WidgetRef ref, String layerId) {
 /// null on success. Only stops the Smart Program player when targeting
 /// [layer1Id] — that's the one player a Smart Program can reassert a chase
 /// onto.
-String? runBankOnLayer(WidgetRef ref, {required Bank bank, required String layerId}) {
-  final service = ref.read(artNetServiceProvider);
+String? runBankOnLayer(ReadProvider read, {required Bank bank, required String layerId}) {
+  final service = read(artNetServiceProvider);
   if (!service.isConnected) return 'Not connected — check Settings';
-  if (layerId == layer1Id) ref.read(smartProgramPlayerProvider).stop();
-  final beatSync = ref.read(beatSyncEnabledProvider);
-  final tempo = ref.read(tempoProvider);
+  if (layerId == layer1Id) read(smartProgramPlayerProvider).stop();
+  final beatSync = read(beatSyncEnabledProvider);
+  final tempo = read(tempoProvider);
   final chase = Chase(
     id: 'bank-run-$layerId-${bank.id}',
     name: bank.name,
@@ -194,24 +221,24 @@ String? runBankOnLayer(WidgetRef ref, {required Bank bank, required String layer
     direction: ChaseDirection.forward,
     beatSync: beatSync,
   );
-  ref.read(chasePlayerProvider(layerId)).play(
+  read(chasePlayerProvider(layerId)).play(
     chase: chase,
-    scenes: ref.read(scenesProvider),
-    banks: ref.read(banksProvider),
-    patchedFixtures: ref.read(patchedFixturesProvider),
-    universes: ref.read(universesProvider),
+    scenes: read(scenesProvider),
+    banks: read(banksProvider),
+    patchedFixtures: read(patchedFixturesProvider),
+    universes: read(universesProvider),
     service: service,
-    beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
-    beatRate: beatRateOf(ref),
-    flashLength: ref.read(flashLengthProvider),
-    liveBeatRate: () => ref.read(beatRateProvider),
-    liveFlashLength: () => ref.read(flashLengthProvider),
+    beatStream: beatSync ? read(beatPredictorProvider).events : null,
+    beatRate: read(beatRateProvider),
+    flashLength: read(flashLengthProvider),
+    liveBeatRate: () => read(beatRateProvider),
+    liveFlashLength: () => read(flashLengthProvider),
     fadeOverride: () {
-      final t = ref.read(tempoProvider);
+      final t = read(tempoProvider);
       return t.autoFade ? t.fade : null;
     },
   );
-  ref.read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
+  read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
     id: bank.id,
     kind: PlaybackKind.bank,
     name: bank.name,

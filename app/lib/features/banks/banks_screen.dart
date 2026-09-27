@@ -338,7 +338,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     for (final layer in ref.read(layersProvider)) {
       final current = ref.read(nowPlayingForLayerProvider(layer.id));
       if (current?.kind == PlaybackKind.bank && current?.id == bank.id) {
-        stopLayer(ref, layer.id);
+        stopLayer(ref.read, layer.id);
         if (layer.id == layer1Id) setState(() => _runningSlot = null);
       }
     }
@@ -496,21 +496,20 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       label: Text(bank.name),
                       selected: bank.id == selected.id,
                       onSelected: (_) {
-                        // Hand playback over rather than dropping it: if
-                        // the bank you're leaving was running, the one you
-                        // switch to picks up and keeps going. Switching
-                        // banks mid-show is a transition, not a stop.
-                        final wasRunning = _isThisBankRunning(selected);
-                        if (wasRunning) {
-                          _player.stop();
-                          ref.read(nowPlayingProvider.notifier).state = null;
-                        }
+                        // Purely a navigation action now: with several
+                        // independent layers, switching which bank's grid
+                        // you're looking at must never itself start, stop or
+                        // hand over playback on any layer — only the
+                        // explicit Run Bank button and the layer picker's
+                        // Start button do that. (This used to auto-hand-over
+                        // Layer 1 on every chip tap, which meant merely
+                        // selecting a bank to send to a *different* layer
+                        // silently killed whatever Layer 1 was running.)
                         ref.read(selectedBankIdProvider.notifier).state = bank.id;
                         setState(() {
                           _runningSlot = null;
                           _manualSlot = null;
                         });
-                        if (wasRunning) _toggleRun(bank);
                       },
                     ),
                   ),
