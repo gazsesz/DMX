@@ -19,6 +19,8 @@ import 'trigger_actions.dart';
 ///   /            — what's running, beat sync state, every name it answers to
 ///   /trigger?name=Front%20Wash — start it, or stop it if it's the one running
 ///   /beatsync    — toggle mic beat sync; `?on=1` / `?on=0` to set it outright
+///   /predict     — toggle the beat predictor; `?on=1` / `?on=0` outright
+///   /autofade    — toggle auto-fade; `?on=1` / `?on=0` outright
 ///   /stop        — stop playback, leaving the rig as it is
 ///   /blackout    — stop everything and take every channel to zero
 ///   /endpoints   — the same tiles as a Wear OS client's menu (text/plain)
@@ -71,6 +73,12 @@ class RemoteControlServer {
           // No `on` parameter toggles; `on=1`/`on=0` (or true/false, on/off,
           // yes/no) sets it outright, so a macro can force a known state.
           final message = await setBeatSync(read, on: _parseOnOff(query['on']));
+          _writeJson(request, {'ok': true, 'message': message});
+        case '/predict':
+          final message = setBeatPrediction(read, on: _parseOnOff(query['on']));
+          _writeJson(request, {'ok': true, 'message': message});
+        case '/autofade':
+          final message = setAutoFade(read, on: _parseOnOff(query['on']));
           _writeJson(request, {'ok': true, 'message': message});
         case '/stop':
           stopPlayback(read);
@@ -131,22 +139,28 @@ class RemoteControlServer {
     final lines = <String>[];
     var index = 0;
 
+    // HttpClient-WearOS only ever shows one top-level ("-") entry as the
+    // root of the tree, so every category has to nest one level deeper
+    // under a single root rather than sitting next to it.
+    lines.add('- dmx,DMX');
     if (playable.isNotEmpty) {
-      lines.add('- trg,Triggers');
+      lines.add('-- trg,Triggers');
       for (final target in playable) {
-        lines.add('-- t${index++},${display(target.name)},${path(target.name)}');
+        lines.add('--- t${index++},${display(target.name)},${path(target.name)}');
       }
     }
     if (smart.isNotEmpty) {
-      lines.add('- smt,Smart');
+      lines.add('-- smt,Smart');
       for (final target in smart) {
-        lines.add('-- s${index++},${display(target.name)},${path(target.name)}');
+        lines.add('--- s${index++},${display(target.name)},${path(target.name)}');
       }
     }
-    lines.add('- ctl,Control');
-    lines.add('-- bs,Beat Sync,/beatsync');
-    lines.add('-- stop,Stop,/stop');
-    lines.add('-- blk,Blackout,/blackout');
+    lines.add('-- ctl,Control');
+    lines.add('--- bs,Beat Sync,/beatsync');
+    lines.add('--- pr,Predict,/predict');
+    lines.add('--- af,AutoFade,/autofade');
+    lines.add('--- stop,Stop,/stop');
+    lines.add('--- blk,Blackout,/blackout');
     return lines.join('\n');
   }
 
@@ -164,17 +178,24 @@ class RemoteControlServer {
     };
   }
 
+  // Some minimal HTTP clients (the Wear OS watch app among them) choke on a
+  // chunked response, so give every reply a known Content-Length instead of
+  // letting HttpResponse fall back to chunked transfer encoding.
   void _writeText(HttpRequest request, String body) {
+    final bytes = utf8.encode(body);
     request.response
       ..headers.contentType = ContentType('text', 'plain', charset: 'utf-8')
-      ..write(body)
+      ..contentLength = bytes.length
+      ..add(bytes)
       ..close();
   }
 
   void _writeJson(HttpRequest request, Map<String, dynamic> body) {
+    final bytes = utf8.encode(jsonEncode(body));
     request.response
       ..headers.contentType = ContentType.json
-      ..write(jsonEncode(body))
+      ..contentLength = bytes.length
+      ..add(bytes)
       ..close();
   }
 }

@@ -1,7 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../core/audio/midi_beat_source.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
@@ -12,6 +16,7 @@ import '../../models/control_dock_prefs.dart';
 import '../../models/output_protocol.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/audio_providers.dart';
 import '../../core/remote/background_service.dart';
 import '../../core/remote/remote_control_server.dart';
 import '../../state/control_dock_providers.dart';
@@ -34,6 +39,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _remotePortController;
   late final TextEditingController _sacnPriorityController;
   bool _batteryOptimized = false;
+  List<MidiDevice> _midiDevices = const [];
+  bool _scanningMidi = false;
 
   @override
   void initState() {
@@ -53,6 +60,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     localWifiAddress().then((address) {
       if (mounted) setState(() => _wifiAddress = address);
     });
+    if (ref.read(beatSourcePrefsProvider).kind == BeatSourceKind.midi) _refreshMidiDevices();
   }
 
   /// Saves the remote-control setting and brings the server in line with it
@@ -196,6 +204,66 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _refreshMidiDevices() async {
+    setState(() => _scanningMidi = true);
+    final devices = await ref.read(midiBeatSourceProvider).availableDevices();
+    if (mounted) setState(() { _midiDevices = devices; _scanningMidi = false; });
+  }
+
+  Future<void> _connectMidi(MidiDevice device) async {
+    final source = ref.read(midiBeatSourceProvider);
+    final ok = await source.connect(device);
+    if (!mounted) return;
+    if (ok) {
+      ref.read(beatSourcePrefsProvider.notifier).setMidiDevice(device.id, device.name);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(source.lastError ?? 'Could not connect to ${device.name}')),
+      );
+    }
+    setState(() {});
+  }
+
+  void _disconnectMidi() {
+    ref.read(midiBeatSourceProvider).disconnect();
+    setState(() {});
+  }
+
+  bool get _activeMidiConnection => ref.read(midiBeatSourceProvider).connectedDevice != null;
+
+  Widget _midiDeviceTile(MidiDevice device) {
+    final midi = ref.read(midiBeatSourceProvider);
+    final isThisOne = midi.connectedDevice?.id == device.id && midi.isListening;
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      dense: true,
+      leading: Icon(
+        isThisOne ? Icons.usb : Icons.usb_outlined,
+        color: isThisOne ? AppColors.success : AppColors.textFaint,
+      ),
+      title: Text(device.name, style: const TextStyle(fontSize: 13)),
+      subtitle: Text(device.type.name, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+      trailing: OutlinedButton(
+        onPressed: isThisOne ? _disconnectMidi : () => _connectMidi(device),
+        child: Text(isThisOne ? 'Disconnect' : 'Connect'),
+      ),
+    );
+  }
+
+  Widget _midiActivityHint() => _MidiActivityHint(source: ref.read(midiBeatSourceProvider));
+
+  /// Switches the beat source, stopping whichever one is currently armed
+  /// first — otherwise the old source (mic or MIDI) is left running behind
+  /// the new one's back, since `beatSyncEnabledProvider` only reaches
+  /// whichever source is active *now*.
+  Future<void> _setBeatSourceKind(BeatSourceKind kind) async {
+    if (ref.read(beatSyncEnabledProvider)) {
+      await ref.read(beatSyncEnabledProvider.notifier).setEnabled(false);
+    }
+    ref.read(beatSourcePrefsProvider.notifier).setKind(kind);
+    if (kind == BeatSourceKind.midi) await _refreshMidiDevices();
+  }
+
   @override
   Widget build(BuildContext context) {
     // Keep the text fields in sync when settings change from *outside* this
@@ -213,6 +281,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final status = ref.watch(connectionStatusProvider);
     final remote = ref.watch(remoteControlProvider);
     final server = ref.watch(remoteControlServerProvider);
+    final beatSource = ref.watch(beatSourcePrefsProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
@@ -534,13 +603,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 10),
                   // No "show the dock" switch any more: the dock holds the
                   // only copy of the tempo and beat controls, so hiding it
-                  // would hide them. The chevron on its edge opens and
+                  // would hide them. The Tempo button on it opens and
                   // closes the panel instead.
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Open the control panel'),
                     subtitle: const Text(
-                      'Tempo, fade and beat sync — also reachable from the chevron on the dock',
+                      'Tempo, fade and beat sync — also on the Tempo button in the dock',
                       style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                     value: ref.watch(controlDockProvider).expanded,
@@ -556,6 +625,80 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     value: ref.watch(controlDockProvider).stageVisible,
                     onChanged: (_) => ref.read(controlDockProvider.notifier).toggleStageVisible(),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _SectionTitle('Beat Source'),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'What drives beat sync everywhere in the app — the microphone listening '
+                    'to the room, or an exact MIDI clock over USB from a mixer or controller. '
+                    'Device-level, like the dock — not saved with the show.',
+                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  ),
+                  const SizedBox(height: 10),
+                  SegmentedButton<BeatSourceKind>(
+                    segments: [
+                      for (final kind in BeatSourceKind.values) ButtonSegment(value: kind, label: Text(kind.label)),
+                    ],
+                    selected: {beatSource.kind},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) => _setBeatSourceKind(s.first),
+                  ),
+                  if (beatSource.kind == BeatSourceKind.midi) ...[
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const Expanded(
+                          child: Text(
+                            'USB MIDI devices',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        _scanningMidi
+                            ? const Padding(
+                                padding: EdgeInsets.all(8),
+                                child: SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                ),
+                              )
+                            : IconButton(
+                                icon: const Icon(Icons.refresh, size: 18),
+                                tooltip: 'Rescan',
+                                onPressed: _refreshMidiDevices,
+                              ),
+                      ],
+                    ),
+                    if (_midiDevices.isEmpty)
+                      const Text(
+                        'Nothing found. Plug the device in over USB-OTG, then rescan — needs a '
+                        'class-compliant USB MIDI interface; a plain data cable between two '
+                        'computers won\'t carry MIDI on its own.',
+                        style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                      )
+                    else
+                      for (final device in _midiDevices) _midiDeviceTile(device),
+                    if (_activeMidiConnection) ...[
+                      const SizedBox(height: 10),
+                      _midiActivityHint(),
+                    ],
+                    if (beatSource.midiDeviceName != null) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Last used: ${beatSource.midiDeviceName}',
+                        style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                      ),
+                    ],
+                  ],
                 ],
               ),
             ),
@@ -662,6 +805,86 @@ class _SectionTitle extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Live "is anything actually arriving" feedback for the connected MIDI
+/// device, right where you're staring at the picker trying to figure out
+/// why nothing's happening — the dock's status row says the same thing, but
+/// that's a different screen from the one you're debugging in.
+class _MidiActivityHint extends StatefulWidget {
+  final MidiBeatSource source;
+
+  const _MidiActivityHint({required this.source});
+
+  @override
+  State<_MidiActivityHint> createState() => _MidiActivityHintState();
+}
+
+class _MidiActivityHintState extends State<_MidiActivityHint> {
+  StreamSubscription<DateTime>? _beatSub;
+  StreamSubscription<DateTime>? _activitySub;
+  StreamSubscription<double>? _bpmSub;
+  Timer? _refreshTimer;
+  DateTime? _lastBeatAt;
+  DateTime? _lastActivityAt;
+  double? _bpm;
+
+  @override
+  void initState() {
+    super.initState();
+    _beatSub = widget.source.beatEvents.listen((_) {
+      if (mounted) setState(() => _lastBeatAt = DateTime.now());
+    });
+    _activitySub = widget.source.activity.listen((_) {
+      if (mounted) setState(() => _lastActivityAt = DateTime.now());
+    });
+    _bpmSub = widget.source.bpm.listen((value) {
+      if (mounted) setState(() => _bpm = value);
+    });
+    // A stream listener only rebuilds on the next event, so without a tick
+    // to re-check the clock against "now", this would keep reporting beats
+    // as arriving long after the DAW actually stopped sending them.
+    _refreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _beatSub?.cancel();
+    _activitySub?.cancel();
+    _bpmSub?.cancel();
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final device = widget.source.connectedDevice;
+    if (device == null) return const SizedBox.shrink();
+    final recentActivity =
+        _lastActivityAt != null && DateTime.now().difference(_lastActivityAt!) < const Duration(seconds: 3);
+    final beatIsCurrent =
+        _lastBeatAt != null && DateTime.now().difference(_lastBeatAt!) < const Duration(seconds: 3);
+
+    final String message;
+    final Color color;
+    if (beatIsCurrent) {
+      message = _bpm == null
+          ? 'Beats arriving from ${device.name} — this is working.'
+          : 'Beats arriving from ${device.name} — ${_bpm!.toStringAsFixed(1)} BPM — this is working.';
+      color = AppColors.success;
+    } else if (recentActivity) {
+      message = 'Receiving data from ${device.name}, but none of it is clock — enable '
+          '"Sync" on that device\'s MIDI output (in your DAW/mixer\'s MIDI preferences), '
+          'and make sure it\'s actually playing.';
+      color = AppColors.danger;
+    } else {
+      message = 'Connected to ${device.name}, but nothing has arrived yet.';
+      color = AppColors.textFaint;
+    }
+    return Text(message, style: TextStyle(fontSize: 10.5, color: color));
   }
 }
 

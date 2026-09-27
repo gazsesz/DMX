@@ -23,7 +23,6 @@ import '../../state/dashboard_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
-import '../manual_control/manual_control_screen.dart';
 import 'live_stage_view.dart';
 
 class _DashboardTrigger {
@@ -62,6 +61,11 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     super.initState();
     _player = ref.read(playbackControllerProvider);
     _smartPlayer = ref.read(smartProgramPlayerProvider);
+    // Seeded from the last status rather than started blank: the stream
+    // only reports changes, so a screen built while a program is already
+    // running would otherwise show no zone and no tempo until the music
+    // next crossed a threshold — which reads as "it isn't running".
+    _smartStatus = ref.read(smartProgramStatusProvider).valueOrNull;
     _smartStatusSub = _smartPlayer.statusStream.listen((status) {
       if (mounted) setState(() => _smartStatus = status);
     });
@@ -454,13 +458,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
               ),
             ),
-          IconButton(
-            tooltip: 'Manual Control',
-            icon: const Icon(Icons.tune),
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const ManualControlScreen()),
-            ),
-          ),
           const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),

@@ -52,7 +52,12 @@ ThemeData buildAppTheme() {
       backgroundColor: AppColors.background,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
+      // Spelled out here, and on the rail's labels below, because a style
+      // named in a component theme replaces the default one rather than
+      // merging with it — without this the screen titles came out in the
+      // platform's own typeface next to Manrope everywhere else.
       titleTextStyle: TextStyle(
+        fontFamily: appFontFamily,
         color: AppColors.text,
         fontSize: 21,
         fontWeight: FontWeight.w800,
@@ -78,8 +83,8 @@ ThemeData buildAppTheme() {
       backgroundColor: AppColors.panel,
       selectedIconTheme: const IconThemeData(color: AppColors.accent),
       unselectedIconTheme: const IconThemeData(color: AppColors.textFaint),
-      selectedLabelTextStyle: const TextStyle(color: AppColors.accent),
-      unselectedLabelTextStyle: const TextStyle(color: AppColors.textFaint),
+      selectedLabelTextStyle: const TextStyle(fontFamily: appFontFamily, color: AppColors.accent),
+      unselectedLabelTextStyle: const TextStyle(fontFamily: appFontFamily, color: AppColors.textFaint),
       indicatorColor: AppColors.panel2,
     ),
     cardTheme: CardThemeData(

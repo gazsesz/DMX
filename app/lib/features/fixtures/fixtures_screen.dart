@@ -19,6 +19,7 @@ import '../../models/patched_fixture.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/artnet_providers.dart';
 import 'fixture_editor_screen.dart';
+import 'fixture_groups_screen.dart';
 import 'fixture_layout_screen.dart';
 import 'fixture_library_browser.dart';
 
@@ -273,6 +274,13 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
         title: const Text('Fixtures'),
         actions: [
           IconButton(
+            tooltip: 'Groups',
+            icon: const Icon(Icons.group_work_outlined),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const FixtureGroupsScreen()),
+            ),
+          ),
+          IconButton(
             tooltip: '2D Stage Layout',
             icon: const Icon(Icons.grid_3x3),
             onPressed: () => Navigator.of(context).push(
@@ -325,6 +333,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'fixtures-fab',
         onPressed: _createCustom,
         tooltip: 'Create Custom Fixture',
         child: const Icon(Icons.add),

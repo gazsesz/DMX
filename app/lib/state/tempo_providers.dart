@@ -2,7 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../core/audio/beat_detector.dart';
+import '../core/audio/beat_source.dart';
 import '../core/audio/tempo_estimator.dart';
 import '../core/widgets/log_scale.dart';
 import 'audio_providers.dart';
@@ -126,7 +126,7 @@ final tempoProvider = StateNotifierProvider<TempoNotifier, TempoState>((ref) => 
 /// speed around behind the user's back.
 final beatTempoTrackerProvider = Provider<BeatTempoTracker>((ref) {
   final tracker = BeatTempoTracker(
-    service: ref.watch(beatDetectorProvider),
+    service: ref.watch(activeBeatSourceProvider),
     armed: () => ref.read(beatSyncEnabledProvider),
     onTempo: (bpm) => ref.read(tempoProvider.notifier).setBpm(bpm),
   );
@@ -142,7 +142,7 @@ class BeatTempoTracker {
   StreamSubscription<DateTime>? _sub;
 
   BeatTempoTracker({
-    required BeatDetectorService service,
+    required BeatSource service,
     required this.armed,
     required this.onTempo,
   }) {

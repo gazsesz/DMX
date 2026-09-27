@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/dashboard/live_stage_view.dart';
 import '../../models/control_dock_prefs.dart';
-import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
@@ -13,13 +12,17 @@ import '../playback/smart_program_player.dart';
 import '../remote/trigger_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import 'control_panel.dart';
+import 'dock_layout.dart';
+import 'master_fader.dart';
+import 'momentary_fx_buttons.dart';
 
 /// The live controls that are worth reaching from *any* screen: what's
-/// running (and a way to stop it), beat sync with its rate, and blackout.
+/// running (and a way to stop it), beat sync with its rate, blackout — and
+/// the button that opens the full tempo panel.
 ///
 /// Everything here is backed by app-wide state, so the dock never disagrees
-/// with the Dashboard — tempo/fade stay on the Dashboard, since those are
-/// programming controls rather than things you grab mid-show.
+/// with the Dashboard.
 class ControlDock extends ConsumerWidget {
   final ControlDockPosition position;
 
@@ -27,126 +30,11 @@ class ControlDock extends ConsumerWidget {
 
   bool get _vertical => position == ControlDockPosition.right;
 
-  /// Restarts whatever played last. Reports back, because the common
-  /// failure — no node on the network — is silent otherwise.
-  Future<void> _resume(BuildContext context, WidgetRef ref) async {
-    final message = await resumeLastPlayed(ref.read);
-    if (!context.mounted || message.startsWith('Started')) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _setBeatSync(BuildContext context, WidgetRef ref, bool value) async {
-    final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
-    if (error != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final nowPlaying = ref.watch(nowPlayingProvider);
-    final beatSync = ref.watch(beatSyncEnabledProvider);
-    final lastPlayed = ref.watch(lastPlayedProvider);
-    final tempo = ref.watch(tempoProvider);
-    // Only meaningful while a Smart Program is the thing running — the
-    // stream keeps its last value after one stops.
-    final zone = nowPlaying?.kind == PlaybackKind.smartProgram
-        ? ref.watch(smartProgramStatusProvider).valueOrNull
-        : null;
+    final controls = _DockControls(vertical: _vertical);
 
-    final children = <Widget>[
-      _NowPlayingChip(nowPlaying: nowPlaying, zone: zone, vertical: _vertical),
-      if (nowPlaying == null)
-        _DockButton(
-          icon: Icons.play_arrow_rounded,
-          label: 'Start',
-          color: AppColors.success,
-          enabled: lastPlayed != null,
-          onTap: () => _resume(context, ref),
-        )
-      else
-        _DockButton(
-          icon: Icons.stop_rounded,
-          label: 'Stop',
-          color: AppColors.accent,
-          onTap: () => stopPlayback(ref.read),
-        ),
-      _DockButton(
-        icon: Icons.mic_none,
-        label: 'Beat',
-        color: AppColors.accent2,
-        active: beatSync,
-        onTap: () => _setBeatSync(context, ref, !beatSync),
-      ),
-      if (beatSync)
-        SegmentedButton<BeatRate>(
-          segments: [for (final rate in BeatRate.values) ButtonSegment(value: rate, label: Text(rate.label))],
-          selected: {ref.watch(beatRateProvider)},
-          showSelectedIcon: false,
-          style: const ButtonStyle(
-            visualDensity: VisualDensity.compact,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          onSelectionChanged: (selection) => ref.read(beatRateProvider.notifier).state = selection.first,
-        ),
-      // Greyed out while Flash is the beat rate — Flash snaps by
-      // definition, so it forces the fade to zero and auto-fade has
-      // nothing to do. Showing it dimmed rather than hiding it keeps the
-      // toggle's own state visible.
-      _DockButton(
-        icon: Icons.blur_on,
-        label: 'AutoFade',
-        color: AppColors.accent2,
-        active: tempo.autoFade,
-        enabled: !(beatSync && ref.watch(beatRateProvider) == BeatRate.flash),
-        onTap: () => ref.read(tempoProvider.notifier).setAutoFade(!tempo.autoFade),
-      ),
-      // Sits next to Blackout on purpose: Blackout is this taken to zero
-      // for a moment, and grouping them says so.
-      _MasterFader(vertical: _vertical),
-      _DockButton(
-        icon: Icons.power_settings_new,
-        label: 'Blackout',
-        color: AppColors.danger,
-        onTap: () => blackoutEverything(ref.read),
-      ),
-    ];
-
-    final content = _vertical
-        ? Column(mainAxisSize: MainAxisSize.min, children: [
-            for (final child in children) Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: child),
-          ])
-        : Row(children: [
-            for (final child in children) Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: child),
-          ]);
-
-    final expanded = ref.watch(controlDockProvider).expanded;
-    // The tab that opens the tempo and beat controls. A real affordance
-    // rather than a menu item, because it's the thing you reach for while
-    // something is running and you're on some other tab.
-    final handle = InkWell(
-      onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
-      child: Container(
-        width: _vertical ? 22 : 44,
-        height: _vertical ? 44 : 20,
-        decoration: BoxDecoration(
-          color: AppColors.panel2,
-          border: Border.all(color: AppColors.border),
-          borderRadius: _vertical
-              ? const BorderRadius.horizontal(left: Radius.circular(6))
-              : const BorderRadius.vertical(top: Radius.circular(6)),
-        ),
-        child: Icon(
-          _vertical
-              ? (expanded ? Icons.chevron_right : Icons.chevron_left)
-              : (expanded ? Icons.expand_more : Icons.expand_less),
-          size: 17,
-          color: AppColors.textDim,
-        ),
-      ),
-    );
-
-    final bar = Material(
+    return Material(
       color: AppColors.panel2,
       child: SafeArea(
         top: false,
@@ -159,37 +47,359 @@ class ControlDock extends ConsumerWidget {
               left: _vertical ? const BorderSide(color: AppColors.border) : BorderSide.none,
             ),
           ),
-          child: _vertical
-              ? SingleChildScrollView(child: content)
-              : SingleChildScrollView(scrollDirection: Axis.horizontal, child: content),
+          // Only the side dock scrolls, and only along its own length. The
+          // bottom strip lays itself out to fit instead — a control you
+          // have to swipe sideways for is a control you don't have.
+          child: _vertical ? SingleChildScrollView(child: controls) : controls,
         ),
       ),
     );
+  }
+}
 
-    // The handle hangs off the dock's outer edge rather than sitting inside
-    // it, so it reads as "there's more behind this" and doesn't eat a slot.
-    // No Expanded/Flexible here: the dock sits in a Row beside the page
-    // content, so it's handed unbounded width and has to size itself from
-    // what's in it.
-    return _vertical
-        ? Row(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(padding: const EdgeInsets.only(top: 12), child: handle),
-              bar,
-            ],
-          )
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Align(alignment: Alignment.centerRight, child: Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: handle,
-              )),
-              bar,
-            ],
-          );
+/// The dock with its panel open: the tempo and beat controls, plus the same
+/// basic controls the closed strip carries, stacked down a rail beside
+/// them.
+///
+/// They stay on screen on purpose — opening the tempo panel used to bury
+/// Stop, Blackout and the master fader under a full-width sheet, which is
+/// the moment you're most likely to want them. The rail is also what says
+/// the thing that opened is the *dock*: it's the same row of buttons,
+/// stood on its side.
+class ExpandedControlDock extends ConsumerWidget {
+  const ExpandedControlDock({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Material(
+      color: AppColors.panel,
+      elevation: 12,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      child: Column(
+        children: [
+          const _PanelHeader(),
+          const Divider(height: 1, color: AppColors.border),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Expanded(child: ControlPanel()),
+                const VerticalDivider(width: 1, color: AppColors.border),
+                Container(
+                  color: AppColors.panel2,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: const SingleChildScrollView(
+                    // The panel beside it already carries the beat rate and
+                    // the momentary buttons, so the rail leaves those out
+                    // rather than showing them twice — and stays short
+                    // enough that Blackout is still on screen without a
+                    // scroll on a phone held sideways.
+                    child: _DockControls(
+                      vertical: true,
+                      showBeatRate: false,
+                      showMomentaryFx: false,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PanelHeader extends ConsumerWidget {
+  const _PanelHeader();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 6, 4),
+      child: Row(
+        children: [
+          const Icon(Icons.tune, size: 16, color: AppColors.accent),
+          const SizedBox(width: 8),
+          const Expanded(
+            child: Text(
+              'Control dock',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.text),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Close the panel',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(Icons.close, size: 20, color: AppColors.textDim),
+            onPressed: () => ref.read(controlDockProvider.notifier).collapse(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The dock's controls, laid out along a row (the closed bottom strip) or
+/// down a column (the right-hand dock, and the open panel's rail).
+class _DockControls extends ConsumerWidget {
+  final bool vertical;
+  final bool showBeatRate;
+  final bool showMomentaryFx;
+
+  const _DockControls({
+    required this.vertical,
+    this.showBeatRate = true,
+    this.showMomentaryFx = true,
+  });
+
+  /// Restarts whatever played last. Reports back, because the common
+  /// failure — no node on the network — is silent otherwise.
+  Future<void> _resume(BuildContext context, WidgetRef ref) async {
+    final message = await resumeLastPlayed(ref.read);
+    if (!context.mounted || message.startsWith('Started')) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _setBeatSync(BuildContext context, WidgetRef ref, bool value) async {
+    final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
+    if (error != null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      }
+      return;
+    }
+    // Arming beat sync only changes what's already playing if it's re-fired
+    // — the panel's own switch has always done this, the dock's didn't.
+    await restartActiveTrigger(ref.read);
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final nowPlaying = ref.watch(nowPlayingProvider);
+    final beatSync = ref.watch(beatSyncEnabledProvider);
+    final beatPrediction = ref.watch(beatPredictionEnabledProvider);
+    final lastPlayed = ref.watch(lastPlayedProvider);
+    final tempo = ref.watch(tempoProvider);
+    final expanded = ref.watch(controlDockProvider).expanded;
+    // Only meaningful while a Smart Program is the thing running — the
+    // stream keeps its last value after one stops.
+    final zone = nowPlaying?.kind == PlaybackKind.smartProgram
+        ? ref.watch(smartProgramStatusProvider).valueOrNull
+        : null;
+
+    // Width is declared alongside each control rather than measured: the
+    // strip has to know what fits *before* laying anything out, and every
+    // one of these is a fixed size anyway.
+    final items = <_DockItem>[
+      _DockItem(
+        _NowPlayingChip(nowPlaying: nowPlaying, zone: zone, vertical: vertical),
+        vertical ? 62 : (nowPlaying == null ? 96 : 150),
+      ),
+      _DockItem(
+        nowPlaying == null
+            ? _DockButton(
+                icon: Icons.play_arrow_rounded,
+                label: 'Start',
+                color: AppColors.success,
+                enabled: lastPlayed != null,
+                onTap: () => _resume(context, ref),
+              )
+            : _DockButton(
+                icon: Icons.stop_rounded,
+                label: 'Stop',
+                color: AppColors.accent,
+                onTap: () => stopPlayback(ref.read),
+              ),
+        _dockButtonWidth,
+      ),
+      _DockItem(
+        _DockButton(
+          icon: Icons.mic_none,
+          label: 'Beat',
+          color: AppColors.accent2,
+          active: beatSync,
+          onTap: () => _setBeatSync(context, ref, !beatSync),
+        ),
+        _dockButtonWidth,
+      ),
+      // Only worth showing once there's something to predict from — beat
+      // sync off means the mic (and so the predictor) isn't even running.
+      if (beatSync)
+        _DockItem(
+          _DockButton(
+            icon: Icons.online_prediction,
+            label: 'Predict',
+            color: AppColors.accent2,
+            active: beatPrediction,
+            onTap: () => ref.read(beatPredictionEnabledProvider.notifier).setEnabled(!beatPrediction),
+          ),
+          _dockButtonWidth,
+          giveUpAt: 1,
+        ),
+      if (beatSync && showBeatRate)
+        // First to go when the strip is short of room: it's a setting
+        // rather than a control you grab, and the panel has it too.
+        _DockItem(const _BeatRateControl(), _dockButtonWidth, giveUpAt: 1),
+      // Greyed out while Flash is the beat rate — Flash snaps by
+      // definition, so it forces the fade to zero and auto-fade has
+      // nothing to do. Showing it dimmed rather than hiding it keeps the
+      // toggle's own state visible.
+      _DockItem(
+        _DockButton(
+          icon: Icons.blur_on,
+          label: 'AutoFade',
+          color: AppColors.accent2,
+          active: tempo.autoFade,
+          enabled: !(beatSync && ref.watch(beatRateProvider) == BeatRate.flash),
+          onTap: () => ref.read(tempoProvider.notifier).setAutoFade(!tempo.autoFade),
+        ),
+        _dockButtonWidth,
+        giveUpAt: 2,
+      ),
+      // The momentary three. Given up before the master fader but after
+      // everything else: the fader is how you save a look that's gone wrong,
+      // while these are things you reach for on purpose. Strobe outlives the
+      // other two — it's the one you grab without looking.
+      if (showMomentaryFx)
+        for (final entry in momentaryFxStyles.entries)
+          _DockItem(
+            MomentaryFxButton(fx: entry.key, icon: entry.value.icon, color: entry.value.color),
+            _dockButtonWidth,
+            giveUpAt: entry.value.giveUpAt,
+          ),
+      // Sits next to Blackout on purpose: Blackout is this taken to zero
+      // for a moment, and grouping them says so.
+      _DockItem(
+        MasterFader(vertical: vertical, width: vertical ? 62 : 124),
+        vertical ? 62 : 124,
+        giveUpAt: 6,
+      ),
+      _DockItem(
+        _DockButton(
+          icon: Icons.power_settings_new,
+          label: 'Blackout',
+          color: AppColors.danger,
+          onTap: () => blackoutEverything(ref.read),
+        ),
+        _dockButtonWidth,
+      ),
+      // Part of the row rather than a tab hanging off the dock's outer
+      // edge: the old handle sat at the far end of the screen, nowhere
+      // near the controls, and read as belonging to the page instead.
+      _DockItem(
+        _DockButton(
+          icon: expanded ? Icons.keyboard_arrow_down : Icons.tune,
+          label: expanded ? 'Close' : 'Tempo',
+          color: AppColors.accent,
+          active: expanded,
+          onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
+        ),
+        _dockButtonWidth,
+      ),
+    ];
+
+    if (vertical) {
+      return Column(mainAxisSize: MainAxisSize.min, children: [
+        for (final item in items)
+          Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: item.widget),
+      ]);
+    }
+
+    // Wrapping rather than scrolling sideways: see dock_layout.dart.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final keep = dockItemsThatFit(
+          widths: [for (final item in items) item.width],
+          dropOrder: _dropOrder(items),
+          available: constraints.maxWidth,
+        );
+        return Wrap(
+          spacing: dockItemSpacing,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [for (final i in keep) items[i].widget],
+        );
+      },
+    );
+  }
+
+  /// The indices of the controls that may be given up, worst first.
+  static List<int> _dropOrder(List<_DockItem> items) {
+    final droppable = [
+      for (var i = 0; i < items.length; i++)
+        if (items[i].giveUpAt != null) i,
+    ];
+    droppable.sort((a, b) => items[a].giveUpAt!.compareTo(items[b].giveUpAt!));
+    return droppable;
+  }
+}
+
+const _dockButtonWidth = 62.0;
+
+/// One control in the strip, with the width it occupies and how readily the
+/// strip gives it up — null meaning never.
+class _DockItem {
+  final Widget widget;
+  final double width;
+  final int? giveUpAt;
+
+  const _DockItem(this.widget, this.width, {this.giveUpAt});
+}
+
+/// Steps per beat, as a 2×2 block the width of a dock button.
+///
+/// It used to be a segmented button along the strip, which is four labels
+/// wide and was a good part of why the strip ran off a narrow screen. The
+/// panel still spells it out in full.
+class _BeatRateControl extends ConsumerWidget {
+  const _BeatRateControl();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selected = ref.watch(beatRateProvider);
+    void select(BeatRate rate) => ref.read(beatRateProvider.notifier).state = rate;
+
+    return SizedBox(
+      width: 62,
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: [
+          for (final rate in BeatRate.values)
+            InkWell(
+              borderRadius: BorderRadius.circular(6),
+              onTap: () => select(rate),
+              child: Container(
+                width: 29,
+                height: 24,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: rate == selected ? AppColors.accent2.withValues(alpha: 0.18) : AppColors.panel,
+                  border: Border.all(
+                    color: rate == selected ? AppColors.accent2 : AppColors.border,
+                    width: rate == selected ? 2 : 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  rate.label,
+                  maxLines: 1,
+                  style: TextStyle(
+                    fontSize: 8.5,
+                    fontWeight: FontWeight.w700,
+                    color: rate == selected ? AppColors.accent2 : AppColors.textDim,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -221,7 +431,7 @@ class _NowPlayingChip extends StatelessWidget {
     final playing = nowPlaying;
     if (playing == null) {
       return SizedBox(
-        width: vertical ? 56 : 96,
+        width: vertical ? 62 : 96,
         child: Text(
           'Idle',
           textAlign: TextAlign.center,
@@ -231,7 +441,7 @@ class _NowPlayingChip extends StatelessWidget {
     }
     final status = zone;
     return SizedBox(
-      width: vertical ? 56 : 150,
+      width: vertical ? 62 : 150,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -269,60 +479,6 @@ class _NowPlayingChip extends StatelessWidget {
   }
 }
 
-/// The grand master: one fader that takes the whole rig down without
-/// touching what's programmed.
-///
-/// It scales intensity only — dimmer channels, or the colour emitters on a
-/// fixture that has no dimmer — so pulling it down dims the stage instead
-/// of swinging moving heads around or changing gobos.
-class _MasterFader extends ConsumerWidget {
-  final bool vertical;
-
-  const _MasterFader({required this.vertical});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final level = ref.watch(grandMasterProvider);
-    final percent = (level * 100).round();
-    final readout = Text(
-      '$percent%',
-      style: appMonoStyle(
-        fontSize: 10.5,
-        color: percent == 100 ? AppColors.textDim : AppColors.accent,
-      ),
-    );
-    const label = Text('Master', style: TextStyle(fontSize: 10.5, color: AppColors.textDim));
-
-    return SizedBox(
-      width: vertical ? 60 : 124,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Side by side only where there's room. In the narrow right-hand
-          // dock the label and the percentage stack, or they overflow.
-          if (vertical)
-            label
-          else
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [label, readout]),
-          SliderTheme(
-            data: SliderTheme.of(context).copyWith(
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
-              overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-            ),
-            child: Slider(
-              value: level,
-              activeColor: AppColors.accent,
-              onChanged: (value) => ref.read(grandMasterProvider.notifier).set(value),
-            ),
-          ),
-          if (vertical) readout,
-        ],
-      ),
-    );
-  }
-}
-
 class _DockButton extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -342,31 +498,15 @@ class _DockButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tint = enabled ? color : AppColors.textFaint;
     return InkWell(
       borderRadius: BorderRadius.circular(10),
       onTap: enabled ? onTap : null,
-      child: Container(
-        width: 62,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
-        decoration: BoxDecoration(
-          color: active ? color.withValues(alpha: 0.18) : AppColors.panel,
-          border: Border.all(color: active ? color : AppColors.border, width: active ? 2 : 1.5),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 18, color: tint),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: tint),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
+      child: DockButtonFace(
+        icon: icon,
+        label: label,
+        color: color,
+        active: active,
+        enabled: enabled,
       ),
     );
   }

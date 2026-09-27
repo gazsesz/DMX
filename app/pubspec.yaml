@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Bump this on every release you build for the tablet — the Setup screen
 # reads it straight from here, so it's the single source of truth for
 # "which build is on the device?".
-version: 1.9.0+15
+version: 1.16.0+28
 
 environment:
   sdk: ^3.13.2
@@ -51,6 +51,7 @@ dependencies:
   # (core/fixtures/qlcplus_format.dart) and by the build-time tool that
   # bakes the bundled library.
   xml: ^7.0.1
+  flutter_midi_command: ^1.3.0
 
 dev_dependencies:
   flutter_test:

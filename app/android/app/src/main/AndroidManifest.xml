@@ -1,4 +1,13 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <!-- flutter_midi_command_android declares MIDI as android:required="true", which
+         would stop the app installing at all on a device with no MIDI hardware feature
+         (the P20 Pro among them, unconfirmed either way). MIDI here is an optional beat
+         source, not something the app needs to run, so this overrides it to optional. -->
+    <uses-feature android:name="android.software.midi" android:required="false" tools:replace="android:required"/>
+    <!-- Not required either: BLE MIDI (a future addition) needs no USB host, and plenty
+         of Art-Net-only installs never plug in a MIDI device at all. -->
+    <uses-feature android:name="android.hardware.usb.host" android:required="false"/>
     <!-- Required for the Art-Net UDP socket (ArtNetService) to send/receive at all. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>

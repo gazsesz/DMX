@@ -1,16 +1,22 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/channel_slider.dart';
+import '../../core/widgets/fixture_group_style.dart';
 import '../../models/builtin_fixtures.dart';
 import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
 import '../../models/fixture_channel.dart';
 import '../../models/patched_fixture.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/color_palette_providers.dart';
+import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/playback_providers.dart';
 
 /// A live "desk" view: every patched fixture with direct sliders, bypassing
 /// scenes entirely. Values shown are seeded from whatever is already
@@ -25,6 +31,59 @@ class ManualControlScreen extends ConsumerStatefulWidget {
 class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   final Map<String, List<int>> _values = {};
   String? _universeFilter;
+
+  /// null means the "All" chip — every currently visible fixture.
+  String? _liveTargetGroupId;
+
+  Timer? _liveSyncTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Polled rather than pushed: the ArtNet service has no change stream,
+    // and this only has to catch up with a chase, a smart program or
+    // another screen's preview — none of which move faster than this.
+    _liveSyncTimer = Timer.periodic(const Duration(milliseconds: 200), (_) => _syncFromLiveOutput());
+  }
+
+  @override
+  void dispose() {
+    _liveSyncTimer?.cancel();
+    super.dispose();
+  }
+
+  /// Pulls every patched fixture's channels back from the service and
+  /// folds in whatever changed — so a chase stepping, a smart program
+  /// handing off, or a momentary FX release shows up here without you
+  /// having to leave and come back. A no-op tick (nothing external moved,
+  /// which is almost always) touches neither `_values` nor the widget tree.
+  void _syncFromLiveOutput() {
+    final service = ref.read(artNetServiceProvider);
+    final universes = ref.read(universesProvider);
+    var changed = false;
+    for (final fixture in ref.read(patchedFixturesProvider)) {
+      final universeMatches = universes.where((u) => u.id == fixture.universeId);
+      if (universeMatches.isEmpty) continue;
+      final universe = universeMatches.first;
+      final live = [
+        for (var i = 0; i < fixture.profile.channelCount; i++)
+          service.getChannelValue(universe, fixture.startChannel + i),
+      ];
+      if (!_sameValues(_values[fixture.id], live)) {
+        _values[fixture.id] = live;
+        changed = true;
+      }
+    }
+    if (changed && mounted) setState(() {});
+  }
+
+  static bool _sameValues(List<int>? a, List<int> b) {
+    if (a == null || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   List<int> _valuesFor(PatchedFixture fixture) {
     return _values.putIfAbsent(fixture.id, () {
@@ -103,11 +162,32 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     setState(() {});
   }
 
+  /// Which of [visible] the quick-apply strip's colour swatches act on —
+  /// every fixture in the selected saved group, or all of [visible] when
+  /// "All" is picked (or the group was deleted out from under the choice).
+  List<PatchedFixture> _liveTargets(List<PatchedFixture> visible) {
+    final groupId = _liveTargetGroupId;
+    if (groupId == null) return visible;
+    final group = ref.read(fixtureGroupsProvider).where((g) => g.id == groupId).firstOrNull;
+    if (group == null) return visible;
+    return visible.where((f) => group.fixtureIds.contains(f.id)).toList();
+  }
+
+  /// Applies [rgb] to every fixture in [targets] that actually mixes colour
+  /// — skips a mover-only fixture rather than snapping its dimmer to full
+  /// the way [_applyColor]'s "no colour yet, so turn it on" fallback would.
+  void _applyColorToTargets(List<PatchedFixture> targets, List<int> rgb) {
+    for (final fixture in targets) {
+      if (fixture.profile.channels.any((c) => c.function.isColorMix)) _applyColor(fixture, rgb);
+    }
+  }
+
+  /// The same panic button as the Dashboard, the control dock and the remote
+  /// endpoint — releases any held momentary FX and stops both players first,
+  /// so a running chase can't immediately overwrite the blackout (or
+  /// whatever colour you click right after it) on its next tick.
   void _blackout() {
-    final service = ref.read(artNetServiceProvider);
-    if (!service.isConnected) return;
-    final universes = ref.read(universesProvider);
-    service.blackoutAll(universes);
+    blackoutEverything(ref.read);
     for (final fixture in ref.read(patchedFixturesProvider)) {
       _values[fixture.id] = List<int>.filled(fixture.profile.channelCount, 0);
     }
@@ -292,6 +372,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   Widget build(BuildContext context) {
     final fixtures = ref.watch(patchedFixturesProvider);
     final universes = ref.watch(universesProvider);
+    final savedGroups = ref.watch(fixtureGroupsProvider);
+    final customColors = ref.watch(customColorsProvider);
     final filtered = _universeFilter == null
         ? fixtures
         : fixtures.where((f) => f.universeId == _universeFilter).toList();
@@ -346,6 +428,59 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                     ],
                   ),
                 ),
+                if (savedGroups.isNotEmpty) ...[
+                  SizedBox(
+                    height: 40,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: ChoiceChip(
+                            avatar: const Icon(Icons.grid_view_outlined, size: 16),
+                            label: const Text('All'),
+                            selected: _liveTargetGroupId == null,
+                            onSelected: (_) => setState(() => _liveTargetGroupId = null),
+                          ),
+                        ),
+                        for (final group in savedGroups)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: ChoiceChip(
+                              avatar: Icon(fixtureGroupIcon(group.iconKey), size: 16, color: fixtureGroupColor(group.iconKey)),
+                              label: Text(group.name),
+                              selected: _liveTargetGroupId == group.id,
+                              onSelected: (_) => setState(() => _liveTargetGroupId = group.id),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  SizedBox(
+                    height: 66,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        for (final entry in colorPresets.entries)
+                          _QuickColorChip(
+                            rgb: entry.value,
+                            label: entry.key,
+                            onTap: () => _applyColorToTargets(_liveTargets(filtered), entry.value),
+                          ),
+                        for (final colour in customColors)
+                          _QuickColorChip(
+                            rgb: colour.rgb,
+                            label: colour.displayName,
+                            onTap: () => _applyColorToTargets(_liveTargets(filtered), colour.rgb),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 Expanded(
                   child: ListView.builder(
                     padding: const EdgeInsets.fromLTRB(16, 4, 16, 96),
@@ -356,10 +491,61 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               ],
             ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'manual-control-fab',
         backgroundColor: AppColors.danger,
         tooltip: 'Blackout',
         onPressed: _blackout,
         child: const Icon(Icons.power_settings_new, color: Colors.white),
+      ),
+    );
+  }
+}
+
+extension _FirstOrNull<T> on Iterable<T> {
+  T? get firstOrNull => isEmpty ? null : first;
+}
+
+/// One tappable colour in the live quick-apply strip — swatch plus its
+/// name underneath, since this desk has no mouse to hover over a tooltip.
+class _QuickColorChip extends StatelessWidget {
+  final List<int> rgb;
+  final String label;
+  final VoidCallback onTap;
+
+  const _QuickColorChip({required this.rgb, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: onTap,
+        child: SizedBox(
+          width: 52,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Color.fromARGB(255, rgb[0], rgb[1], rgb[2]),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border, width: 1.5),
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
