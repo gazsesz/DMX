@@ -179,6 +179,91 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   /// where anyone would think to look to change it. The "Up" scene can still
   /// be split into differently-coloured groups afterwards for a flash where
   /// the lamps don't all match.
+  /// The colour half of the Beat Flash preset: one colour for every flash,
+  /// or a fresh random one on each — the whole rig alike, or every lamp its
+  /// own. Null on cancel.
+  Future<({FlashColorMode mode, List<int> color, int flashCount})?> _askBeatFlashColors() {
+    var mode = FlashColorMode.single;
+    var color = const [255, 255, 255];
+    var flashCount = 8;
+    return showDialog<({FlashColorMode mode, List<int> color, int flashCount})>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          backgroundColor: AppColors.panel,
+          title: const Text('Beat Flash colours'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              RadioGroup<FlashColorMode>(
+                groupValue: mode,
+                onChanged: (v) => setDialogState(() => mode = v ?? mode),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final m in FlashColorMode.values)
+                      RadioListTile<FlashColorMode>(
+                        contentPadding: EdgeInsets.zero,
+                        dense: true,
+                        value: m,
+                        title: Text(m.label),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
+              if (mode == FlashColorMode.single)
+                Row(
+                  children: [
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        color: Color.fromARGB(255, color[0], color[1], color[2]),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    TextButton(
+                      onPressed: () async {
+                        final picked = await showColorPickerDialog(context, initial: color);
+                        if (picked != null) setDialogState(() => color = picked);
+                      },
+                      child: const Text('Pick colour…'),
+                    ),
+                  ],
+                )
+              else
+                Row(
+                  children: [
+                    const Expanded(child: Text('Flashes before it repeats')),
+                    IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                      onPressed: flashCount > 2 ? () => setDialogState(() => flashCount--) : null,
+                    ),
+                    SizedBox(width: 24, child: Text('$flashCount', textAlign: TextAlign.center)),
+                    IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 20),
+                      onPressed: flashCount < 32 ? () => setDialogState(() => flashCount++) : null,
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            FilledButton(
+              onPressed: () => Navigator.pop(context, (mode: mode, color: color, flashCount: flashCount)),
+              child: const Text('Next'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _addBeatFlashBank() async {
     final fixtures = ref.read(patchedFixturesProvider);
     if (fixtures.isEmpty) {
@@ -188,18 +273,28 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       return;
     }
 
-    final color = await showColorPickerDialog(context, initial: const [255, 255, 255]);
-    if (!mounted) return;
+    final options = await _askBeatFlashColors();
+    if (options == null || !mounted) return;
     // Which lamps flash — the rest of the rig is left to whatever else is
     // playing, instead of being blacked out on every beat.
     final chosen = await showFixtureSelectDialog(context, fixtures: fixtures, title: 'Which fixtures flash?');
     if (chosen == null || !mounted) return;
 
-    final scenes = buildBeatFlashScenes(
-      fixtures: chosen,
-      idGenerator: () => _uuid.v4(),
-      color: color ?? const [255, 255, 255],
-    );
+    final List<Scene> scenes;
+    final List<String> slots;
+    if (options.mode == FlashColorMode.single) {
+      scenes = buildBeatFlashScenes(fixtures: chosen, idGenerator: () => _uuid.v4(), color: options.color);
+      slots = [for (final s in scenes) s.id];
+    } else {
+      final built = buildRandomBeatFlash(
+        fixtures: chosen,
+        idGenerator: () => _uuid.v4(),
+        mode: options.mode,
+        flashCount: options.flashCount,
+      );
+      scenes = built.scenes;
+      slots = built.slots;
+    }
     final sceneNotifier = ref.read(scenesProvider.notifier);
     for (final scene in scenes) {
       sceneNotifier.upsert(scene);
@@ -211,9 +306,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     for (var n = 2; taken.contains(name); n++) {
       name = 'Beat Flash $n';
     }
-    final bank = banksNotifier.addBank(name: name, slots: scenes.length, isBeatFlash: true);
-    for (var i = 0; i < scenes.length; i++) {
-      banksNotifier.setSlot(bank.id, i, scenes[i].id);
+    final bank = banksNotifier.addBank(name: name, slots: slots.length, isBeatFlash: true);
+    for (var i = 0; i < slots.length; i++) {
+      banksNotifier.setSlot(bank.id, i, slots[i]);
     }
 
     // No app-wide switch to Flash any more: a Beat Flash bank steps at the

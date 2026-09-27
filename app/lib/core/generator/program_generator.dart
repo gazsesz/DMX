@@ -624,46 +624,129 @@ List<Scene> buildBeatFlashScenes({
   String namePrefix = 'Beat Flash',
 }) {
   if (fixtures.isEmpty) return const [];
+  return [
+    Scene(id: idGenerator(), name: '$namePrefix Out', fixtureValues: _flashValues(fixtures, (_) => color, lit: false)),
+    Scene(id: idGenerator(), name: '$namePrefix Up', fixtureValues: _flashValues(fixtures, (_) => color, lit: true)),
+  ];
+}
 
-  Map<String, Map<int, int>> valuesFor({required bool lit}) {
-    final result = <String, Map<int, int>>{};
-    for (final fixture in fixtures) {
-      final values = <int, int>{};
-      for (final channel in fixture.profile.channels) {
-        switch (channel.function) {
-          case ChannelFunction.dimmer:
-            values[channel.offset] = lit ? 255 : 0;
-            break;
-          case ChannelFunction.red:
-            values[channel.offset] = lit ? color[0] : 0;
-            break;
-          case ChannelFunction.green:
-            values[channel.offset] = lit ? color[1] : 0;
-            break;
-          case ChannelFunction.blue:
-            values[channel.offset] = lit ? color[2] : 0;
-            break;
-          case ChannelFunction.white:
-            // Only as much white as the colour has in common across R/G/B —
-            // full on a white flash, off on a saturated one, where the white
-            // emitter would just wash the colour out.
-            values[channel.offset] = lit ? color.reduce(min) : 0;
-            break;
-          case ChannelFunction.pan:
-          case ChannelFunction.tilt:
-            values[channel.offset] = 128;
-            break;
-          default:
-            break;
-        }
-      }
-      result[fixture.id] = values;
+/// How a Beat Flash picks its colours.
+enum FlashColorMode {
+  /// One colour, chosen up front, on every flash.
+  single,
+
+  /// A new random colour on every flash, the whole rig in it together.
+  randomSame,
+
+  /// A new random colour on every flash for every lamp on its own.
+  randomEach,
+}
+
+extension FlashColorModeLabel on FlashColorMode {
+  String get label => switch (this) {
+    FlashColorMode.single => 'One colour',
+    FlashColorMode.randomSame => 'Random, all lamps alike',
+    FlashColorMode.randomEach => 'Random, every lamp its own',
+  };
+}
+
+/// A Beat Flash bank's slots in order: dark, flash 1, dark, flash 2… — the
+/// one dark scene repeated between [flashCount] lit ones, each lit in fresh
+/// random colours per [mode]. Returns the scenes to save (the dark one once)
+/// and the slot order to put them in.
+///
+/// Random colours are fully saturated hues — a pastel or a grey reads as a
+/// weak flash — and two flashes (or two neighbouring lamps) in a row are
+/// kept well apart on the colour wheel, so each hit visibly changes.
+({List<Scene> scenes, List<String> slots}) buildRandomBeatFlash({
+  required List<PatchedFixture> fixtures,
+  required String Function() idGenerator,
+  required FlashColorMode mode,
+  int flashCount = 8,
+  String namePrefix = 'Beat Flash',
+  Random? random,
+}) {
+  if (fixtures.isEmpty || flashCount <= 0) return (scenes: const [], slots: const []);
+  final rng = random ?? Random();
+  double? lastHue;
+  double nextHue() {
+    for (var attempt = 0; attempt < 20; attempt++) {
+      final hue = rng.nextDouble() * 360;
+      final previous = lastHue;
+      if (previous == null || _hueDistance(hue, previous) >= 60) return lastHue = hue;
     }
-    return result;
+    return lastHue = ((lastHue ?? 0) + 120) % 360;
   }
 
-  return [
-    Scene(id: idGenerator(), name: '$namePrefix Out', fixtureValues: valuesFor(lit: false)),
-    Scene(id: idGenerator(), name: '$namePrefix Up', fixtureValues: valuesFor(lit: true)),
-  ];
+  final dark = Scene(
+    id: idGenerator(),
+    name: '$namePrefix Out',
+    fixtureValues: _flashValues(fixtures, (_) => const [0, 0, 0], lit: false),
+  );
+  final scenes = <Scene>[dark];
+  final slots = <String>[];
+  for (var k = 0; k < flashCount; k++) {
+    final List<int> Function(PatchedFixture) colorOf;
+    if (mode == FlashColorMode.randomEach) {
+      final byFixture = {for (final f in fixtures) f.id: _hsvToRgb(nextHue(), 1, 1)};
+      colorOf = (f) => byFixture[f.id]!;
+    } else {
+      final rgb = _hsvToRgb(nextHue(), 1, 1);
+      colorOf = (_) => rgb;
+    }
+    final lit = Scene(id: idGenerator(), name: '$namePrefix ${k + 1}', fixtureValues: _flashValues(fixtures, colorOf, lit: true));
+    scenes.add(lit);
+    slots
+      ..add(dark.id)
+      ..add(lit.id);
+  }
+  return (scenes: scenes, slots: slots);
+}
+
+double _hueDistance(double a, double b) {
+  final d = (a - b).abs() % 360;
+  return d > 180 ? 360 - d : d;
+}
+
+/// The channel values of a Beat Flash scene — see [buildBeatFlashScenes].
+Map<String, Map<int, int>> _flashValues(
+  List<PatchedFixture> fixtures,
+  List<int> Function(PatchedFixture fixture) colorOf, {
+  required bool lit,
+}) {
+  final result = <String, Map<int, int>>{};
+  for (final fixture in fixtures) {
+    final color = colorOf(fixture);
+    final values = <int, int>{};
+    for (final channel in fixture.profile.channels) {
+      switch (channel.function) {
+        case ChannelFunction.dimmer:
+          values[channel.offset] = lit ? 255 : 0;
+          break;
+        case ChannelFunction.red:
+          values[channel.offset] = lit ? color[0] : 0;
+          break;
+        case ChannelFunction.green:
+          values[channel.offset] = lit ? color[1] : 0;
+          break;
+        case ChannelFunction.blue:
+          values[channel.offset] = lit ? color[2] : 0;
+          break;
+        case ChannelFunction.white:
+          // Only as much white as the colour has in common across R/G/B —
+          // full on a white flash, off on a saturated one, where the white
+          // emitter would just wash the colour out.
+          values[channel.offset] = lit ? color.reduce(min) : 0;
+          break;
+        case ChannelFunction.pan:
+        case ChannelFunction.tilt:
+          values[channel.offset] = 128;
+          break;
+        default:
+          break;
+      }
+    }
+    result[fixture.id] = values;
+  }
+  return result;
 }
