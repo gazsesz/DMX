@@ -6,6 +6,7 @@ import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/layer_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/smart_program_providers.dart';
@@ -26,6 +27,7 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     chases: ref.read(chasesProvider),
     dashboardTriggers: ref.read(dashboardTriggersProvider),
     smartPrograms: ref.read(smartProgramsProvider),
+    layers: ref.read(layersProvider),
   );
 }
 
@@ -85,6 +87,7 @@ void startProject(
       chases: source.chases,
       dashboardTriggers: source.dashboardTriggers,
       smartPrograms: source.smartPrograms,
+      layers: source.layers,
     ));
     return;
   }
@@ -105,6 +108,7 @@ void startProject(
   ref.read(chasesProvider.notifier).loadAll(const []);
   ref.read(dashboardTriggersProvider.notifier).loadAll(const []);
   ref.read(smartProgramsProvider.notifier).loadAll(const []);
+  ref.read(layersProvider.notifier).reset();
 }
 
 /// The inverse of [buildProjectSnapshot] — pushes a loaded [ProjectData] into
@@ -122,4 +126,5 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(chasesProvider.notifier).loadAll(data.chases);
   ref.read(dashboardTriggersProvider.notifier).loadAll(data.dashboardTriggers);
   ref.read(smartProgramsProvider.notifier).loadAll(data.smartPrograms);
+  ref.read(layersProvider.notifier).loadAll(data.layers);
 }

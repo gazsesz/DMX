@@ -7,11 +7,13 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/layer_picker_sheet.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/bank.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
+import '../../models/layer.dart';
 import '../../models/scene.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
@@ -20,6 +22,7 @@ import '../../state/chase_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/tempo_providers.dart';
@@ -37,7 +40,6 @@ class BanksScreen extends ConsumerStatefulWidget {
 class _BanksScreenState extends ConsumerState<BanksScreen> {
   String? _selectedBankId;
   late final ChasePlayer _player;
-  late final ChasePlayer _player2;
   int? _runningSlot;
 
   /// The slot the user last fired by hand — so tapping a scene shows which
@@ -48,7 +50,6 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   void initState() {
     super.initState();
     _player = ref.read(playbackControllerProvider);
-    _player2 = ref.read(layer2ControllerProvider);
   }
 
   bool _isThisBankRunning(Bank bank) {
@@ -56,9 +57,15 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     return _player.isPlaying && current?.kind == PlaybackKind.bank && current?.id == bank.id;
   }
 
-  bool _isThisBankRunningOnLayer2(Bank bank) {
-    final current = ref.read(nowPlayingLayer2Provider);
-    return _player2.isPlaying && current?.kind == PlaybackKind.bank && current?.id == bank.id;
+  /// Whether [bank] is currently running on any layer other than Layer 1 —
+  /// drives the "run on another layer" icon's active color.
+  bool _isThisBankRunningOnAnyOtherLayer(Bank bank) {
+    for (final layer in ref.read(layersProvider)) {
+      if (layer.id == layer1Id) continue;
+      final current = ref.read(nowPlayingForLayerProvider(layer.id));
+      if (current?.kind == PlaybackKind.bank && current?.id == bank.id) return true;
+    }
+    return false;
   }
 
   void _toggleRun(Bank bank) {
@@ -122,65 +129,6 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       name: bank.name,
     );
     setState(() => _manualSlot = null);
-  }
-
-  /// Same as [_toggleRun], but on Layer 2 — a second, independent player
-  /// that runs alongside Layer 1 instead of superseding it. Meant for a bank
-  /// whose scenes only touch attributes Layer 1 leaves alone (see the
-  /// "INCLUDES" toggles in the Scene editor), e.g. a moving head's Position
-  /// here while Layer 1 chases its Color/Beam on the beat.
-  void _toggleRunLayer2(Bank bank) {
-    if (_isThisBankRunningOnLayer2(bank)) {
-      _player2.stop();
-      ref.read(nowPlayingLayer2Provider.notifier).state = null;
-      setState(() {});
-      return;
-    }
-    final service = ref.read(artNetServiceProvider);
-    if (!service.isConnected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected — check Settings')),
-      );
-      return;
-    }
-    final beatSync = ref.read(beatSyncEnabledProvider);
-    final tempo = ref.read(tempoProvider);
-    final chase = Chase(
-      id: 'bank-run-layer2-${bank.id}',
-      name: bank.name,
-      steps: [
-        ChaseStep(
-          bankId: bank.id,
-          hold: tempo.hold,
-          fade: tempo.fade,
-        ),
-      ],
-      direction: ChaseDirection.forward,
-      beatSync: beatSync,
-    );
-    _player2.play(
-      chase: chase,
-      scenes: ref.read(scenesProvider),
-      banks: ref.read(banksProvider),
-      patchedFixtures: ref.read(patchedFixturesProvider),
-      universes: ref.read(universesProvider),
-      service: service,
-      beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
-      beatRate: beatRateOf(ref),
-      flashLength: ref.read(flashLengthProvider),
-      liveBeatRate: () => ref.read(beatRateProvider),
-      liveFlashLength: () => ref.read(flashLengthProvider),
-      fadeOverride: () {
-        final tempo = ref.read(tempoProvider);
-        return tempo.autoFade ? tempo.fade : null;
-      },
-    );
-    ref.read(nowPlayingLayer2Provider.notifier).state = NowPlaying(
-      id: bank.id,
-      kind: PlaybackKind.bank,
-      name: bank.name,
-    );
-    setState(() {});
   }
 
   Future<void> _setBeatSync(bool value) async {
@@ -314,13 +262,12 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     );
     if (choice == BankDeleteChoice.cancel || !mounted) return;
 
-    if (_isThisBankRunning(bank)) {
-      _player.stop();
-      ref.read(nowPlayingProvider.notifier).state = null;
-    }
-    if (_isThisBankRunningOnLayer2(bank)) {
-      _player2.stop();
-      ref.read(nowPlayingLayer2Provider.notifier).state = null;
+    for (final layer in ref.read(layersProvider)) {
+      final current = ref.read(nowPlayingForLayerProvider(layer.id));
+      if (current?.kind == PlaybackKind.bank && current?.id == bank.id) {
+        stopLayer(ref, layer.id);
+        if (layer.id == layer1Id) setState(() => _runningSlot = null);
+      }
     }
     if (choice == BankDeleteChoice.deleteScenes) {
       final scenes = ref.read(scenesProvider.notifier);
@@ -392,9 +339,12 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final nowPlaying = ref.watch(nowPlayingProvider);
     final isRunningThisBank =
         _player.isPlaying && nowPlaying?.kind == PlaybackKind.bank && nowPlaying?.id == selected.id;
-    final nowPlayingLayer2 = ref.watch(nowPlayingLayer2Provider);
-    final isRunningThisBankOnLayer2 =
-        _player2.isPlaying && nowPlayingLayer2?.kind == PlaybackKind.bank && nowPlayingLayer2?.id == selected.id;
+    // Watch every other layer's now-playing so this rebuilds when one of
+    // them starts/stops this bank, not just when Layer 1 does.
+    for (final layer in ref.watch(layersProvider)) {
+      if (layer.id != layer1Id) ref.watch(nowPlayingForLayerProvider(layer.id));
+    }
+    final isRunningThisBankOnAnyOtherLayer = _isThisBankRunningOnAnyOtherLayer(selected);
     final beatSync = ref.watch(beatSyncEnabledProvider);
     final tempo = ref.watch(tempoProvider);
     final autoFade = tempo.autoFade;
@@ -524,13 +474,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   label: Text(isRunningThisBank ? 'Stop' : 'Run Bank'),
                 ),
                 IconButton(
-                  onPressed: () => _toggleRunLayer2(selected),
-                  icon: Icon(isRunningThisBankOnLayer2 ? Icons.layers_clear : Icons.layers, size: 20),
-                  color: isRunningThisBankOnLayer2 ? AppColors.accent : AppColors.textFaint,
+                  onPressed: () => showLayerPickerSheet(context, bank: selected),
+                  icon: const Icon(Icons.layers, size: 20),
+                  color: isRunningThisBankOnAnyOtherLayer ? AppColors.accent : AppColors.textFaint,
                   visualDensity: VisualDensity.compact,
-                  tooltip: isRunningThisBankOnLayer2
-                      ? 'Stop on Layer 2'
-                      : 'Also run on Layer 2 — an independent player alongside Run Bank',
+                  tooltip: 'Run on another layer…',
                 ),
                 const SizedBox(width: 4),
                 Tooltip(

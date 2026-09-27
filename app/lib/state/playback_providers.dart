@@ -2,36 +2,43 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/playback/chase_player.dart';
 import '../core/playback/smart_program_player.dart';
+import '../models/bank.dart';
+import '../models/chase.dart';
+import '../models/layer.dart';
 import 'artnet_providers.dart';
+import 'bank_providers.dart';
+import 'fixture_providers.dart';
+import 'layer_providers.dart';
 import 'provider_reader.dart';
 import 'audio_providers.dart';
+import 'scene_providers.dart';
+import 'tempo_providers.dart';
+
+/// One independent [ChasePlayer] per layer id — Layer 1's entry is what
+/// [playbackControllerProvider] aliases to below, so every pre-existing
+/// consumer of that name keeps working unchanged. Starting a bank/chase on
+/// one layer never supersedes whatever another layer is running; the layers
+/// stay conflict-free as long as the scenes each one plays leave the
+/// channels the others own out of [Scene.fixtureValues] — e.g. one layer
+/// runs a color/beam chase on a moving head while another runs a slow
+/// pan/tilt sweep on the same fixture, each only ever writing its own
+/// attributes (see the Scene editor's "INCLUDES" toggles).
+final chasePlayerProvider = Provider.family<ChasePlayer, String>((ref, layerId) {
+  final player = ChasePlayer();
+  ref.onDispose(player.dispose);
+  return player;
+});
+
+/// What's running on a given layer id, mirroring the old per-layer
+/// StateProviders this replaces.
+final nowPlayingForLayerProvider = StateProvider.family<NowPlaying?, String>((ref, layerId) => null);
 
 /// A single player shared by every screen that can start a bank/chase
 /// (Dashboard triggers, the Banks "Run Bank" preview, the Chase editor's
 /// "Preview"). Starting playback anywhere always cleanly supersedes
 /// whatever was already running elsewhere, instead of two independent
 /// loops racing over the same universes.
-final playbackControllerProvider = Provider<ChasePlayer>((ref) {
-  final player = ChasePlayer();
-  ref.onDispose(player.dispose);
-  return player;
-});
-
-/// A second, fully independent player — Layer 2. It shares nothing with
-/// [playbackControllerProvider] (Layer 1): starting a bank/chase here never
-/// supersedes whatever Layer 1 is running, and the other way around. The two
-/// layers stay conflict-free as long as the scenes each one plays leave the
-/// channels the other owns out of [Scene.fixtureValues] — e.g. Layer 1 runs
-/// a color/beam chase on a moving head while Layer 2 runs a slow pan/tilt
-/// sweep on the same fixture, each only ever writing its own attributes.
-final layer2ControllerProvider = Provider<ChasePlayer>((ref) {
-  final player = ChasePlayer();
-  ref.onDispose(player.dispose);
-  return player;
-});
-
-/// What's running on Layer 2, mirroring [nowPlayingProvider] for Layer 1.
-final nowPlayingLayer2Provider = StateProvider<NowPlaying?>((ref) => null);
+final playbackControllerProvider = chasePlayerProvider(layer1Id);
 
 /// The single Smart Program runner, sharing the same [ChasePlayer] above —
 /// so a Smart Program's tempo-driven chase switches use the exact same
@@ -114,30 +121,82 @@ class NowPlaying {
   bool get isBank => kind == PlaybackKind.bank;
 }
 
-final nowPlayingProvider = StateProvider<NowPlaying?>((ref) => null);
+final nowPlayingProvider = nowPlayingForLayerProvider(layer1Id);
 
-/// Kills everything: both players, every channel on every universe, and the
-/// now-playing state. Shared by the Dashboard's panic button, the control
-/// dock and the remote endpoint so they can't drift apart.
+/// Kills everything: every layer's player, every channel on every universe,
+/// and every layer's now-playing state. Shared by the Dashboard's panic
+/// button, the control dock and the remote endpoint so they can't drift
+/// apart.
 Future<void> blackoutEverything(ReadProvider read) async {
-  read(playbackControllerProvider).stop();
-  read(layer2ControllerProvider).stop();
+  for (final layer in read(layersProvider)) {
+    read(chasePlayerProvider(layer.id)).stop();
+    read(nowPlayingForLayerProvider(layer.id).notifier).state = null;
+  }
   read(smartProgramPlayerProvider).stop();
   final service = read(artNetServiceProvider);
   if (!service.isConnected) {
     await service.connect(read(artNetSettingsProvider));
   }
   service.blackoutAll(read(universesProvider));
-  read(nowPlayingProvider.notifier).state = null;
-  read(nowPlayingLayer2Provider.notifier).state = null;
 }
 
 /// Stops whatever is playing without blacking the rig out — the fixtures
 /// hold their current look.
 void stopPlayback(ReadProvider read) {
-  read(playbackControllerProvider).stop();
-  read(layer2ControllerProvider).stop();
+  for (final layer in read(layersProvider)) {
+    read(chasePlayerProvider(layer.id)).stop();
+    read(nowPlayingForLayerProvider(layer.id).notifier).state = null;
+  }
   read(smartProgramPlayerProvider).stop();
-  read(nowPlayingProvider.notifier).state = null;
-  read(nowPlayingLayer2Provider.notifier).state = null;
+}
+
+/// Stops just [layerId]'s player and clears its now-playing state, leaving
+/// every other layer untouched.
+void stopLayer(WidgetRef ref, String layerId) {
+  ref.read(chasePlayerProvider(layerId)).stop();
+  ref.read(nowPlayingForLayerProvider(layerId).notifier).state = null;
+}
+
+/// Builds a synthetic one-step chase from [bank] (using the app's shared
+/// tempo/beat settings, exactly like the Banks "Run Bank" button) and starts
+/// it on [layerId]'s player. Returns an error message to show the user, or
+/// null on success. Only stops the Smart Program player when targeting
+/// [layer1Id] — that's the one player a Smart Program can reassert a chase
+/// onto.
+String? runBankOnLayer(WidgetRef ref, {required Bank bank, required String layerId}) {
+  final service = ref.read(artNetServiceProvider);
+  if (!service.isConnected) return 'Not connected — check Settings';
+  if (layerId == layer1Id) ref.read(smartProgramPlayerProvider).stop();
+  final beatSync = ref.read(beatSyncEnabledProvider);
+  final tempo = ref.read(tempoProvider);
+  final chase = Chase(
+    id: 'bank-run-$layerId-${bank.id}',
+    name: bank.name,
+    steps: [ChaseStep(bankId: bank.id, hold: tempo.hold, fade: tempo.fade)],
+    direction: ChaseDirection.forward,
+    beatSync: beatSync,
+  );
+  ref.read(chasePlayerProvider(layerId)).play(
+    chase: chase,
+    scenes: ref.read(scenesProvider),
+    banks: ref.read(banksProvider),
+    patchedFixtures: ref.read(patchedFixturesProvider),
+    universes: ref.read(universesProvider),
+    service: service,
+    beatStream: beatSync ? ref.read(beatDetectorProvider).beatEvents : null,
+    beatRate: beatRateOf(ref),
+    flashLength: ref.read(flashLengthProvider),
+    liveBeatRate: () => ref.read(beatRateProvider),
+    liveFlashLength: () => ref.read(flashLengthProvider),
+    fadeOverride: () {
+      final t = ref.read(tempoProvider);
+      return t.autoFade ? t.fade : null;
+    },
+  );
+  ref.read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
+    id: bank.id,
+    kind: PlaybackKind.bank,
+    name: bank.name,
+  );
+  return null;
 }

@@ -3,6 +3,7 @@ import 'bank.dart';
 import 'chase.dart';
 import 'dashboard_trigger.dart';
 import 'fixture_profile.dart';
+import 'layer.dart';
 import 'patched_fixture.dart';
 import 'scene.dart';
 import 'smart_program.dart';
@@ -20,6 +21,7 @@ class ProjectData {
   final List<Chase> chases;
   final List<DashboardTriggerRef> dashboardTriggers;
   final List<SmartProgram> smartPrograms;
+  final List<Layer> layers;
 
   const ProjectData({
     required this.name,
@@ -32,6 +34,7 @@ class ProjectData {
     required this.chases,
     this.dashboardTriggers = const [],
     this.smartPrograms = const [],
+    this.layers = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -46,6 +49,7 @@ class ProjectData {
     'chases': chases.map((c) => c.toJson()).toList(),
     'dashboardTriggers': dashboardTriggers.map((t) => t.toJson()).toList(),
     'smartPrograms': smartPrograms.map((p) => p.toJson()).toList(),
+    'layers': layers.map((l) => l.toJson()).toList(),
   };
 
   factory ProjectData.fromJson(Map<String, dynamic> json, {required List<FixtureProfile> builtIns}) {
@@ -72,6 +76,7 @@ class ProjectData {
       smartPrograms: (json['smartPrograms'] as List? ?? [])
           .map((p) => SmartProgram.fromJson(p as Map<String, dynamic>))
           .toList(),
+      layers: (json['layers'] as List? ?? []).map((l) => Layer.fromJson(l as Map<String, dynamic>)).toList(),
     );
   }
 }
