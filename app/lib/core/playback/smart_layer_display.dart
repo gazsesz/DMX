@@ -35,13 +35,22 @@ String zoneLabel(SmartProgramZone zone) => switch (zone) {
   SmartProgramZone.slower => 'Slower',
 };
 
-String targetName(ProgramTarget target, {required List<Chase> chases, required List<Bank> banks}) {
+String targetName(
+  ProgramTarget target, {
+  required List<Chase> chases,
+  required List<Bank> banks,
+  List<Layer> layers = const [],
+}) {
   if (target.isBank) {
     final matches = banks.where((b) => b.id == target.id);
     return matches.isEmpty ? 'Missing bank' : matches.first.name;
   }
   final matches = chases.where((c) => c.id == target.id);
-  return matches.isEmpty ? 'Missing chase' : matches.first.name;
+  if (matches.isEmpty) return 'Missing chase';
+  final lane = target.lane;
+  if (lane == null) return matches.first.name;
+  final index = layers.indexWhere((l) => l.id == lane);
+  return '${matches.first.name} (${index < 0 ? 'one layer' : 'L${index + 1}'})';
 }
 
 /// One line per existing layer [program] has anything on. With [zone] set
@@ -71,7 +80,7 @@ List<SmartLayerLine> smartLayerLines(
     lines.add(SmartLayerLine(
       layer: layers[i],
       layerIndex: i,
-      targetName: targetName(target, chases: chases, banks: banks),
+      targetName: targetName(target, chases: chases, banks: banks, layers: layers),
       sourceZone: targets.explicit(shownZone) != null ? shownZone : SmartProgramZone.base,
     ));
   }

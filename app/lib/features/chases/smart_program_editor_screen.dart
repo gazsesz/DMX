@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/playback/smart_layer_display.dart';
 import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -10,6 +11,7 @@ import '../../models/smart_program.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/layer_providers.dart';
+import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 
 class SmartProgramEditorScreen extends ConsumerStatefulWidget {
@@ -38,16 +40,105 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
   late double _slowerFadeSeconds;
   late double _blackoutFadeSeconds;
 
-  // Each pick is held as a "chase:<id>" / "bank:<id>" key so one dropdown
-  // can offer both kinds.
-  static String? _keyFor(ProgramTarget? target) =>
-      target == null ? null : '${target.isBank ? 'bank' : 'chase'}:${target.id}';
+  // Each pick is held as a "chase:<id>" / "bank:<id>" / "lane:<chase>:<layer>"
+  // key so one dropdown can offer every kind.
+  static String? _keyFor(ProgramTarget? target) {
+    if (target == null) return null;
+    if (target.isBank) return 'bank:${target.id}';
+    final lane = target.lane;
+    return lane == null ? 'chase:${target.id}' : 'lane:${target.id}:$lane';
+  }
+
   static ProgramTarget? _targetOf(String? key) {
     if (key == null) return null;
     if (key.startsWith('chase:')) return ProgramTarget(id: key.substring(6), isBank: false);
     if (key.startsWith('bank:')) return ProgramTarget(id: key.substring(5), isBank: true);
+    if (key.startsWith('lane:')) {
+      final parts = key.substring(5).split(':');
+      if (parts.length == 2) return ProgramTarget(id: parts[0], isBank: false, lane: parts[1]);
+    }
     return null;
   }
+
+  /// Bumped to make the dropdowns forget a pick the user backed out of.
+  int _pickerEpoch = 0;
+
+  /// Picking a chase whose banks are split over several layers: offers to
+  /// put each layer's banks on that same layer in this zone, instead of the
+  /// whole chase on the one row it was picked on. Returns true when it
+  /// handled the pick (split, or backed out); false to set it as usual.
+  ///
+  /// Only for chases made of banks — a bank is a self-contained look a
+  /// layer can own, where a lone scene lifted out of its chase often isn't.
+  Future<bool> _offerSplit(String chaseId, SmartProgramZone zone) async {
+    final chase = ref.read(chasesProvider).where((c) => c.id == chaseId).firstOrNull;
+    if (chase == null) return false;
+    final layers = ref.read(layersProvider);
+    final lanes = chaseLanes(chase, [for (final l in layers) l.id]);
+    if (lanes.length < 2 || chase.steps.any((s) => s.bankId == null)) return false;
+    final banks = ref.read(banksProvider);
+    String bankName(String? id) => banks.where((b) => b.id == id).firstOrNull?.name ?? 'Missing bank';
+    String layerLabel(String id) {
+      final index = layers.indexWhere((l) => l.id == id);
+      return 'L${index + 1} ${layers[index].name}';
+    }
+
+    final split = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.panel,
+        title: Text('„${chase.name}” több rétegen fut'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final entry in lanes.entries)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '${layerLabel(entry.key)}: ${entry.value.steps.map((s) => bankName(s.bankId)).join(', ')}',
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            const SizedBox(height: 8),
+            Text(
+              'Behúzzam a rétegeit a saját layereikre ebben a zónában (${_zoneName(zone)})?',
+              style: const TextStyle(fontSize: 13, color: AppColors.textDim),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mind ezen a rétegen')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Szétosztás')),
+        ],
+      ),
+    );
+    if (!mounted) return true;
+    if (split == null) {
+      setState(() => _pickerEpoch++);
+      return true;
+    }
+    if (!split) return false;
+    setState(() {
+      for (final entry in lanes.entries) {
+        final steps = entry.value.steps;
+        // One bank on the layer: pick the bank itself. Several: that
+        // layer's share of the chase, playing them in order.
+        final target = steps.length == 1
+            ? ProgramTarget(id: steps.first.bankId!, isBank: true)
+            : ProgramTarget(id: chase.id, isBank: false, lane: entry.key);
+        _targets[entry.key] = _targets[entry.key]!.withZone(zone, target);
+      }
+      _pickerEpoch++;
+    });
+    return true;
+  }
+
+  static String _zoneName(SmartProgramZone zone) => switch (zone) {
+    SmartProgramZone.base => 'Base',
+    SmartProgramZone.faster => 'Faster',
+    SmartProgramZone.slower => 'Slower',
+  };
 
   @override
   void initState() {
@@ -129,17 +220,32 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             child: DropdownButtonFormField<String?>(
               // Keyed so a value set here elsewhere (none today, but cheap)
               // still redraws the field instead of keeping its first pick.
-              key: ValueKey('${layer.id}-${zone.name}-$value'),
+              key: ValueKey('${layer.id}-${zone.name}-$value-$_pickerEpoch'),
               initialValue: value,
               isExpanded: true,
               decoration: InputDecoration(labelText: layer.name, isDense: true),
               items: [
                 DropdownMenuItem(value: null, child: Text(emptyLabel, style: const TextStyle(color: AppColors.textFaint))),
+                // A layer's share of a split chase — only listed while picked.
+                if (value != null && value.startsWith('lane:'))
+                  DropdownMenuItem(
+                    value: value,
+                    child: Text(
+                      'Chase · ${targetName(_targetOf(value)!, chases: chases, banks: banks, layers: ref.watch(layersProvider))}',
+                    ),
+                  ),
                 for (final chase in chases)
                   DropdownMenuItem(value: 'chase:${chase.id}', child: Text('Chase · ${chase.name}')),
                 for (final bank in banks) DropdownMenuItem(value: 'bank:${bank.id}', child: Text('Bank · ${bank.name}')),
               ],
-              onChanged: (v) => setState(() => _targets[layer.id] = targets.withZone(zone, _targetOf(v))),
+              onChanged: (v) async {
+                final target = _targetOf(v);
+                if (target != null && !target.isBank && target.lane == null && await _offerSplit(target.id, zone)) {
+                  return;
+                }
+                if (!mounted) return;
+                setState(() => _targets[layer.id] = _targets[layer.id]!.withZone(zone, target));
+              },
             ),
           ),
         ],
@@ -203,7 +309,9 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             'or bank in each zone. A layer with nothing set for a zone keeps '
             'its Base through it; a layer with no Base sits dark until one of '
             'its zones comes round. A chase picked here plays entirely on this '
-            'layer, whatever layers its own steps name.',
+            'layer, whatever layers its own steps name — unless it\'s made of '
+            'banks spread over several layers: then you\'re asked whether to '
+            'put each layer\'s banks on that layer instead.',
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 20),

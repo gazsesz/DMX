@@ -2,6 +2,7 @@ import 'dart:async';
 
 import '../../models/bank.dart';
 import '../../models/chase.dart';
+import '../../models/layer.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/smart_program.dart';
@@ -467,9 +468,16 @@ class SmartProgramPlayer {
     final matches = chases.where((c) => c.id == target.id);
     if (matches.isEmpty) return null;
     final source = matches.first;
+    // A lane target plays just the steps the chase puts on that layer — what
+    // splitting a multi-layer chase across the zone's layers leaves here.
+    final lane = target.lane;
+    final steps = lane == null
+        ? source.steps
+        : [for (final step in source.steps) if ((step.layerId ?? layer1Id) == lane) step];
+    if (steps.isEmpty) return null;
     return source.copyWith(
       beatSync: onBeat,
-      steps: [for (final step in source.steps) step.copyWith(fade: fade, clearLayer: true)],
+      steps: [for (final step in steps) step.copyWith(fade: fade, clearLayer: true)],
     );
   }
 
