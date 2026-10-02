@@ -15,6 +15,7 @@ import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/layer_picker_sheet.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
+import '../../core/widgets/show_items_actions.dart';
 import '../../models/bank.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../models/layer.dart';
@@ -668,6 +669,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
             ),
           ),
           IconButton(
+            icon: const Icon(Icons.file_open_outlined),
+            tooltip: 'Import banks / chases',
+            onPressed: () async {
+              final result = await importShowItemsFromFile(context, ref);
+              if (result != null && result.banks.isNotEmpty) {
+                ref.read(selectedBankIdProvider.notifier).state = result.banks.first.id;
+              }
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.auto_awesome),
             tooltip: 'Generate Program',
             onPressed: () => Navigator.of(context).push(
@@ -1042,6 +1053,14 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       if (copy != null) ref.read(selectedBankIdProvider.notifier).state = copy.id;
                     },
                     child: const Text('Duplicate Bank'),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.upload_file, size: 16),
+                    label: const Text('Export Bank'),
+                    onPressed: () => exportShowItemsToFile(context, ref, bankIds: [selected.id]),
                   ),
                 ),
                 const SizedBox(width: 10),

@@ -12,6 +12,7 @@ import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/layer_badge.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
+import '../../core/widgets/show_items_actions.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../models/smart_program.dart';
@@ -200,7 +201,19 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chases'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
+      appBar: AppBar(
+        title: const Text('Chases'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_open_outlined),
+            tooltip: 'Import chases / banks',
+            onPressed: () => importShowItemsFromFile(context, ref),
+          ),
+          const NodeStatusAction(),
+          const ControlDockAction(),
+          const SaveProjectAction(),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
@@ -419,6 +432,11 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                             icon: const Icon(Icons.copy_outlined, size: 18),
                             onPressed: () => ref.read(chasesProvider.notifier).duplicate(chase.id),
                             tooltip: 'Duplicate',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.upload_file, size: 18),
+                            onPressed: () => exportShowItemsToFile(context, ref, chaseIds: [chase.id]),
+                            tooltip: 'Export (with its banks and scenes)',
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 18),
