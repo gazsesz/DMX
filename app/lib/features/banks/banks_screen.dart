@@ -49,6 +49,86 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   /// one is live even when the bank isn't running as a chase.
   int? _manualSlot;
 
+  /// "Edit slots" mode: a tap on a slot opens its menu instead of playing it.
+  bool _editSlots = false;
+
+  final _bankChipsScroll = ScrollController();
+
+  @override
+  void dispose() {
+    _bankChipsScroll.dispose();
+    super.dispose();
+  }
+
+  void _selectBank(String bankId) {
+    ref.read(selectedBankIdProvider.notifier).state = bankId;
+    setState(() => _manualSlot = null);
+  }
+
+  /// Every bank in a searchable list — the way to a bank when there are
+  /// more than the chip box shows.
+  Future<void> _showAllBanks(List<Bank> banks, String selectedId) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.panel,
+      showDragHandle: true,
+      builder: (context) {
+        var query = '';
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            final shown = banks.where((b) => b.name.toLowerCase().contains(query.toLowerCase())).toList();
+            return SafeArea(
+              child: SizedBox(
+                height: MediaQuery.sizeOf(context).height * 0.75,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                      child: TextField(
+                        autofocus: false,
+                        decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search banks'),
+                        onChanged: (v) => setSheetState(() => query = v),
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView(
+                        children: [
+                          for (final bank in shown)
+                            ListTile(
+                              selected: bank.id == selectedId,
+                              selectedTileColor: AppColors.panel2,
+                              leading: Icon(
+                                bank.isBeatFlash ? Icons.flash_on : Icons.grid_view,
+                                size: 18,
+                                color: bank.isBeatFlash ? AppColors.accent : AppColors.textDim,
+                              ),
+                              title: Text(bank.name),
+                              subtitle: Text(
+                                '${bank.sceneSlots.where((s) => s != null).length}/${bank.sceneSlots.length} scenes',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
+                              ),
+                              onTap: () => Navigator.pop(context, bank.id),
+                            ),
+                          if (shown.isEmpty)
+                            const Padding(
+                              padding: EdgeInsets.all(24),
+                              child: Text('No bank by that name', style: TextStyle(color: AppColors.textFaint)),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+    if (picked != null && mounted) _selectBank(picked);
+  }
+
   bool _isThisBankRunning(Bank bank) => layersPlaying(ref.read, bank.id).contains(layer1Id);
 
   /// Whether [bank] is currently running on any layer other than Layer 1 —
@@ -720,53 +800,76 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
           const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
-      body: Column(
-        children: [
-          Padding(
-            // Wraps rather than scrolling sideways: once a show has a dozen
-            // banks the ones past the edge are invisible, and a horizontal
-            // strip inside a vertically scrolling page is awkward to reach
-            // for anyway. No fixed height — the rows have to be free to
-            // stack.
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 8,
+      // One scroll for the whole page, scene grid included: with many banks
+      // (or a short tablet screen in landscape) the header used to leave
+      // the grid a sliver of space that couldn't be scrolled into view.
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
               children: [
-                for (final bank in banks)
-                  Padding(
-                    padding: EdgeInsets.zero,
-                    child: ChoiceChip(
-                      label: Text(bank.name),
-                      selected: bank.id == selected.id,
-                      onSelected: (_) {
-                        // Purely a navigation action now: with several
-                        // independent layers, switching which bank's grid
-                        // you're looking at must never itself start, stop or
-                        // hand over playback on any layer — only the
-                        // explicit Run Bank button and the layer picker's
-                        // Start button do that. (This used to auto-hand-over
-                        // Layer 1 on every chip tap, which meant merely
-                        // selecting a bank to send to a *different* layer
-                        // silently killed whatever Layer 1 was running.)
-                        ref.read(selectedBankIdProvider.notifier).state = bank.id;
-                        setState(() => _manualSlot = null);
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    ActionChip(
+                      avatar: const Icon(Icons.list, size: 16, color: AppColors.accent2),
+                      label: Text('All banks (${banks.length})'),
+                      tooltip: 'Find a bank by name',
+                      onPressed: () => _showAllBanks(banks, selected.id),
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.add, size: 16),
+                      label: const Text('New'),
+                      onPressed: () {
+                        final newBank = ref.read(banksProvider.notifier).addBank();
+                        _selectBank(newBank.id);
                       },
                     ),
-                  ),
-                ActionChip(
-                  avatar: const Icon(Icons.add, size: 16),
-                  label: const Text('New'),
-                  onPressed: () {
-                    final newBank = ref.read(banksProvider.notifier).addBank();
-                    ref.read(selectedBankIdProvider.notifier).state = newBank.id;
-                  },
+                    ActionChip(
+                      avatar: const Icon(Icons.flash_on, size: 16, color: AppColors.accent),
+                      label: const Text('Beat Flash'),
+                      tooltip: 'Every lamp, full, on every beat',
+                      onPressed: _addBeatFlashBank,
+                    ),
+                  ],
                 ),
-                ActionChip(
-                  avatar: const Icon(Icons.flash_on, size: 16, color: AppColors.accent),
-                  label: const Text('Beat Flash'),
-                  tooltip: 'Every lamp, full, on every beat',
-                  onPressed: _addBeatFlashBank,
+                const SizedBox(height: 8),
+                // At most about two rows of bank chips; more scroll inside
+                // this box, so the slots below stay on screen however many
+                // banks the show has.
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 96),
+                  child: Scrollbar(
+                    controller: _bankChipsScroll,
+                    thumbVisibility: banks.length > 8,
+                    child: SingleChildScrollView(
+                      controller: _bankChipsScroll,
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          for (final bank in banks)
+                            ChoiceChip(
+                              label: Text(bank.name),
+                              visualDensity: VisualDensity.compact,
+                              selected: bank.id == selected.id,
+                              // Purely navigation: switching which bank's
+                              // grid you're looking at must never start,
+                              // stop or hand over playback on any layer —
+                              // only Run Bank and the layer picker do that.
+                              onSelected: (_) => _selectBank(bank.id),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -774,13 +877,20 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
-                  'Bank Size: ${selected.sceneSlots.length} slots',
-                  style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
+                Expanded(
+                  child: Text(
+                    'Bank Size: ${selected.sceneSlots.length} slots',
+                    style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
+                  ),
                 ),
-                const Spacer(),
+                Flexible(
+                  flex: 3,
+                  child: Wrap(
+              alignment: WrapAlignment.end,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              children: [
                 Tooltip(
                   message: 'Plays its slots as dark/lit pairs: 1 dark, 2 lit, 3 dark… '
                       'The lit step only stays up for the flash length — on the beat or on the timer.',
@@ -793,6 +903,20 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   ),
                 ),
                 TextButton(onPressed: () => _resizeBank(selected), child: const Text('Edit Size')),
+                const SizedBox(width: 4),
+                Tooltip(
+                  message: 'On: tapping a slot picks its scene and timing instead of playing it',
+                  child: FilterChip(
+                    avatar: Icon(Icons.edit_note, size: 16, color: _editSlots ? AppColors.accent2 : AppColors.textFaint),
+                    label: const Text('Edit slots'),
+                    selected: _editSlots,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (v) => setState(() => _editSlots = v),
+                  ),
+                ),
+              ],
+                  ),
+                ),
               ],
             ),
           ),
@@ -924,8 +1048,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 ],
               ),
             ),
-          Expanded(
-            child: Builder(builder: (context) {
+              ],
+            ),
+          ),
+          Builder(builder: (context) {
               final filledIndices = [
                 for (var i = 0; i < selected.sceneSlots.length; i++)
                   if (selected.sceneSlots[i] != null) i,
@@ -934,16 +1060,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   (isRunningThisBank && runningSlot != null && runningSlot < filledIndices.length)
                       ? filledIndices[runningSlot]
                       : null;
-              return GridView.builder(
+              return SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-              itemCount: selected.sceneSlots.length,
+              sliver: SliverGrid(
               gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 76,
-                mainAxisSpacing: 6,
-                crossAxisSpacing: 6,
+                maxCrossAxisExtent: 108,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 8,
                 childAspectRatio: 1.0,
               ),
-              itemBuilder: (context, index) {
+              delegate: SliverChildBuilderDelegate((context, index) {
                 final sceneId = selected.sceneSlots[index];
                 final scene = sceneId == null
                     ? null
@@ -954,10 +1080,13 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     ? index == highlightIndex
                     : scene != null && index == _manualSlot;
                 return Stack(
+                  fit: StackFit.expand,
                   children: [
                     InkWell(
                   borderRadius: BorderRadius.circular(8),
-                  onTap: () => scene == null ? _pickScene(selected, index) : _playSlot(selected, index),
+                  // Edit slots mode: the whole tile opens the slot menu, so
+                  // nothing fires by accident while the bank is being built.
+                  onTap: () => scene == null || _editSlots ? _pickScene(selected, index) : _playSlot(selected, index),
                   // Long-press edits the scene in the slot; the swap menu
                   // moved to the pencil on the tile, so the gesture that
                   // used to just re-pick now does the thing you actually
@@ -968,31 +1097,43 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       color: isRunning ? AppColors.accent.withValues(alpha: 0.14) : AppColors.panel,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
-                        color: isRunning ? AppColors.accent : AppColors.border,
+                        color: isRunning
+                            ? AppColors.accent
+                            : _editSlots
+                                ? AppColors.accent2.withValues(alpha: 0.6)
+                                : AppColors.border,
                         width: 1.5,
                         style: BorderStyle.solid,
                       ),
                     ),
-                    padding: const EdgeInsets.all(4),
+                    padding: const EdgeInsets.all(6),
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
-                          scene == null ? Icons.add : Icons.play_circle_outline,
-                          size: 13,
-                          color: scene == null ? AppColors.textFaint : AppColors.accent,
+                          scene == null
+                              ? Icons.add
+                              : _editSlots
+                                  ? Icons.swap_horiz
+                                  : Icons.play_circle_outline,
+                          size: 18,
+                          color: scene == null
+                              ? AppColors.textFaint
+                              : _editSlots
+                                  ? AppColors.accent2
+                                  : AppColors.accent,
                         ),
                         if (scene != null) ...[
-                          const SizedBox(height: 2),
+                          const SizedBox(height: 3),
                           Text(
                             scene.name,
-                            style: const TextStyle(fontSize: 8.5, fontWeight: FontWeight.w700),
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, height: 1.15),
                             textAlign: TextAlign.center,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ],
-                        Text('${index + 1}', style: const TextStyle(fontSize: 7, color: AppColors.textFaint)),
+                        Text('${index + 1}', style: const TextStyle(fontSize: 9, color: AppColors.textFaint)),
                       ],
                     ),
                   ),
@@ -1019,30 +1160,39 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                           ),
                         ),
                       ),
-                    if (scene != null)
+                    // The slot menu: a corner big enough for a finger (the
+                    // whole tile does it in Edit slots mode).
+                    if (scene != null && !_editSlots)
                       Positioned(
-                        top: 1,
-                        right: 1,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(9),
-                          onTap: () => _pickScene(selected, index),
-                          child: Container(
-                            padding: const EdgeInsets.all(2),
-                            decoration: BoxDecoration(
-                              color: AppColors.background.withValues(alpha: 0.75),
-                              shape: BoxShape.circle,
+                        top: 0,
+                        right: 0,
+                        child: Tooltip(
+                          message: 'Change scene, step timing…',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () => _pickScene(selected, index),
+                            child: Padding(
+                              padding: const EdgeInsets.all(5),
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background.withValues(alpha: 0.8),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.edit, size: 14, color: AppColors.textDim),
+                              ),
                             ),
-                            child: const Icon(Icons.edit, size: 10, color: AppColors.textDim),
                           ),
                         ),
                       ),
                   ],
                 );
-              },
+              }, childCount: selected.sceneSlots.length),
+              ),
               );
             }),
-          ),
-          Padding(
+          SliverToBoxAdapter(
+            child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Row(
               children: [
@@ -1072,6 +1222,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   ),
                 ),
               ],
+            ),
             ),
           ),
         ],

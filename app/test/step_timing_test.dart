@@ -95,7 +95,7 @@ void main() {
     ));
     await tester.pump();
 
-    await tester.tap(find.byIcon(Icons.edit).first);
+    await tester.tap(find.byTooltip('Change scene, step timing…').first);
     await _settle(tester);
     await tester.tap(find.text('Step timing…'));
     await _settle(tester);
