@@ -30,6 +30,10 @@ class _Instant {
   /// only stays up for the flash length.
   final bool isFlashLit;
 
+  /// A bank step with its own timing ([Bank.slotTimings]): its fade is kept
+  /// even while the dock's auto-fade would otherwise replace it.
+  final bool ownTiming;
+
   const _Instant({
     required this.scene,
     required this.hold,
@@ -37,6 +41,7 @@ class _Instant {
     this.flashFadeOut,
     this.isFlash = false,
     this.isFlashLit = false,
+    this.ownTiming = false,
   });
 }
 
@@ -172,12 +177,16 @@ class ChasePlayer {
                 if (flashFixtures.contains(entry.key)) entry.key: entry.value,
             });
           }
+          // A step's own timing beats the bank's and the dock's. A Beat
+          // Flash bank's steps are timed by the flash itself, so it has none.
+          final own = bank.isBeatFlash ? null : bank.timingAt(slot);
           result.add(_Instant(
             isFlash: bank.isBeatFlash,
             isFlashLit: bank.isBeatFlash && slot.isOdd,
             scene: scene,
-            hold: step.hold,
-            fade: step.fade,
+            hold: own?.hold ?? step.hold,
+            fade: own?.fade ?? step.fade,
+            ownTiming: own != null,
             flashFadeOut: isDarkSlot && bank.flashFadeOutMs > 0
                 ? Duration(milliseconds: bank.flashFadeOutMs)
                 : null,
@@ -303,7 +312,9 @@ class ChasePlayer {
         // Beat Flash bank is a flash on the timers too, not just the beat.
         fade: instant.isFlash || (useBeat && rate == BeatRate.flash)
             ? (instant.flashFadeOut ?? Duration.zero)
-            : fadeOverride?.call() ?? instant.fade,
+            : instant.ownTiming
+                ? instant.fade
+                : fadeOverride?.call() ?? instant.fade,
         service: service,
         patchedFixtures: patchedFixtures,
         universes: universes,

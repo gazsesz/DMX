@@ -143,6 +143,26 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       onChangeEnd: (_) => restart(),
                     ),
                   ],
+                  if (bank.hasStepTimings) ...[
+                    const Divider(height: 20),
+                    Row(
+                      children: [
+                        const Icon(Icons.timer_outlined, size: 16, color: AppColors.accent),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '${bank.slotTimings.where((t) => t != null).length} step(s) have their own timing, '
+                            'which wins over this',
+                            style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () => notifier.clearSlotTimings(bankId),
+                          child: const Text('Reset all steps'),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Align(
                     alignment: Alignment.centerLeft,
@@ -326,6 +346,97 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   }
 
   static const _newSceneSentinel = '__new__';
+  static const _stepTimingSentinel = '__timing__';
+
+  /// One step's own Hold/Fade. Switched off, the step follows the bank
+  /// again (the bank's own timing, or the dock's) — that is the reset.
+  Future<void> _editSlotTiming(String bankId, int slotIndex) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.panel,
+      showDragHandle: true,
+      builder: (context) => Consumer(
+        builder: (context, ref, _) {
+          final bank = ref.watch(banksProvider).where((b) => b.id == bankId).firstOrNull;
+          if (bank == null || slotIndex >= bank.sceneSlots.length) return const SizedBox.shrink();
+          final tempo = ref.watch(tempoProvider);
+          final beatSync = ref.watch(beatSyncEnabledProvider);
+          final notifier = ref.read(banksProvider.notifier);
+          final own = bank.timingAt(slotIndex);
+          final inheritedHoldMs = bank.ownTiming ? bank.holdMs : (tempo.stepSeconds * 1000).round();
+          final inheritedFadeMs = bank.ownTiming ? bank.fadeMs : (tempo.effectiveFadeSeconds * 1000).round();
+          final inheritedFrom = bank.ownTiming ? 'the bank' : 'the dock';
+          final sceneName =
+              ref.watch(scenesProvider).where((s) => s.id == bank.sceneSlots[slotIndex]).firstOrNull?.name ?? 'Empty';
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Step ${slotIndex + 1} · $sceneName — Timing',
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Own timing for this step'),
+                    subtitle: Text(
+                      own != null
+                          ? 'Wins over ${bank.name}\'s and the dock\'s timing, wherever the bank plays'
+                          : 'Follows $inheritedFrom: Hold ${_seconds(inheritedHoldMs)} · Fade ${_seconds(inheritedFadeMs)}',
+                      style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
+                    ),
+                    value: own != null,
+                    onChanged: (v) => notifier.setSlotTiming(
+                      bankId,
+                      slotIndex,
+                      v ? SlotTiming(holdMs: inheritedHoldMs, fadeMs: inheritedFadeMs) : null,
+                    ),
+                  ),
+                  if (own != null) ...[
+                    Text(
+                      beatSync
+                          ? 'Hold ${_seconds(own.holdMs)} — Beat Sync is on, steps follow the beat'
+                          : 'Hold ${_seconds(own.holdMs)}',
+                      style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
+                    ),
+                    Slider(
+                      value: _holdScale.positionOf(own.holdMs / 1000),
+                      onChanged: (p) => notifier.setSlotTiming(
+                        bankId,
+                        slotIndex,
+                        own.copyWith(holdMs: (_holdScale.valueAt(p) * 1000).round()),
+                      ),
+                    ),
+                    Text('Fade ${_seconds(own.fadeMs)}', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),
+                    Slider(
+                      value: fadeTimeScale.positionOf(own.fadeMs / 1000),
+                      activeColor: AppColors.accent2,
+                      onChanged: (p) => notifier.setSlotTiming(
+                        bankId,
+                        slotIndex,
+                        own.copyWith(fadeMs: (fadeTimeScale.valueAt(p) * 1000).round()),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.restart_alt, size: 16),
+                        label: Text('Reset — follow $inheritedFrom again'),
+                        onPressed: () => notifier.setSlotTiming(bankId, slotIndex, null),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   /// Fills a slot: pick an existing scene, or build one right here.
   ///
@@ -350,6 +461,25 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               ],
             ),
           ),
+          if (bank.sceneSlots[slotIndex] != null && !bank.isBeatFlash)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, _stepTimingSentinel),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.timer_outlined,
+                    size: 18,
+                    color: bank.timingAt(slotIndex) != null ? AppColors.accent : AppColors.textDim,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    bank.timingAt(slotIndex) == null
+                        ? 'Step timing…'
+                        : 'Step timing · ${_seconds(bank.timingAt(slotIndex)!.holdMs)} / ${_seconds(bank.timingAt(slotIndex)!.fadeMs)}',
+                  ),
+                ],
+              ),
+            ),
           if (bank.sceneSlots[slotIndex] != null)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, ''),
@@ -366,6 +496,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     );
     if (chosen == null || !mounted) return;
 
+    if (chosen == _stepTimingSentinel) {
+      await _editSlotTiming(bank.id, slotIndex);
+      return;
+    }
     if (chosen == _newSceneSentinel) {
       final created = await Navigator.of(context).push<Scene>(
         MaterialPageRoute(builder: (_) => const SceneEditorScreen()),
@@ -850,6 +984,28 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     ),
                   ),
                     ),
+                    // A step on its own timing shows it; tap to change or reset.
+                    if (scene != null && !selected.isBeatFlash && selected.timingAt(index) != null)
+                      Positioned(
+                        top: 1,
+                        left: 1,
+                        child: Tooltip(
+                          message: 'Own timing: Hold ${_seconds(selected.timingAt(index)!.holdMs)} · '
+                              'Fade ${_seconds(selected.timingAt(index)!.fadeMs)}',
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(9),
+                            onTap: () => _editSlotTiming(selected.id, index),
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: AppColors.background.withValues(alpha: 0.75),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.timer_outlined, size: 10, color: AppColors.accent),
+                            ),
+                          ),
+                        ),
+                      ),
                     if (scene != null)
                       Positioned(
                         top: 1,
