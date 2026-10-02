@@ -17,6 +17,7 @@ import '../../state/color_palette_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
+import '../scenes/widgets/wheel_pickers.dart';
 
 /// A live "desk" view: every patched fixture with direct sliders, bypassing
 /// scenes entirely. Values shown are seeded from whatever is already
@@ -234,6 +235,9 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     final hasRgb = channels.any((c) => c.function.isColorMix);
     final hasPanTilt = channels.any((c) => c.function.isPanTilt);
     final hasGobo = channels.any((c) => c.function.isGobo);
+    // Swatches only when the wheel's slots are known; otherwise its fader
+    // below is all there is to go on.
+    final hasColorWheel = _capabilitiesOf(channels, ChannelFunction.colorWheel).isNotEmpty;
     final universeMatches = ref.watch(universesProvider).where((u) => u.id == fixture.universeId);
     final universeName = universeMatches.isEmpty ? '?' : universeMatches.first.name;
 
@@ -323,25 +327,26 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                               ),
                           ],
                         ),
-                      if (hasGobo) ...[
+                      if (hasColorWheel) ...[
                         if (hasPanTilt) const SizedBox(height: 8),
-                        Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            // The fixture's own gobo names where the profile
-                            // declares them, otherwise the generic eight.
-                            for (final choice in goboChoicesFor(_capabilitiesOf(channels, ChannelFunction.gobo)))
-                              ChoiceChip(
-                                label: Text(choice.label, style: const TextStyle(fontSize: 11)),
-                                selected: choice.contains(_valueForFunction(fixture, ChannelFunction.gobo) ?? 0),
-                                onSelected: (_) => setFunction(ChannelFunction.gobo, choice.pickValue),
-                              ),
-                          ],
+                        ColorWheelPicker(
+                          capabilities: _capabilitiesOf(channels, ChannelFunction.colorWheel),
+                          value: _valueForFunction(fixture, ChannelFunction.colorWheel) ?? 0,
+                          onChanged: (v) => setFunction(ChannelFunction.colorWheel, v),
+                        ),
+                      ],
+                      if (hasGobo) ...[
+                        if (hasPanTilt || hasColorWheel) const SizedBox(height: 8),
+                        // The fixture's own gobos where the profile declares
+                        // them, otherwise the generic eight.
+                        GoboPicker(
+                          capabilities: goboChoicesFor(_capabilitiesOf(channels, ChannelFunction.gobo)),
+                          value: _valueForFunction(fixture, ChannelFunction.gobo) ?? 0,
+                          onChanged: (v) => setFunction(ChannelFunction.gobo, v),
                         ),
                       ],
                       if (channels.isNotEmpty) ...[
-                        if (hasPanTilt || hasGobo) const SizedBox(height: 8),
+                        if (hasPanTilt || hasGobo || hasColorWheel) const SizedBox(height: 8),
                         Wrap(
                           spacing: 6,
                           runSpacing: 10,

@@ -193,7 +193,7 @@ const _colorKeywords = <(List<String>, Color)>[
   (['congo', 'uv', 'ultraviolet', 'ultraibolya'], Color(0xFF6A2BD9)),
   (['cto', 'warm', 'meleg', '3200'], Color(0xFFFFC488)),
   (['ctb', 'cold', 'cool', 'hideg', '5600', '6500'], Color(0xFFD5E8FF)),
-  (['white', 'fehér', 'open', 'nyitott'], Color(0xFFFFFFFF)),
+  (['white', 'fehér', 'open', 'nyitott', 'no function', 'no colo', 'nincs'], Color(0xFFFFFFFF)),
   (['red', 'piros', 'vörös'], Color(0xFFE53935)),
   (['orange', 'narancs', 'amber', 'borostyán'], Color(0xFFFF9800)),
   (['yellow', 'sárga'], Color(0xFFFDD835)),

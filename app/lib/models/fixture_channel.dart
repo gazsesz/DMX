@@ -54,19 +54,44 @@ class FixtureChannel {
   };
 
   factory FixtureChannel.fromJson(Map<String, dynamic> json) {
+    final customLabel = json['customLabel'] as String?;
+    final stored = ChannelFunction.values.firstWhere(
+      (f) => f.name == json['function'],
+      orElse: () => ChannelFunction.generic,
+    );
     return FixtureChannel(
       offset: json['offset'] as int,
-      function: ChannelFunction.values.firstWhere(
-        (f) => f.name == json['function'],
-        orElse: () => ChannelFunction.generic,
-      ),
-      customLabel: json['customLabel'] as String?,
+      function: upgradedChannelFunction(stored, customLabel),
+      customLabel: customLabel,
       capabilities: normalizeCapabilities([
         for (final c in (json['capabilities'] as List? ?? const []))
           ChannelCapability.fromJson(c as Map<String, dynamic>),
       ]),
     );
   }
+}
+
+/// Gives a channel saved before the app knew its function the one it has
+/// now, going by its name.
+///
+/// Profiles imported (or picked from the bundled library) before colour
+/// wheels, prisms and frost had functions of their own were stored with
+/// those channels as [ChannelFunction.generic] — so a "Color" channel only
+/// ever got a fader, never swatches. And the old importer read
+/// "Pan/Tilt speed" as plain pan, which made the head move whenever the
+/// speed was set. Scenes store values by channel offset, so changing the
+/// function here leaves every saved look exactly as it was.
+ChannelFunction upgradedChannelFunction(ChannelFunction stored, String? label) {
+  final name = (label ?? '').toLowerCase();
+  bool has(String needle) => name.contains(needle);
+  final isSpeed = has('speed') && (has('pan') || has('tilt') || has('p/t'));
+  if (isSpeed && (stored == ChannelFunction.generic || stored.isPanTilt)) return ChannelFunction.panTiltSpeed;
+  if (stored != ChannelFunction.generic) return stored;
+  if (has('prism') && (has('rot') || has('index'))) return ChannelFunction.prismRotation;
+  if (has('prism')) return ChannelFunction.prism;
+  if (has('frost')) return ChannelFunction.frost;
+  if (has('colo') || has('szín')) return ChannelFunction.colorWheel;
+  return stored;
 }
 
 /// A name for each of [channels] (same order) that stays the same across

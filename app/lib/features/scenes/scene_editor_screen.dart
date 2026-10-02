@@ -611,14 +611,37 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   /// The Banks screen relies on that return value: creating a scene from an
   /// empty slot should drop it straight into that slot, rather than making
   /// you go and find it in a list afterwards.
+  List<List<String>> get _fixtureGroupsForSave => [for (final g in _groups) g.fixtureIds.toList()];
+
+  List<GroupPosition?> get _groupPositionsForSave => [
+    for (final g in _groups)
+      g.position.isPlain || _moversIn(g).isEmpty ? null : g.position.copyWith(base: _baseOf(g)),
+  ];
+
+  /// Saves what's on screen as a new scene and carries on editing that copy.
+  ///
+  /// The original keeps whatever it was last saved as, so this doubles as
+  /// "save as": tweak a look, duplicate, and both versions exist.
+  void _duplicate() {
+    if (_selectedFixtureIds.isEmpty) return;
+    final name = _nameController.text.trim().isEmpty ? 'Scene' : _nameController.text.trim();
+    final notifier = ref.read(scenesProvider.notifier);
+    final copy = notifier
+        .create('$name Copy', _buildFixtureValues())
+        .copyWith(fixtureGroups: _fixtureGroupsForSave, groupPositions: _groupPositionsForSave);
+    notifier.upsert(copy);
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => SceneEditorScreen(existing: copy)));
+    messenger.showSnackBar(
+      SnackBar(content: Text('Saved as "${copy.name}" — you\'re editing the copy now. "$name" is unchanged.')),
+    );
+  }
+
   void _save() {
     if (_selectedFixtureIds.isEmpty || _nameController.text.trim().isEmpty) return;
     final fixtureValues = _buildFixtureValues();
-    final fixtureGroups = [for (final g in _groups) g.fixtureIds.toList()];
-    final groupPositions = [
-      for (final g in _groups)
-        g.position.isPlain || _moversIn(g).isEmpty ? null : g.position.copyWith(base: _baseOf(g)),
-    ];
+    final fixtureGroups = _fixtureGroupsForSave;
+    final groupPositions = _groupPositionsForSave;
     final notifier = ref.read(scenesProvider.notifier);
     final Scene saved;
     if (widget.existing != null) {
@@ -1103,12 +1126,18 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
           decoration: const InputDecoration(border: InputBorder.none, isDense: true),
         ),
         actions: [
-          if (widget.existing != null)
+          if (widget.existing != null) ...[
+            IconButton(
+              icon: const Icon(Icons.copy_all_outlined),
+              onPressed: _selectedFixtureIds.isEmpty ? null : _duplicate,
+              tooltip: 'Duplicate',
+            ),
             IconButton(
               icon: const Icon(Icons.delete_outline, color: AppColors.danger),
               onPressed: _delete,
               tooltip: 'Delete',
             ),
+          ],
           IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: 'Save'),
         ],
       ),

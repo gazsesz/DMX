@@ -2,7 +2,10 @@ import 'package:dmx_controller/core/positions/aim.dart';
 import 'package:dmx_controller/core/theme/app_theme.dart';
 import 'package:dmx_controller/core/widgets/pan_tilt_pad.dart';
 import 'package:dmx_controller/features/scenes/scene_editor_screen.dart';
+import 'package:dmx_controller/core/widgets/wheel_looks.dart';
 import 'package:dmx_controller/models/builtin_fixtures.dart';
+import 'package:dmx_controller/models/channel_function.dart';
+import 'package:dmx_controller/models/fixture_profile.dart';
 import 'package:dmx_controller/models/group_position.dart';
 import 'package:dmx_controller/models/pan_tilt.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
@@ -139,6 +142,76 @@ void main() {
     );
     expect(find.byType(PanTiltPad), findsNothing);
     expect(find.text('Channels'), findsNothing);
+  });
+
+  testWidgets('Duplicate saves what is on screen as a new scene and leaves the original alone', (tester) async {
+    final scene = Scene(
+      id: 's',
+      name: 'Chorus',
+      fixtureValues: const {
+        'a': {0: 1, 1: 1},
+        'b': {0: 1, 1: 1},
+      },
+      fixtureGroups: const [
+        ['a', 'b'],
+      ],
+      groupPositions: [GroupPosition(fanPanDeg: 20, base: PanTilt.center)],
+    );
+    final container = await open(tester, [_head('a', 0.2), _head('b', 0.8)], scene);
+    await tester.tap(find.byTooltip('Duplicate'));
+    await tester.pumpAndSettle();
+
+    final scenes = container.read(scenesProvider);
+    expect(scenes, hasLength(2));
+    expect(scenes.first.fixtureValues, scene.fixtureValues, reason: 'the original is unchanged');
+    final copy = scenes.last;
+    expect(copy.name, 'Chorus Copy');
+    expect(copy.fixtureGroups, scene.fixtureGroups);
+    expect(copy.groupPositions!.single!.fanPanDeg, 20);
+    expect(copy.fixtureValues['a']![0], isNot(copy.fixtureValues['b']![0]), reason: 'still fanned');
+    // The editor now shows the copy.
+    expect(find.text('Chorus Copy'), findsOneWidget);
+  });
+
+  testWidgets('a colour channel imported as generic gets swatches', (tester) async {
+    final imported = FixtureProfile.fromJson({
+      'id': 'zq',
+      'name': 'ZQ02021 Beam Pro',
+      'category': 'movingHead',
+      'channels': [
+        {'offset': 0, 'function': 'pan'},
+        {'offset': 1, 'function': 'tilt'},
+        {'offset': 2, 'function': 'pan', 'customLabel': 'Pan/Tilt speed'},
+        {
+          'offset': 3,
+          'function': 'generic',
+          'customLabel': 'Color',
+          'capabilities': [
+            {'min': 0, 'max': 15, 'label': 'no function', 'kind': 'slot'},
+            {'min': 16, 'max': 31, 'label': 'Red', 'kind': 'slot'},
+            {'min': 32, 'max': 47, 'label': 'Light Blue', 'kind': 'slot'},
+            {'min': 128, 'max': 255, 'label': 'Automatic Change Slow to Fast', 'kind': 'range'},
+          ],
+        },
+      ],
+    });
+    expect(imported.channels[2].function, ChannelFunction.panTiltSpeed);
+    expect(imported.channels[3].function, ChannelFunction.colorWheel);
+
+    const scene = Scene(id: 's', name: 'Zq', fixtureValues: {'z': {0: 128, 1: 128, 3: 20}});
+    final container = await open(
+      tester,
+      [PatchedFixture(id: 'z', label: 'ZQ', profile: imported, universeId: 'u1', startChannel: 0)],
+      scene,
+    );
+    await tester.tap(find.text('Color').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(WheelSwatch), findsNWidgets(3));
+    // Picking a swatch sets the wheel to that slot.
+    await tester.tap(find.byType(WheelSwatch).at(2));
+    await tester.pumpAndSettle();
+    final saved = await save(tester, container);
+    expect(saved.fixtureValues['z']![3], (32 + 47) ~/ 2);
   });
 
   test('PanTilt centre is what an untouched mover group saves', () {

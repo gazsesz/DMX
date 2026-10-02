@@ -31,7 +31,13 @@ class ScenesNotifier extends StateNotifier<List<Scene>> {
     final source = state.where((s) => s.id == id);
     if (source.isEmpty) return null;
     final copy = source.first;
-    final duplicated = Scene(id: _uuid.v4(), name: '${copy.name} Copy', fixtureValues: copy.fixtureValues);
+    final duplicated = Scene(
+      id: _uuid.v4(),
+      name: '${copy.name} Copy',
+      fixtureValues: copy.fixtureValues,
+      fixtureGroups: copy.fixtureGroups,
+      groupPositions: copy.groupPositions,
+    );
     state = [...state, duplicated];
     return duplicated;
   }
