@@ -522,7 +522,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final matches = ref.read(scenesProvider).where((s) => s.id == sceneId);
     if (matches.isEmpty) return;
     await Navigator.of(context).push<Scene>(
-      MaterialPageRoute(builder: (_) => SceneEditorScreen(existing: matches.first)),
+      MaterialPageRoute(
+        builder: (_) => SceneEditorScreen(existing: matches.first, fromBankId: bank.id, fromSlot: slotIndex),
+      ),
     );
   }
 

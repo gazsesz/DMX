@@ -126,6 +126,26 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     ];
   }
 
+  /// Puts [sceneId] in the first free slot after [afterSlot] (wrapping round
+  /// to the start), so a copy lands next to the scene it was made from —
+  /// and grows the bank by one slot when every slot is taken. Returns the
+  /// slot used, or null when the bank no longer exists.
+  int? placeAfter(String bankId, int? afterSlot, String sceneId) {
+    final bank = state.where((b) => b.id == bankId).firstOrNull;
+    if (bank == null) return null;
+    final slots = bank.sceneSlots;
+    final start = afterSlot == null ? 0 : (afterSlot + 1).clamp(0, slots.length);
+    final order = [for (var i = start; i < slots.length; i++) i, for (var i = 0; i < start; i++) i];
+    final free = order.where((i) => slots[i] == null).firstOrNull;
+    if (free != null) {
+      setSlot(bankId, free, sceneId);
+      return free;
+    }
+    resize(bankId, slots.length + 1);
+    setSlot(bankId, slots.length, sceneId);
+    return slots.length;
+  }
+
   /// Gives the step in [slotIndex] its own Hold/Fade, or with null puts it
   /// back to following the bank — see [Bank.slotTimings].
   void setSlotTiming(String bankId, int slotIndex, SlotTiming? timing) {

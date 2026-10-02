@@ -18,6 +18,7 @@ import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/bank_providers.dart';
 import '../../state/color_palette_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
@@ -85,7 +86,13 @@ const _positionKeys = ['pan', 'panFine', 'tilt', 'tiltFine'];
 class SceneEditorScreen extends ConsumerStatefulWidget {
   final Scene? existing;
 
-  const SceneEditorScreen({super.key, this.existing});
+  /// The bank and slot the editor was opened from, when it was opened from
+  /// a bank. A copy made with Duplicate then goes into that bank, next to
+  /// the original; opened from anywhere else, a copy is left unfiled.
+  final String? fromBankId;
+  final int? fromSlot;
+
+  const SceneEditorScreen({super.key, this.existing, this.fromBankId, this.fromSlot});
 
   @override
   ConsumerState<SceneEditorScreen> createState() => _SceneEditorScreenState();
@@ -630,10 +637,24 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         .create('$name Copy', _buildFixtureValues())
         .copyWith(fixtureGroups: _fixtureGroupsForSave, groupPositions: _groupPositionsForSave);
     notifier.upsert(copy);
+
+    final bankId = widget.fromBankId;
+    final slot = bankId == null ? null : ref.read(banksProvider.notifier).placeAfter(bankId, widget.fromSlot, copy.id);
+    final bankName = bankId == null ? null : ref.read(banksProvider).where((b) => b.id == bankId).firstOrNull?.name;
+    final filed = slot == null ? '' : ' Added to $bankName, slot ${slot + 1}.';
+
     final messenger = ScaffoldMessenger.of(context);
-    Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => SceneEditorScreen(existing: copy)));
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        // Still "from the bank", now from the copy's slot — so duplicating
+        // again lines the next copy up after this one.
+        builder: (_) => SceneEditorScreen(existing: copy, fromBankId: slot == null ? null : bankId, fromSlot: slot),
+      ),
+    );
     messenger.showSnackBar(
-      SnackBar(content: Text('Saved as "${copy.name}" — you\'re editing the copy now. "$name" is unchanged.')),
+      SnackBar(
+        content: Text('Saved as "${copy.name}" — you\'re editing the copy now. "$name" is unchanged.$filed'),
+      ),
     );
   }
 

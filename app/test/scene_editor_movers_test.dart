@@ -3,6 +3,7 @@ import 'package:dmx_controller/core/theme/app_theme.dart';
 import 'package:dmx_controller/core/widgets/pan_tilt_pad.dart';
 import 'package:dmx_controller/features/scenes/scene_editor_screen.dart';
 import 'package:dmx_controller/core/widgets/wheel_looks.dart';
+import 'package:dmx_controller/models/bank.dart';
 import 'package:dmx_controller/models/builtin_fixtures.dart';
 import 'package:dmx_controller/models/channel_function.dart';
 import 'package:dmx_controller/models/fixture_profile.dart';
@@ -10,6 +11,7 @@ import 'package:dmx_controller/models/group_position.dart';
 import 'package:dmx_controller/models/pan_tilt.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
 import 'package:dmx_controller/models/scene.dart';
+import 'package:dmx_controller/state/bank_providers.dart';
 import 'package:dmx_controller/state/fixture_providers.dart';
 import 'package:dmx_controller/state/scene_providers.dart';
 import 'package:flutter/material.dart';
@@ -171,6 +173,63 @@ void main() {
     expect(copy.fixtureValues['a']![0], isNot(copy.fixtureValues['b']![0]), reason: 'still fanned');
     // The editor now shows the copy.
     expect(find.text('Chorus Copy'), findsOneWidget);
+  });
+
+  group('Duplicate and banks', () {
+    const scene = Scene(id: 's', name: 'Chorus', fixtureValues: {'a': {0: 1, 1: 1}});
+
+    Future<ProviderContainer> openFrom(WidgetTester tester, {String? bankId, int? slot}) async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(patchedFixturesProvider.notifier).loadAll([_head('a', 0.5)]);
+      container.read(scenesProvider.notifier).loadAll([scene]);
+      container.read(banksProvider.notifier).loadAll([
+        const Bank(id: 'b', name: 'Verse', sceneSlots: ['x', 's', 'y', null, null]),
+      ]);
+      await tester.binding.setSurfaceSize(const Size(1280, 1600));
+      addTearDown(() => tester.binding.setSurfaceSize(null));
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          theme: buildAppTheme(),
+          home: SceneEditorScreen(existing: scene, fromBankId: bankId, fromSlot: slot),
+        ),
+      ));
+      await tester.pump();
+      await tester.tap(find.byTooltip('Duplicate'));
+      await tester.pumpAndSettle();
+      return container;
+    }
+
+    testWidgets('opened from a bank, the copy goes into it right after the original', (tester) async {
+      final container = await openFrom(tester, bankId: 'b', slot: 1);
+      final copy = container.read(scenesProvider).last;
+      expect(container.read(banksProvider).single.sceneSlots, ['x', 's', 'y', copy.id, null]);
+      expect(find.textContaining('Added to Verse, slot 4'), findsOneWidget);
+
+      // Duplicating the copy lines the next one up after it.
+      await tester.tap(find.byTooltip('Duplicate'));
+      await tester.pumpAndSettle();
+      final second = container.read(scenesProvider).last;
+      expect(container.read(banksProvider).single.sceneSlots, ['x', 's', 'y', copy.id, second.id]);
+    });
+
+    testWidgets('opened from anywhere else, the copy is left out of every bank', (tester) async {
+      final container = await openFrom(tester);
+      expect(container.read(scenesProvider), hasLength(2));
+      expect(container.read(banksProvider).single.sceneSlots, ['x', 's', 'y', null, null]);
+    });
+  });
+
+  test('placeAfter wraps round to the start, then grows a full bank', () {
+    final notifier = BanksNotifier()
+      ..loadAll([
+        const Bank(id: 'b', name: 'B', sceneSlots: [null, 'a', 'b']),
+      ]);
+    expect(notifier.placeAfter('b', 1, 'c'), 0);
+    expect(notifier.placeAfter('b', 1, 'd'), 3);
+    expect(notifier.state.single.sceneSlots, ['c', 'a', 'b', 'd']);
+    expect(notifier.placeAfter('gone', 0, 'e'), isNull);
   });
 
   testWidgets('a colour channel imported as generic gets swatches', (tester) async {
