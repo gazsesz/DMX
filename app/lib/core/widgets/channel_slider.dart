@@ -5,6 +5,137 @@ import '../../models/channel_capability.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
+/// Lists a channel's named value ranges in a bottom sheet and returns the
+/// one picked, or null when dismissed. [value] marks the current one.
+Future<ChannelCapability?> showCapabilityPicker(
+  BuildContext context, {
+  required String label,
+  required List<ChannelCapability> capabilities,
+  required int value,
+}) {
+  return showModalBottomSheet<ChannelCapability>(
+    context: context,
+    backgroundColor: AppColors.panel,
+    builder: (context) => SafeArea(
+      child: ListView(
+        shrinkWrap: true,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+            child: Text(
+              label.toUpperCase(),
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            ),
+          ),
+          for (final capability in capabilities)
+            ListTile(
+              dense: true,
+              selected: capability.contains(value),
+              selectedTileColor: AppColors.panel2,
+              title: Text(capability.label, style: const TextStyle(fontSize: 13)),
+              subtitle: Text(
+                capability.rangeLabel,
+                style: appMonoStyle(fontSize: 10, color: AppColors.textFaint),
+              ),
+              trailing: capability.kind == CapabilityKind.range
+                  ? const Icon(Icons.tune, size: 15, color: AppColors.textFaint)
+                  : null,
+              onTap: () => Navigator.pop(context, capability),
+            ),
+        ],
+      ),
+    ),
+  );
+}
+
+/// A one-line 0-255 control for the Scene editor's mover tabs: a label, a
+/// horizontal slider, and (when the channel has named ranges) the name of
+/// the current one, which opens the whole list when tapped.
+class LabeledChannelSlider extends StatelessWidget {
+  final String label;
+  final int value;
+  final Color color;
+  final ValueChanged<int> onChanged;
+  final List<ChannelCapability> capabilities;
+
+  const LabeledChannelSlider({
+    super.key,
+    required this.label,
+    required this.value,
+    required this.onChanged,
+    this.color = AppColors.accent,
+    this.capabilities = const [],
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    ChannelCapability? active;
+    for (final capability in capabilities) {
+      if (capability.contains(value)) active = capability;
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(label, style: const TextStyle(fontSize: 11.5, color: AppColors.textDim)),
+            ),
+            if (capabilities.isEmpty)
+              Text('$value', style: appMonoStyle(fontSize: 11.5))
+            else
+              InkWell(
+                borderRadius: BorderRadius.circular(6),
+                onTap: () async {
+                  final picked = await showCapabilityPicker(
+                    context,
+                    label: label,
+                    capabilities: capabilities,
+                    value: value,
+                  );
+                  if (picked != null) onChanged(picked.pickValue);
+                },
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 170),
+                        child: Text(
+                          active?.label ?? '—',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+                        ),
+                      ),
+                      Text(' $value', style: appMonoStyle(fontSize: 10, color: AppColors.textFaint)),
+                      const Icon(Icons.arrow_drop_down, size: 15, color: AppColors.textFaint),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            activeTrackColor: color,
+            thumbColor: color,
+            inactiveTrackColor: AppColors.panel2,
+            trackHeight: 5,
+            overlayShape: SliderComponentShape.noOverlay,
+          ),
+          child: Slider(
+            value: value.clamp(0, 255).toDouble(),
+            max: 255,
+            onChanged: (v) => onChanged(v.round()),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// A labeled 0-255 DMX channel control styled like a real lighting-desk
 /// fader: a vertical slot with a ridged cap, plus a live numeric readout.
 /// Shared by the Scene editor and Manual Control screens — lay several out
@@ -31,39 +162,7 @@ class ChannelSliderTile extends StatelessWidget {
   });
 
   Future<void> _pickCapability(BuildContext context) async {
-    final picked = await showModalBottomSheet<ChannelCapability>(
-      context: context,
-      backgroundColor: AppColors.panel,
-      builder: (context) => SafeArea(
-        child: ListView(
-          shrinkWrap: true,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-              child: Text(
-                label.toUpperCase(),
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
-              ),
-            ),
-            for (final capability in capabilities)
-              ListTile(
-                dense: true,
-                selected: capability.contains(value),
-                selectedTileColor: AppColors.panel2,
-                title: Text(capability.label, style: const TextStyle(fontSize: 13)),
-                subtitle: Text(
-                  capability.rangeLabel,
-                  style: appMonoStyle(fontSize: 10, color: AppColors.textFaint),
-                ),
-                trailing: capability.kind == CapabilityKind.range
-                    ? const Icon(Icons.tune, size: 15, color: AppColors.textFaint)
-                    : null,
-                onTap: () => Navigator.pop(context, capability),
-              ),
-          ],
-        ),
-      ),
-    );
+    final picked = await showCapabilityPicker(context, label: label, capabilities: capabilities, value: value);
     if (picked != null) onChanged(picked.pickValue);
   }
 

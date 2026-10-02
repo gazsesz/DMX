@@ -20,6 +20,8 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
   late final TextEditingController _nameController;
   late FixtureCategory _category;
   late List<FixtureChannelDraft> _channels;
+  late final TextEditingController _panRangeController;
+  late final TextEditingController _tiltRangeController;
 
   bool get _isEditing => widget.existing != null;
 
@@ -29,6 +31,12 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
     final existing = widget.existing;
     _nameController = TextEditingController(text: existing?.name ?? 'New Fixture');
     _category = existing?.category ?? FixtureCategory.generic;
+    _panRangeController = TextEditingController(
+      text: '${existing?.panRangeDeg ?? FixtureProfile.defaultPanRangeDeg}',
+    );
+    _tiltRangeController = TextEditingController(
+      text: '${existing?.tiltRangeDeg ?? FixtureProfile.defaultTiltRangeDeg}',
+    );
     _channels = existing == null
         ? [FixtureChannelDraft(function: ChannelFunction.dimmer)]
         : [
@@ -44,6 +52,8 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _panRangeController.dispose();
+    _tiltRangeController.dispose();
     super.dispose();
   }
 
@@ -61,14 +71,24 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
       context,
       channelLabel: draft.customLabel ?? draft.function.label,
       initial: draft.capabilities,
+      function: draft.function,
     );
     if (updated == null) return;
     setState(() => draft.capabilities = updated);
   }
 
+  bool get _hasPanTilt => _channels.any((c) => c.function.isPanTilt);
+
+  int _rangeFrom(TextEditingController controller, int fallback) {
+    final value = int.tryParse(controller.text.trim());
+    return value == null || value <= 0 ? fallback : value.clamp(1, 720);
+  }
+
   void _save() {
     if (_channels.isEmpty || _nameController.text.trim().isEmpty) return;
     final library = ref.read(fixtureLibraryProvider.notifier);
+    final panRange = _rangeFrom(_panRangeController, FixtureProfile.defaultPanRangeDeg);
+    final tiltRange = _rangeFrom(_tiltRangeController, FixtureProfile.defaultTiltRangeDeg);
     final FixtureProfile profile;
     if (_isEditing) {
       profile = library.updateCustom(
@@ -76,6 +96,8 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
         name: _nameController.text.trim(),
         category: _category,
         channels: _channels,
+        panRangeDeg: panRange,
+        tiltRangeDeg: tiltRange,
       );
       ref.read(patchedFixturesProvider.notifier).refreshProfile(profile);
     } else {
@@ -83,6 +105,8 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
         name: _nameController.text.trim(),
         category: _category,
         channels: _channels,
+        panRangeDeg: panRange,
+        tiltRangeDeg: tiltRange,
       );
     }
     Navigator.of(context).pop(profile);
@@ -236,6 +260,38 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
               ],
             ),
           ),
+          if (_hasPanTilt) ...[
+            const SizedBox(height: 20),
+            const Text(
+              'MOVEMENT RANGE',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            ),
+            const Text(
+              'How far the head turns over the whole pan and tilt channel — from the fixture\'s spec sheet. '
+              'Sets the degree scale on the position pad and how the stage view aims it.',
+              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _panRangeController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Pan range', suffixText: '°'),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: TextField(
+                    controller: _tiltRangeController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Tilt range', suffixText: '°'),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 20),
           FilledButton(onPressed: _save, child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),

@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/wheel_looks.dart';
 import '../../models/channel_capability.dart';
+import '../../models/channel_function.dart';
 
 /// Edits the labelled value spans of a single channel.
 ///
@@ -14,14 +16,18 @@ import '../../models/channel_capability.dart';
 ///
 /// Returns null when cancelled, or the new (normalised) list on save —
 /// including an empty list, which means "back to a plain fader".
+///
+/// [function] says what the channel is, so a colour wheel's rows can be
+/// given a swatch colour and a gobo wheel's a picture.
 Future<List<ChannelCapability>?> showCapabilityEditor(
   BuildContext context, {
   required String channelLabel,
   required List<ChannelCapability> initial,
+  ChannelFunction? function,
 }) {
   return showDialog<List<ChannelCapability>>(
     context: context,
-    builder: (context) => _CapabilityEditorDialog(channelLabel: channelLabel, initial: initial),
+    builder: (context) => _CapabilityEditorDialog(channelLabel: channelLabel, initial: initial, function: function),
   );
 }
 
@@ -32,12 +38,16 @@ class _Row {
   final TextEditingController max;
   final TextEditingController label;
   CapabilityKind kind;
+  String? colorHex;
+  String? glyph;
 
   _Row(ChannelCapability source)
     : min = TextEditingController(text: '${source.min}'),
       max = TextEditingController(text: '${source.max}'),
       label = TextEditingController(text: source.label),
-      kind = source.kind;
+      kind = source.kind,
+      colorHex = source.colorHex,
+      glyph = source.glyph;
 
   void dispose() {
     min.dispose();
@@ -50,6 +60,8 @@ class _Row {
     max: (int.tryParse(max.text.trim()) ?? 0).clamp(0, 255),
     label: label.text.trim(),
     kind: kind,
+    colorHex: colorHex,
+    glyph: glyph,
   );
 }
 
@@ -65,8 +77,9 @@ const _strobeTemplate = <ChannelCapability>[
 class _CapabilityEditorDialog extends StatefulWidget {
   final String channelLabel;
   final List<ChannelCapability> initial;
+  final ChannelFunction? function;
 
-  const _CapabilityEditorDialog({required this.channelLabel, required this.initial});
+  const _CapabilityEditorDialog({required this.channelLabel, required this.initial, this.function});
 
   @override
   State<_CapabilityEditorDialog> createState() => _CapabilityEditorDialogState();
@@ -137,6 +150,63 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
     ]);
   }
 
+  /// The swatch a colour-wheel slot shows in the Scene editor. Unset means
+  /// "guess from the name", which is what the button then previews.
+  Widget _colorButton(_Row row) {
+    final preview = row.toCapability();
+    return PopupMenuButton<String>(
+      tooltip: 'Swatch colour',
+      color: AppColors.panel2,
+      onSelected: (hex) => setState(() => row.colorHex = hex.isEmpty ? null : hex),
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: '', child: Text('Guess from the name')),
+        for (final entry in wheelColorChoices.entries)
+          PopupMenuItem(
+            value: entry.value,
+            child: Row(
+              children: [
+                WheelSwatch(colors: wheelColorsFor(ChannelCapability(min: 0, max: 0, label: '', colorHex: entry.value)), size: 20),
+                const SizedBox(width: 10),
+                Text(entry.key),
+              ],
+            ),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: WheelSwatch(colors: wheelColorsFor(preview), fallbackText: '?', size: 26),
+      ),
+    );
+  }
+
+  /// The picture a gobo slot shows in the Scene editor.
+  Widget _glyphButton(_Row row) {
+    final preview = row.toCapability();
+    return PopupMenuButton<String>(
+      tooltip: 'Gobo picture',
+      color: AppColors.panel2,
+      onSelected: (name) => setState(() => row.glyph = name.isEmpty ? null : name),
+      itemBuilder: (context) => [
+        const PopupMenuItem(value: '', child: Text('Guess from the name')),
+        for (final name in goboGlyphNames)
+          PopupMenuItem(
+            value: name,
+            child: Row(
+              children: [
+                GoboGlyph(glyph: name, size: 24),
+                const SizedBox(width: 10),
+                Text(name[0].toUpperCase() + name.substring(1)),
+              ],
+            ),
+          ),
+      ],
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6),
+        child: GoboGlyph(glyph: goboGlyphFor(preview), fallbackText: '?', size: 28),
+      ),
+    );
+  }
+
   Widget _rowTile(int index) {
     final row = _rows[index];
     return Padding(
@@ -190,6 +260,8 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
               },
             ),
           ),
+          if (widget.function == ChannelFunction.colorWheel) _colorButton(row),
+          if (widget.function == ChannelFunction.gobo) _glyphButton(row),
           IconButton(
             icon: const Icon(Icons.close, size: 17, color: AppColors.textFaint),
             onPressed: () => setState(() => _rows.removeAt(index)..dispose()),

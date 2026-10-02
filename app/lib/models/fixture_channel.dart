@@ -68,3 +68,29 @@ class FixtureChannel {
     );
   }
 }
+
+/// A name for each of [channels] (same order) that stays the same across
+/// every fixture of the same model, so one set of values can drive a whole
+/// group of fixtures without two channels landing on the same value.
+///
+/// Mostly that's just the function — `pan`, `dimmer` — which also keeps every
+/// value saved before this existed reading back the same way. Two channels
+/// can share a function though: every Reset/Lamp/Function channel is
+/// [ChannelFunction.generic], and a twin-wheel spot has two `colorWheel`s.
+/// Generic channels go by their label instead (`generic:reset`), so a
+/// "Reset" on one model still lines up with the "Reset" on another, and any
+/// repeat after that is numbered (`colorWheel#1`).
+List<String> channelKeysFor(List<FixtureChannel> channels) {
+  final seen = <String, int>{};
+  return [
+    for (final channel in channels)
+      () {
+        final base = channel.function == ChannelFunction.generic
+            ? 'generic:${channel.label.trim().toLowerCase()}'
+            : channel.function.name;
+        final count = seen[base] ?? 0;
+        seen[base] = count + 1;
+        return count == 0 ? base : '$base#$count';
+      }(),
+  ];
+}

@@ -16,6 +16,10 @@ enum ChannelFunction {
   colorWheel,
   zoom,
   focus,
+  prism,
+  prismRotation,
+  frost,
+  panTiltSpeed,
   autofade,
   generic;
 
@@ -55,6 +59,14 @@ enum ChannelFunction {
         return 'Zoom';
       case ChannelFunction.focus:
         return 'Focus';
+      case ChannelFunction.prism:
+        return 'Prism';
+      case ChannelFunction.prismRotation:
+        return 'Prism Rotation';
+      case ChannelFunction.frost:
+        return 'Frost';
+      case ChannelFunction.panTiltSpeed:
+        return 'Pan/Tilt Speed';
       case ChannelFunction.autofade:
         return 'Autofade';
       case ChannelFunction.generic:
@@ -68,17 +80,21 @@ enum ChannelFunction {
       this == red || this == green || this == blue || this == white || this == amber || this == uv;
   bool get isPanTilt => this == pan || this == panFine || this == tilt || this == tiltFine;
   bool get isGobo => this == gobo || this == goboRotation;
+  bool get isPrism => this == prism || this == prismRotation;
 
   /// Which broad attribute a channel belongs to, for deciding what a Scene
   /// (or a Layer) controls independently of the others — a moving head's
   /// position can be owned by one program while its colour is owned by
   /// another. [AttributeGroup.other] covers strobe/zoom/focus/autofade/
   /// generic, none of which have their own group yet.
+  ///
+  /// Pan/tilt speed rides with Position: a scene that leaves the position to
+  /// another program has to leave how fast it gets there alone too.
   AttributeGroup get attributeGroup {
     if (isDimmer) return AttributeGroup.dimmer;
     if (isColorMix) return AttributeGroup.color;
-    if (isPanTilt) return AttributeGroup.position;
-    if (isGobo || this == colorWheel) return AttributeGroup.beam;
+    if (isPanTilt || this == panTiltSpeed) return AttributeGroup.position;
+    if (isGobo || isPrism || this == colorWheel || this == frost) return AttributeGroup.beam;
     return AttributeGroup.other;
   }
 }

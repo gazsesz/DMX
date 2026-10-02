@@ -1,3 +1,5 @@
+import 'group_position.dart';
+
 /// A saved lighting look: a snapshot of channel values per patched fixture.
 class Scene {
   final String id;
@@ -24,23 +26,33 @@ class Scene {
   /// to clustering by value in that case.
   final List<List<String>>? fixtureGroups;
 
+  /// The editor's position settings for each of [fixtureGroups] (same
+  /// order): fan, per-head positions, stage aim — see [GroupPosition]. Null
+  /// entries (and a null list) are groups with a single plain pan/tilt or
+  /// no movers at all. Playback never reads this; [fixtureValues] already
+  /// holds every head's resolved position.
+  final List<GroupPosition?>? groupPositions;
+
   const Scene({
     required this.id,
     required this.name,
     required this.fixtureValues,
     this.fixtureGroups,
+    this.groupPositions,
   });
 
   Scene copyWith({
     String? name,
     Map<String, Map<int, int>>? fixtureValues,
     List<List<String>>? fixtureGroups,
+    List<GroupPosition?>? groupPositions,
   }) {
     return Scene(
       id: id,
       name: name ?? this.name,
       fixtureValues: fixtureValues ?? this.fixtureValues,
       fixtureGroups: fixtureGroups ?? this.fixtureGroups,
+      groupPositions: groupPositions ?? this.groupPositions,
     );
   }
 
@@ -51,16 +63,22 @@ class Scene {
       (fixtureId, channels) => MapEntry(fixtureId, channels.map((offset, value) => MapEntry('$offset', value))),
     ),
     if (fixtureGroups != null) 'fixtureGroups': fixtureGroups,
+    if (groupPositions != null && groupPositions!.any((p) => p != null))
+      'groupPositions': [for (final p in groupPositions!) p?.toJson()],
   };
 
   factory Scene.fromJson(Map<String, dynamic> json) {
     final raw = json['fixtureValues'] as Map<String, dynamic>? ?? {};
     final rawGroups = json['fixtureGroups'] as List?;
+    final rawPositions = json['groupPositions'] as List?;
     return Scene(
       id: json['id'] as String,
       name: json['name'] as String,
       fixtureValues: raw.map((fixtureId, value) => MapEntry(fixtureId, _decodeChannels(value))),
       fixtureGroups: rawGroups?.map((g) => (g as List).cast<String>()).toList(),
+      groupPositions: rawPositions
+          ?.map((p) => p is Map<String, dynamic> ? GroupPosition.fromJson(p) : null)
+          .toList(),
     );
   }
 

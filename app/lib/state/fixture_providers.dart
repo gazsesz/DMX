@@ -6,6 +6,7 @@ import '../models/builtin_fixtures.dart';
 import '../models/channel_capability.dart';
 import '../models/channel_function.dart';
 import '../models/fixture_channel.dart';
+import '../models/fixture_mounting.dart';
 import '../models/fixture_profile.dart';
 import '../models/patched_fixture.dart';
 
@@ -32,6 +33,8 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
     String? model,
     String? modeName,
     String? sourceFormat,
+    int panRangeDeg = FixtureProfile.defaultPanRangeDeg,
+    int tiltRangeDeg = FixtureProfile.defaultTiltRangeDeg,
   }) {
     final profile = FixtureProfile(
       id: _uuid.v4(),
@@ -45,6 +48,8 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
       model: model,
       modeName: modeName,
       sourceFormat: sourceFormat,
+      panRangeDeg: panRangeDeg,
+      tiltRangeDeg: tiltRangeDeg,
     );
     state = [...state, profile];
     return profile;
@@ -63,6 +68,8 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
       model: profile.model,
       modeName: profile.modeName,
       sourceFormat: profile.sourceFormat,
+      panRangeDeg: profile.panRangeDeg,
+      tiltRangeDeg: profile.tiltRangeDeg,
     );
     state = [...state, copy];
     return copy;
@@ -73,6 +80,8 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
     required String name,
     required FixtureCategory category,
     required List<FixtureChannelDraft> channels,
+    int? panRangeDeg,
+    int? tiltRangeDeg,
   }) {
     // Keep the import provenance across an edit — the user renaming a
     // channel shouldn't erase which library entry this came from.
@@ -86,6 +95,8 @@ class FixtureLibraryNotifier extends StateNotifier<List<FixtureProfile>> {
       model: existing?.model,
       modeName: existing?.modeName,
       sourceFormat: existing?.sourceFormat,
+      panRangeDeg: panRangeDeg ?? existing?.panRangeDeg ?? FixtureProfile.defaultPanRangeDeg,
+      tiltRangeDeg: tiltRangeDeg ?? existing?.tiltRangeDeg ?? FixtureProfile.defaultTiltRangeDeg,
     );
     state = [for (final p in state) if (p.id == id) updated else p];
     return updated;
@@ -161,6 +172,9 @@ class PatchedFixturesNotifier extends StateNotifier<List<PatchedFixture>> {
         profile: source.profile,
         universeId: source.universeId,
         startChannel: maxEnd.clamp(0, 511),
+        // A copy is usually the next head along the same truss — same trim,
+        // same way round.
+        mounting: source.mounting,
       ),
     ];
   }
@@ -189,6 +203,13 @@ class PatchedFixturesNotifier extends StateNotifier<List<PatchedFixture>> {
     state = [
       for (final fixture in state)
         if (fixture.id == id) fixture.copyWith(layoutX: x.clamp(0.0, 1.0), layoutY: y.clamp(0.0, 1.0)) else fixture,
+    ];
+  }
+
+  void setMounting(String id, FixtureMounting mounting) {
+    state = [
+      for (final fixture in state)
+        if (fixture.id == id) fixture.copyWith(mounting: mounting) else fixture,
     ];
   }
 
