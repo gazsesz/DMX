@@ -21,12 +21,14 @@ Future<void> showFixtureMountingSheet(
   String fixtureId, {
   StagePoint? mark,
   double markHeightM = 0,
+  VoidCallback? onChanged,
 }) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.panel,
-    builder: (context) => _FixtureMountingSheet(fixtureId: fixtureId, mark: mark, markHeightM: markHeightM),
+    builder: (context) =>
+        _FixtureMountingSheet(fixtureId: fixtureId, mark: mark, markHeightM: markHeightM, onChanged: onChanged),
   );
 }
 
@@ -46,7 +48,12 @@ class _FixtureMountingSheet extends ConsumerStatefulWidget {
   final StagePoint? mark;
   final double markHeightM;
 
-  const _FixtureMountingSheet({required this.fixtureId, this.mark, this.markHeightM = 0});
+  /// Opened from an editor that already puts the head on its target live:
+  /// every change just tells it to do so again, instead of this sheet driving
+  /// the head itself.
+  final VoidCallback? onChanged;
+
+  const _FixtureMountingSheet({required this.fixtureId, this.mark, this.markHeightM = 0, this.onChanged});
 
   @override
   ConsumerState<_FixtureMountingSheet> createState() => _FixtureMountingSheetState();
@@ -77,13 +84,22 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
     final fixture = _fixture;
     if (fixture == null) return;
     ref.read(patchedFixturesProvider.notifier).setMounting(fixture.id, change(fixture.mounting));
-    if (_calibrating) _sendToMark();
+    if (widget.onChanged != null) {
+      widget.onChanged!();
+    } else if (_calibrating) {
+      _sendToMark();
+    }
   }
 
   /// Aims the head at the middle of the stage floor, lamp open.
   void _sendToMark() {
     final fixture = _fixture;
     if (fixture == null) return;
+    if (widget.onChanged != null) {
+      widget.onChanged!();
+      setState(() => _calibrating = true);
+      return;
+    }
     final stage = ref.read(stagePlanProvider);
     final aimed = aimAt(
       aimRigFor(fixture, stage),
@@ -130,7 +146,7 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
 
   void _nudge({double pan = 0, double tilt = 0}) {
     _update((m) => m.copyWith(panOffsetDeg: m.panOffsetDeg + pan, tiltOffsetDeg: m.tiltOffsetDeg + tilt));
-    if (!_calibrating) _sendToMark();
+    if (!_calibrating && widget.onChanged == null) _sendToMark();
   }
 
   @override

@@ -44,6 +44,10 @@ class PositionPanel extends ConsumerStatefulWidget {
   final void Function(PanTilt base, GroupPosition position) onReplace;
   final ValueChanged<int> onSpeedChanged;
 
+  /// A head's rigging or calibration changed — the editor puts the heads
+  /// back on their targets so it can be watched on the rig as it is dialled.
+  final VoidCallback? onRiggingChanged;
+
   const PositionPanel({
     super.key,
     required this.fixtures,
@@ -53,6 +57,7 @@ class PositionPanel extends ConsumerStatefulWidget {
     required this.onBaseDragged,
     required this.onReplace,
     required this.onSpeedChanged,
+    this.onRiggingChanged,
     this.speed,
     this.speedCapabilities = const [],
   });
@@ -575,6 +580,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                   fixture.id,
                   mark: widget.resolved[fixture.id]?.target ?? position.handle,
                   markHeightM: position.aimHeightM,
+                  onChanged: widget.onRiggingChanged,
                 ),
               ),
           ],
