@@ -300,6 +300,7 @@ ShowItemsImport importShowItems(
       stepSeconds: source.stepSeconds,
       beatSync: source.beatSync,
       direction: source.direction,
+      laneTimings: source.laneTimings,
       steps: [
         for (final step in source.steps)
           if ((step.sceneId == null || sceneMap.containsKey(step.sceneId)) &&

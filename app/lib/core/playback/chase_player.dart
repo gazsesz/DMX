@@ -424,7 +424,7 @@ class ChasePlayer {
     }
 
     const tickMs = 40;
-    final tickCount = (fade.inMilliseconds / tickMs).ceil().clamp(1, 2000);
+    final tickCount = (fade.inMilliseconds / tickMs).ceil().clamp(1, 3000);
     for (var tick = 1; tick <= tickCount && _isCurrent(generation); tick++) {
       _writeStep(targets, tick / tickCount, service);
       await Future<void>.delayed(const Duration(milliseconds: tickMs));

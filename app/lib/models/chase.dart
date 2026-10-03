@@ -1,5 +1,25 @@
 enum ChaseDirection { forward, bounce, random }
 
+/// How one layer of a chase (a lane) is clocked, independent of the others.
+enum LaneTiming {
+  /// Follows the dock: beat sync switch, Override timing and Auto-Fade.
+  followApp,
+
+  /// Steps on the beat whenever beats are coming in, even with the dock's
+  /// Beat Sync off.
+  onBeat,
+
+  /// Runs on its own steps' Hold/Fade only — never waits for a beat and
+  /// ignores the dock's Override timing and Auto-Fade. For slow moves.
+  free;
+
+  String get label => switch (this) {
+    LaneTiming.followApp => 'Follow dock',
+    LaneTiming.onBeat => 'On beat',
+    LaneTiming.free => 'Free-running',
+  };
+}
+
 /// One step of a chase: either a single scene or a whole bank (played as
 /// its own mini-sequence of filled slots).
 class ChaseStep {
@@ -60,6 +80,12 @@ class Chase {
   final bool beatSync;
   final ChaseDirection direction;
 
+  /// Per-layer clocking, by layer id (Layer 1 is `layer1Id`). A layer not
+  /// listed follows the dock.
+  final Map<String, LaneTiming> laneTimings;
+
+  LaneTiming timingOfLane(String layerId) => laneTimings[layerId] ?? LaneTiming.followApp;
+
   const Chase({
     required this.id,
     required this.name,
@@ -67,6 +93,7 @@ class Chase {
     this.stepSeconds = 1.0,
     this.beatSync = false,
     this.direction = ChaseDirection.forward,
+    this.laneTimings = const {},
   });
 
   Chase copyWith({
@@ -75,6 +102,7 @@ class Chase {
     double? stepSeconds,
     bool? beatSync,
     ChaseDirection? direction,
+    Map<String, LaneTiming>? laneTimings,
   }) {
     return Chase(
       id: id,
@@ -83,6 +111,7 @@ class Chase {
       stepSeconds: stepSeconds ?? this.stepSeconds,
       beatSync: beatSync ?? this.beatSync,
       direction: direction ?? this.direction,
+      laneTimings: laneTimings ?? this.laneTimings,
     );
   }
 
@@ -93,6 +122,7 @@ class Chase {
     'stepSeconds': stepSeconds,
     'beatSync': beatSync,
     'direction': direction.name,
+    if (laneTimings.isNotEmpty) 'laneTimings': {for (final e in laneTimings.entries) e.key: e.value.name},
   };
 
   factory Chase.fromJson(Map<String, dynamic> json) {
@@ -108,6 +138,13 @@ class Chase {
         (d) => d.name == json['direction'],
         orElse: () => ChaseDirection.forward,
       ),
+      laneTimings: {
+        for (final e in ((json['laneTimings'] as Map?) ?? const {}).entries)
+          e.key as String: LaneTiming.values.firstWhere(
+            (t) => t.name == e.value,
+            orElse: () => LaneTiming.followApp,
+          ),
+      },
     );
   }
 }

@@ -17,8 +17,8 @@ class SlotTiming {
   static SlotTiming? fromJson(dynamic json) {
     if (json is! Map) return null;
     return SlotTiming(
-      holdMs: ((json['holdMs'] as num?)?.toInt() ?? 1200).clamp(20, 10000),
-      fadeMs: ((json['fadeMs'] as num?)?.toInt() ?? 300).clamp(0, 10000),
+      holdMs: ((json['holdMs'] as num?)?.toInt() ?? 1200).clamp(20, 60000),
+      fadeMs: ((json['fadeMs'] as num?)?.toInt() ?? 300).clamp(0, 120000),
     );
   }
 

@@ -77,8 +77,8 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
         if (b.id == id)
           b.copyWith(
             ownTiming: ownTiming,
-            holdMs: holdMs?.clamp(20, 10000),
-            fadeMs: fadeMs?.clamp(0, 10000),
+            holdMs: holdMs?.clamp(20, 60000),
+            fadeMs: fadeMs?.clamp(0, 120000),
           )
         else
           b,
@@ -168,7 +168,7 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     final timings = List<SlotTiming?>.generate(bank.sceneSlots.length, bank.timingAt);
     timings[slotIndex] = timing == null
         ? null
-        : SlotTiming(holdMs: timing.holdMs.clamp(20, 10000), fadeMs: timing.fadeMs.clamp(0, 10000));
+        : SlotTiming(holdMs: timing.holdMs.clamp(20, 60000), fadeMs: timing.fadeMs.clamp(0, 120000));
     return bank.copyWith(slotTimings: timings.any((t) => t != null) ? timings : const []);
   }
 

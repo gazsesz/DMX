@@ -27,7 +27,7 @@ void main() {
     expect(stepSpeedScale.valueAt(0.75), lessThan(stepSpeedScale.valueAt(0.25)));
   });
 
-  test('fade runs forwards, from a snap to five seconds', () {
+  test('fade runs forwards, from a snap to two minutes', () {
     expect(fadeTimeScale.valueAt(0), closeTo(fadeTimeScale.min, 1e-9));
     expect(fadeTimeScale.valueAt(1), closeTo(fadeTimeScale.max, 1e-9));
     expect(fadeTimeScale.valueAt(0.75), greaterThan(fadeTimeScale.valueAt(0.25)));
@@ -37,7 +37,7 @@ void main() {
     // On the old linear 0-5s slider everything under half a second lived in
     // the first 10% of the thumb. Log spacing has to do better than that.
     final halfSecond = fadeTimeScale.positionOf(0.5);
-    expect(halfSecond, greaterThan(0.5), reason: 'half a second should sit past the midpoint');
+    expect(halfSecond, greaterThan(0.4), reason: 'half a second should sit near the middle of the travel');
     // Each doubling gets the same amount of travel, by construction.
     final quarterToHalf = fadeTimeScale.positionOf(0.5) - fadeTimeScale.positionOf(0.25);
     final oneToTwo = fadeTimeScale.positionOf(2.0) - fadeTimeScale.positionOf(1.0);
@@ -46,7 +46,7 @@ void main() {
 
   test('values outside the range clamp instead of running off the slider', () {
     expect(fadeTimeScale.positionOf(0), 0);
-    expect(fadeTimeScale.positionOf(99), 1);
+    expect(fadeTimeScale.positionOf(999), 1);
     expect(stepSpeedScale.positionOf(0), 1, reason: 'faster than the fastest pins to the top');
     expect(stepSpeedScale.positionOf(99), 0);
     expect(fadeTimeScale.valueAt(-1), closeTo(fadeTimeScale.min, 1e-9));

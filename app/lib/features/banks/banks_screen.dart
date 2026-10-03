@@ -212,8 +212,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
                     ),
                     Slider(
-                      value: _holdScale.positionOf(bank.holdMs / 1000),
-                      onChanged: (p) => notifier.setTiming(bankId, holdMs: (_holdScale.valueAt(p) * 1000).round()),
+                      value: holdTimeScale.positionOf(bank.holdMs / 1000),
+                      onChanged: (p) => notifier.setTiming(bankId, holdMs: (holdTimeScale.valueAt(p) * 1000).round()),
                       onChangeEnd: (_) => restart(),
                     ),
                     Text('Fade ${_seconds(bank.fadeMs)}', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),
@@ -264,8 +264,6 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       ),
     );
   }
-
-  static const _holdScale = LogScale(min: 0.02, max: 10.0);
 
   static String _seconds(int ms) => '${(ms / 1000).toStringAsFixed(2)}s';
 
@@ -484,11 +482,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
                     ),
                     Slider(
-                      value: _holdScale.positionOf(own.holdMs / 1000),
+                      value: holdTimeScale.positionOf(own.holdMs / 1000),
                       onChanged: (p) => notifier.setSlotTiming(
                         bankId,
                         slotIndex,
-                        own.copyWith(holdMs: (_holdScale.valueAt(p) * 1000).round()),
+                        own.copyWith(holdMs: (holdTimeScale.valueAt(p) * 1000).round()),
                       ),
                     ),
                     Text('Fade ${_seconds(own.fadeMs)}', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),

@@ -254,6 +254,11 @@ Future<List<String>> startLayeredChase(
   if (!followBeatSync && chase.beatSync) {
     ownBeatSync = await read(activeBeatSourceProvider).start();
   }
+  // A lane set to On beat opens the source itself, whatever the chase or the
+  // dock say; if it can't be opened the lane falls back to its timers.
+  if (chase.laneTimings.values.contains(LaneTiming.onBeat)) {
+    await read(activeBeatSourceProvider).start();
+  }
   // Always wired, even for a chase on its timers: a Beat Flash bank inside
   // it flashes on the beat whenever beats are coming in.
   final beatStream = read(beatPredictorProvider).events;
@@ -262,6 +267,7 @@ Future<List<String>> startLayeredChase(
   final started = <String>[];
   for (final entry in lanes.entries) {
     final player = read(chasePlayerProvider(entry.key));
+    final mode = chase.timingOfLane(entry.key);
     player.play(
       chase: entry.value,
       scenes: read(scenesProvider),
@@ -276,14 +282,18 @@ Future<List<String>> startLayeredChase(
       liveFlashLength: () => read(flashLengthProvider),
       liveBanks: () => read(banksProvider),
       liveScenes: () => read(scenesProvider),
-      liveBeatSync: followBeatSync ? () => read(beatSyncEnabledProvider) : () => ownBeatSync,
-      liveBeatAvailable: () => read(activeBeatSourceProvider).isListening,
+      liveBeatSync: switch (mode) {
+        LaneTiming.free => () => false,
+        LaneTiming.onBeat => () => read(activeBeatSourceProvider).isListening,
+        LaneTiming.followApp => followBeatSync ? () => read(beatSyncEnabledProvider) : () => ownBeatSync,
+      },
+      liveBeatAvailable: mode == LaneTiming.free ? () => false : () => read(activeBeatSourceProvider).isListening,
       liveFlashGap: () => read(tempoProvider).hold,
       onStep: (index) {
         read(layerStepProvider(entry.key).notifier).state = index;
         onStep?.call(entry.key, index);
       },
-      fadeOverride: fadeOverride,
+      fadeOverride: mode == LaneTiming.free ? null : fadeOverride,
     );
     if (!player.isPlaying) continue;
     read(nowPlayingForLayerProvider(entry.key).notifier).state = playing;

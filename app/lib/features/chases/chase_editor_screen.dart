@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/beat_meter.dart';
 import '../../core/widgets/layer_badge.dart';
+import '../../core/widgets/log_scale.dart';
 import '../../models/chase.dart';
 import '../../models/layer.dart';
 import '../../state/artnet_providers.dart';
@@ -34,6 +35,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   double _defaultFadeSeconds = 0.3;
   late bool _beatSync;
   late ChaseDirection _direction;
+  late Map<String, LaneTiming> _laneTimings;
   double _sensitivity = 0.6;
   BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
 
@@ -53,6 +55,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     _stepSeconds = widget.existing.stepSeconds;
     _beatSync = widget.existing.beatSync;
     _direction = widget.existing.direction;
+    _laneTimings = {...widget.existing.laneTimings};
     _sensitivity = ref.read(beatDetectorProvider).sensitivity;
     _frequencyBand = ref.read(beatDetectorProvider).frequencyBand;
     _wasRunningAtOpen;
@@ -177,6 +180,10 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     });
   }
 
+  /// Two decimals under 10 s, one under a minute, whole seconds beyond —
+  /// the long end of a log slider is too coarse for hundredths anyway.
+  static double _roundTime(double s) => s < 10 ? (s * 100).round() / 100 : s < 60 ? (s * 10).round() / 10 : s.roundToDouble();
+
   Future<void> _editStepTiming(int index) async {
     final step = _steps[index];
     var hold = step.hold.inMilliseconds / 1000.0;
@@ -192,10 +199,16 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('Hold: ${hold.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),
-              Slider(value: hold, min: 0, max: 10, onChanged: (v) => setDialogState(() => hold = v)),
+              Slider(
+                value: holdTimeScale.positionOf(hold),
+                onChanged: (p) => setDialogState(() => hold = _roundTime(holdTimeScale.valueAt(p))),
+              ),
               const SizedBox(height: 8),
               Text('Fade: ${fade.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),
-              Slider(value: fade, min: 0, max: 10, onChanged: (v) => setDialogState(() => fade = v)),
+              Slider(
+                value: fadeTimeScale.positionOf(fade),
+                onChanged: (p) => setDialogState(() => fade = _roundTime(fadeTimeScale.valueAt(p))),
+              ),
             ],
           ),
           actions: [
@@ -221,6 +234,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     stepSeconds: _stepSeconds,
     beatSync: _beatSync,
     direction: _direction,
+    laneTimings: {for (final e in _laneTimings.entries) if (e.value != LaneTiming.followApp) e.key: e.value},
   );
 
   /// How many instants (played looks) a step expands into — one for a
@@ -390,6 +404,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   Widget _layerGroup(Layer layer, int layerIndex, List<Layer> layers) {
     final indices = _stepsOn(layer.id);
     final color = layerColor(layerIndex);
+    final laneMode = _laneTimings[layer.id] ?? LaneTiming.followApp;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       clipBehavior: Clip.antiAlias,
@@ -417,6 +432,42 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                         style: const TextStyle(fontSize: 10, color: AppColors.textFaint),
                       ),
                     ],
+                  ),
+                ),
+                PopupMenuButton<LaneTiming>(
+                  tooltip: 'How this layer is clocked',
+                  color: AppColors.panel2,
+                  onSelected: (mode) {
+                    setState(() => _laneTimings[layer.id] = mode);
+                    _restartIfPlaying();
+                  },
+                  itemBuilder: (context) => [
+                    for (final mode in LaneTiming.values)
+                      CheckedPopupMenuItem(
+                        value: mode,
+                        checked: laneMode == mode,
+                        child: Text(switch (mode) {
+                          LaneTiming.followApp => 'Follow dock (Beat Sync, Override, Auto-Fade)',
+                          LaneTiming.onBeat => 'On beat — always, mic or MIDI clock',
+                          LaneTiming.free => 'Free-running — own Hold/Fade, no beat',
+                        }),
+                      ),
+                  ],
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: laneMode == LaneTiming.followApp ? AppColors.border : AppColors.accent),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.timer_outlined, size: 13, color: laneMode == LaneTiming.followApp ? AppColors.textFaint : AppColors.accent),
+                        const SizedBox(width: 4),
+                        Text(laneMode.label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
+                      ],
+                    ),
                   ),
                 ),
                 if (indices.isEmpty && layer.id != layer1Id)

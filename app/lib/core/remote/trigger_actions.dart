@@ -60,7 +60,13 @@ Chase chaseAsDashboardPlaysIt(ReadProvider read, Chase saved) {
   if (!tempo.overrideTiming) return saved.copyWith(beatSync: beatSync);
   return saved.copyWith(
     beatSync: beatSync,
-    steps: [for (final step in saved.steps) step.copyWith(hold: tempo.hold, fade: tempo.fade)],
+    // A free-running lane keeps its own steps' timing — that is the point of it.
+    steps: [
+      for (final step in saved.steps)
+        saved.timingOfLane(step.layerId ?? layer1Id) == LaneTiming.free
+            ? step
+            : step.copyWith(hold: tempo.hold, fade: tempo.fade),
+    ],
   );
 }
 
