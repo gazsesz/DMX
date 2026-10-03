@@ -536,6 +536,22 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.fixtures.any((f) => f.mounting.isDefault))
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.12),
+              border: Border.all(color: AppColors.accent),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${[for (final f in widget.fixtures) if (f.mounting.isDefault) f.label].join(', ')} still use the '
+              'default rigging: hanging, 3 m, not calibrated. Heads on stands will not aim right — '
+              'Fixtures → Layout → tap the head → Mounting: Standing, its height, which way pan centre faces, then calibrate.',
+              style: const TextStyle(fontSize: 11, color: AppColors.textDim),
+            ),
+          ),
         _label('AIM AT'),
         Wrap(
           spacing: 6,
