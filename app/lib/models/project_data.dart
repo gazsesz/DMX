@@ -6,8 +6,10 @@ import 'fixture_group.dart';
 import 'fixture_profile.dart';
 import 'layer.dart';
 import 'patched_fixture.dart';
+import 'position_preset.dart';
 import 'scene.dart';
 import 'smart_program.dart';
+import 'stage_plan.dart';
 import 'universe_config.dart';
 
 /// Everything that makes up one show file.
@@ -24,6 +26,11 @@ class ProjectData {
   final List<DashboardTriggerRef> dashboardTriggers;
   final List<SmartProgram> smartPrograms;
   final List<Layer> layers;
+
+  /// The stage's real size and named aim targets, and the saved mover
+  /// positions — see [StagePlan] and [PositionPreset].
+  final StagePlan stagePlan;
+  final List<PositionPreset> positionPresets;
 
   /// The bank the Banks screen had selected, so reopening the project (or
   /// restarting the app) lands back on whatever the user was last working
@@ -43,6 +50,8 @@ class ProjectData {
     this.dashboardTriggers = const [],
     this.smartPrograms = const [],
     this.layers = const [],
+    this.stagePlan = const StagePlan(),
+    this.positionPresets = const [],
     this.lastSelectedBankId,
   });
 
@@ -60,6 +69,8 @@ class ProjectData {
     'dashboardTriggers': dashboardTriggers.map((t) => t.toJson()).toList(),
     'smartPrograms': smartPrograms.map((p) => p.toJson()).toList(),
     'layers': layers.map((l) => l.toJson()).toList(),
+    'stagePlan': stagePlan.toJson(),
+    'positionPresets': positionPresets.map((p) => p.toJson()).toList(),
     if (lastSelectedBankId != null) 'lastSelectedBankId': lastSelectedBankId,
   };
 
@@ -91,6 +102,10 @@ class ProjectData {
           .map((p) => SmartProgram.fromJson(p as Map<String, dynamic>))
           .toList(),
       layers: (json['layers'] as List? ?? []).map((l) => Layer.fromJson(l as Map<String, dynamic>)).toList(),
+      stagePlan: StagePlan.fromJson(json['stagePlan'] as Map<String, dynamic>?),
+      positionPresets: (json['positionPresets'] as List? ?? [])
+          .map((p) => PositionPreset.fromJson(p as Map<String, dynamic>))
+          .toList(),
       lastSelectedBankId: json['lastSelectedBankId'] as String?,
     );
   }

@@ -39,5 +39,10 @@ class LogScale {
 const stepSpeedScale = LogScale(min: 0.02, max: 5.0, inverted: true);
 
 /// Fade Time. 10 ms is a snap for anything on a stage, so the scale simply
-/// bottoms out there rather than carrying a special "zero" position.
-const fadeTimeScale = LogScale(min: 0.01, max: 5.0);
+/// bottoms out there rather than carrying a special "zero" position. The top
+/// is two minutes: a moving head's slow pan end to end is a 20-60 s fade, and
+/// the log spacing keeps the short end usable.
+const fadeTimeScale = LogScale(min: 0.01, max: 120.0);
+
+/// Hold Time for a bank or chase step (not the dock's Step Speed).
+const holdTimeScale = LogScale(min: 0.02, max: 60.0);

@@ -34,11 +34,23 @@ class ChannelCapability {
   final String label;
   final CapabilityKind kind;
 
+  /// What a colour-wheel slot looks like, as `#RRGGBB` — or two of them
+  /// joined by `/` for a split ("half") colour. Optional: without it the
+  /// Scene editor guesses from the label ("Red", "Light blue") and falls
+  /// back to a numbered grey swatch.
+  final String? colorHex;
+
+  /// Which picture to draw for a gobo slot (one of the names in
+  /// `goboGlyphNames`). Optional, guessed from the label the same way.
+  final String? glyph;
+
   const ChannelCapability({
     required this.min,
     required this.max,
     required this.label,
     this.kind = CapabilityKind.slot,
+    this.colorHex,
+    this.glyph,
   });
 
   bool contains(int value) => value >= min && value <= max;
@@ -56,7 +68,15 @@ class ChannelCapability {
       max: max ?? this.max,
       label: label ?? this.label,
       kind: kind ?? this.kind,
+      colorHex: colorHex,
+      glyph: glyph,
     );
+  }
+
+  /// [copyWith] can't clear a field back to null, and these two are the ones
+  /// the editor sets to "none".
+  ChannelCapability withLook({String? colorHex, String? glyph}) {
+    return ChannelCapability(min: min, max: max, label: label, kind: kind, colorHex: colorHex, glyph: glyph);
   }
 
   Map<String, dynamic> toJson() => {
@@ -64,6 +84,8 @@ class ChannelCapability {
     'max': max,
     'label': label,
     'kind': kind.name,
+    if (colorHex != null) 'color': colorHex,
+    if (glyph != null) 'glyph': glyph,
   };
 
   factory ChannelCapability.fromJson(Map<String, dynamic> json) {
@@ -77,6 +99,8 @@ class ChannelCapability {
         (k) => k.name == json['kind'],
         orElse: () => CapabilityKind.slot,
       ),
+      colorHex: json['color'] as String?,
+      glyph: json['glyph'] as String?,
     );
   }
 }

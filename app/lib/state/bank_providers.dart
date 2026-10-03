@@ -53,6 +53,7 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
       ownTiming: original.ownTiming,
       holdMs: original.holdMs,
       fadeMs: original.fadeMs,
+      slotTimings: [...original.slotTimings],
     );
     state = [...state, copy];
     return copy;
@@ -76,8 +77,8 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
         if (b.id == id)
           b.copyWith(
             ownTiming: ownTiming,
-            holdMs: holdMs?.clamp(20, 10000),
-            fadeMs: fadeMs?.clamp(0, 10000),
+            holdMs: holdMs?.clamp(20, 60000),
+            fadeMs: fadeMs?.clamp(0, 120000),
           )
         else
           b,
@@ -107,14 +108,68 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     ];
   }
 
+  /// Puts [sceneId] in a slot. Swapping in another scene keeps the step's
+  /// own timing (it belongs to the step, not the scene); clearing the slot
+  /// drops it, since an empty slot isn't a step any more.
   void setSlot(String bankId, int slotIndex, String? sceneId) {
     state = [
       for (final b in state)
         if (b.id == bankId)
-          b.copyWith(sceneSlots: [for (var i = 0; i < b.sceneSlots.length; i++) i == slotIndex ? sceneId : b.sceneSlots[i]])
+          () {
+            final updated = b.copyWith(
+              sceneSlots: [for (var i = 0; i < b.sceneSlots.length; i++) i == slotIndex ? sceneId : b.sceneSlots[i]],
+            );
+            return sceneId == null ? _withSlotTiming(updated, slotIndex, null) : updated;
+          }()
         else
           b,
     ];
+  }
+
+  /// Puts [sceneId] in the first free slot after [afterSlot] (wrapping round
+  /// to the start), so a copy lands next to the scene it was made from —
+  /// and grows the bank by one slot when every slot is taken. Returns the
+  /// slot used, or null when the bank no longer exists.
+  int? placeAfter(String bankId, int? afterSlot, String sceneId) {
+    final bank = state.where((b) => b.id == bankId).firstOrNull;
+    if (bank == null) return null;
+    final slots = bank.sceneSlots;
+    final start = afterSlot == null ? 0 : (afterSlot + 1).clamp(0, slots.length);
+    final order = [for (var i = start; i < slots.length; i++) i, for (var i = 0; i < start; i++) i];
+    final free = order.where((i) => slots[i] == null).firstOrNull;
+    if (free != null) {
+      setSlot(bankId, free, sceneId);
+      return free;
+    }
+    resize(bankId, slots.length + 1);
+    setSlot(bankId, slots.length, sceneId);
+    return slots.length;
+  }
+
+  /// Gives the step in [slotIndex] its own Hold/Fade, or with null puts it
+  /// back to following the bank — see [Bank.slotTimings].
+  void setSlotTiming(String bankId, int slotIndex, SlotTiming? timing) {
+    state = [
+      for (final b in state)
+        if (b.id == bankId) _withSlotTiming(b, slotIndex, timing) else b,
+    ];
+  }
+
+  /// Puts every step of [bankId] back to following the bank.
+  void clearSlotTimings(String bankId) {
+    state = [
+      for (final b in state)
+        if (b.id == bankId) b.copyWith(slotTimings: const []) else b,
+    ];
+  }
+
+  static Bank _withSlotTiming(Bank bank, int slotIndex, SlotTiming? timing) {
+    if (slotIndex < 0 || slotIndex >= bank.sceneSlots.length) return bank;
+    final timings = List<SlotTiming?>.generate(bank.sceneSlots.length, bank.timingAt);
+    timings[slotIndex] = timing == null
+        ? null
+        : SlotTiming(holdMs: timing.holdMs.clamp(20, 60000), fadeMs: timing.fadeMs.clamp(0, 120000));
+    return bank.copyWith(slotTimings: timings.any((t) => t != null) ? timings : const []);
   }
 
   /// Moves the scene in [fromSlot] to sit at [toSlot], shuffling the slots
@@ -134,6 +189,17 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
               final moved = slots.removeAt(fromSlot);
               slots.insert(toSlot, moved);
               return slots;
+            }(),
+            // A step's own timing travels with it.
+            slotTimings: () {
+              if (!b.hasStepTimings || fromSlot < 0 || fromSlot >= b.sceneSlots.length ||
+                  toSlot < 0 || toSlot >= b.sceneSlots.length) {
+                return b.slotTimings;
+              }
+              final timings = List<SlotTiming?>.generate(b.sceneSlots.length, b.timingAt);
+              final moved = timings.removeAt(fromSlot);
+              timings.insert(toSlot, moved);
+              return timings;
             }(),
           )
         else

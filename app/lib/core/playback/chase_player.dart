@@ -30,6 +30,10 @@ class _Instant {
   /// only stays up for the flash length.
   final bool isFlashLit;
 
+  /// A bank step with its own timing ([Bank.slotTimings]): its fade is kept
+  /// even while the dock's auto-fade would otherwise replace it.
+  final bool ownTiming;
+
   const _Instant({
     required this.scene,
     required this.hold,
@@ -37,6 +41,7 @@ class _Instant {
     this.flashFadeOut,
     this.isFlash = false,
     this.isFlashLit = false,
+    this.ownTiming = false,
   });
 }
 
@@ -172,12 +177,16 @@ class ChasePlayer {
                 if (flashFixtures.contains(entry.key)) entry.key: entry.value,
             });
           }
+          // A step's own timing beats the bank's and the dock's. A Beat
+          // Flash bank's steps are timed by the flash itself, so it has none.
+          final own = bank.isBeatFlash ? null : bank.timingAt(slot);
           result.add(_Instant(
             isFlash: bank.isBeatFlash,
             isFlashLit: bank.isBeatFlash && slot.isOdd,
             scene: scene,
-            hold: step.hold,
-            fade: step.fade,
+            hold: own?.hold ?? step.hold,
+            fade: own?.fade ?? step.fade,
+            ownTiming: own != null,
             flashFadeOut: isDarkSlot && bank.flashFadeOutMs > 0
                 ? Duration(milliseconds: bank.flashFadeOutMs)
                 : null,
@@ -303,7 +312,9 @@ class ChasePlayer {
         // Beat Flash bank is a flash on the timers too, not just the beat.
         fade: instant.isFlash || (useBeat && rate == BeatRate.flash)
             ? (instant.flashFadeOut ?? Duration.zero)
-            : fadeOverride?.call() ?? instant.fade,
+            : instant.ownTiming
+                ? instant.fade
+                : fadeOverride?.call() ?? instant.fade,
         service: service,
         patchedFixtures: patchedFixtures,
         universes: universes,
@@ -413,7 +424,7 @@ class ChasePlayer {
     }
 
     const tickMs = 40;
-    final tickCount = (fade.inMilliseconds / tickMs).ceil().clamp(1, 2000);
+    final tickCount = (fade.inMilliseconds / tickMs).ceil().clamp(1, 3000);
     for (var tick = 1; tick <= tickCount && _isCurrent(generation); tick++) {
       _writeStep(targets, tick / tickCount, service);
       await Future<void>.delayed(const Duration(milliseconds: tickMs));
@@ -489,11 +500,13 @@ class ChasePlayer {
     required Duration over,
     required ArtNetService service,
     required List<UniverseConfig> universes,
+    // Channels to leave alone (another layer's running move, say).
+    bool Function(UniverseConfig universe, int channel)? keep,
   }) async {
     _halt();
     _service = service;
     if (over <= Duration.zero) {
-      _blackout(service, universes);
+      _blackout(service, universes, keep);
       return;
     }
     final myGeneration = ++_generation;
@@ -511,7 +524,7 @@ class ChasePlayer {
         var touched = false;
         for (var channel = 0; channel < 512; channel++) {
           final from = entry.value[channel];
-          if (from == 0) continue;
+          if (from == 0 || (keep?.call(entry.key, channel) ?? false)) continue;
           _write(service, entry.key, channel, (from * remaining).round());
           touched = true;
         }
@@ -521,20 +534,21 @@ class ChasePlayer {
     }
 
     if (!_isCurrent(myGeneration)) return;
-    _blackout(service, universes);
+    _blackout(service, universes, keep);
     _running = false;
   }
 
   /// Everything this player may write to, to zero. A layered player leaves
   /// alone the channels a newer layer holds — blacking the whole rig out
   /// from under a layer that's still playing isn't its call.
-  void _blackout(ArtNetService service, List<UniverseConfig> universes) {
+  void _blackout(ArtNetService service, List<UniverseConfig> universes, [bool Function(UniverseConfig, int)? keep]) {
     if (layerId == null) {
       service.blackoutAll(universes);
       return;
     }
     for (final universe in universes) {
       for (var channel = 0; channel < 512; channel++) {
+        if (keep?.call(universe, channel) ?? false) continue;
         _write(service, universe, channel, 0);
       }
       service.flush(universe);

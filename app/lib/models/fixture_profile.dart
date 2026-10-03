@@ -20,6 +20,17 @@ class FixtureProfile {
   final String? modeName;
   final String? sourceFormat;
 
+  /// How far the head turns across the whole pan / tilt channel, in degrees
+  /// — what 0-255 (or 0-65535) actually spans. Drives the degree scale on
+  /// the Scene editor's position pad and the maths that aims a head at a
+  /// spot on the stage. 540/270 is the most common mover spec; the cheap
+  /// beam heads are often 540/180.
+  final int panRangeDeg;
+  final int tiltRangeDeg;
+
+  static const defaultPanRangeDeg = 540;
+  static const defaultTiltRangeDeg = 270;
+
   const FixtureProfile({
     required this.id,
     required this.name,
@@ -30,6 +41,8 @@ class FixtureProfile {
     this.model,
     this.modeName,
     this.sourceFormat,
+    this.panRangeDeg = defaultPanRangeDeg,
+    this.tiltRangeDeg = defaultTiltRangeDeg,
   });
 
   int get channelCount => channels.length;
@@ -52,6 +65,8 @@ class FixtureProfile {
     String? model,
     String? modeName,
     String? sourceFormat,
+    int? panRangeDeg,
+    int? tiltRangeDeg,
   }) {
     return FixtureProfile(
       id: id,
@@ -63,6 +78,8 @@ class FixtureProfile {
       model: model ?? this.model,
       modeName: modeName ?? this.modeName,
       sourceFormat: sourceFormat ?? this.sourceFormat,
+      panRangeDeg: panRangeDeg ?? this.panRangeDeg,
+      tiltRangeDeg: tiltRangeDeg ?? this.tiltRangeDeg,
     );
   }
 
@@ -75,6 +92,8 @@ class FixtureProfile {
     if (model != null) 'model': model,
     if (modeName != null) 'modeName': modeName,
     if (sourceFormat != null) 'sourceFormat': sourceFormat,
+    if (panRangeDeg != defaultPanRangeDeg) 'panRangeDeg': panRangeDeg,
+    if (tiltRangeDeg != defaultTiltRangeDeg) 'tiltRangeDeg': tiltRangeDeg,
   };
 
   factory FixtureProfile.fromJson(Map<String, dynamic> json) {
@@ -92,6 +111,13 @@ class FixtureProfile {
       model: json['model'] as String?,
       modeName: json['modeName'] as String?,
       sourceFormat: json['sourceFormat'] as String?,
+      panRangeDeg: _positiveDegrees(json['panRangeDeg'], defaultPanRangeDeg),
+      tiltRangeDeg: _positiveDegrees(json['tiltRangeDeg'], defaultTiltRangeDeg),
     );
+  }
+
+  static int _positiveDegrees(dynamic raw, int fallback) {
+    final value = (raw as num?)?.toInt();
+    return value == null || value <= 0 ? fallback : value.clamp(1, 720);
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/project_data.dart';
+import '../../models/stage_plan.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
@@ -11,6 +12,7 @@ import '../../state/layer_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/smart_program_providers.dart';
+import '../../state/stage_providers.dart';
 
 /// Gathers the whole show's current state into one [ProjectData] snapshot —
 /// shared by the Files screen and the quick "Save Project" action available
@@ -30,6 +32,8 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     dashboardTriggers: ref.read(dashboardTriggersProvider),
     smartPrograms: ref.read(smartProgramsProvider),
     layers: ref.read(layersProvider),
+    stagePlan: ref.read(stagePlanProvider),
+    positionPresets: ref.read(positionPresetsProvider),
     lastSelectedBankId: ref.read(selectedBankIdProvider),
   );
 }
@@ -92,6 +96,8 @@ void startProject(
       dashboardTriggers: source.dashboardTriggers,
       smartPrograms: source.smartPrograms,
       layers: source.layers,
+      stagePlan: source.stagePlan,
+      positionPresets: source.positionPresets,
       lastSelectedBankId: source.lastSelectedBankId,
     ));
     return;
@@ -104,11 +110,16 @@ void startProject(
     ref.read(fixtureLibraryProvider.notifier).loadAll(source.customFixtureProfiles);
     ref.read(patchedFixturesProvider.notifier).loadAll(source.patchedFixtures);
     ref.read(fixtureGroupsProvider.notifier).loadAll(source.fixtureGroups);
+    // The stage and the saved positions describe the rig, not the show.
+    ref.read(stagePlanProvider.notifier).load(source.stagePlan);
+    ref.read(positionPresetsProvider.notifier).loadAll(source.positionPresets);
   } else {
     ref.read(universesProvider.notifier).reset();
     ref.read(fixtureLibraryProvider.notifier).loadAll(const []);
     ref.read(patchedFixturesProvider.notifier).loadAll(const []);
     ref.read(fixtureGroupsProvider.notifier).loadAll(const []);
+    ref.read(stagePlanProvider.notifier).load(const StagePlan());
+    ref.read(positionPresetsProvider.notifier).loadAll(const []);
   }
   ref.read(scenesProvider.notifier).loadAll(const []);
   ref.read(banksProvider.notifier).reset();
@@ -130,6 +141,8 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(fixtureLibraryProvider.notifier).loadAll(data.customFixtureProfiles);
   ref.read(patchedFixturesProvider.notifier).loadAll(data.patchedFixtures);
   ref.read(fixtureGroupsProvider.notifier).loadAll(data.fixtureGroups);
+  ref.read(stagePlanProvider.notifier).load(data.stagePlan);
+  ref.read(positionPresetsProvider.notifier).loadAll(data.positionPresets);
   ref.read(scenesProvider.notifier).loadAll(data.scenes);
   ref.read(banksProvider.notifier).loadAll(data.banks);
   ref.read(chasesProvider.notifier).loadAll(data.chases);

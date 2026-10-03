@@ -222,5 +222,35 @@ void main() {
       expect(players[layer1Id]!.isPlaying, isFalse);
       expect(smart.drivenLayerIds, isEmpty);
     });
+
+    test('a free-running layer plays its own pick at Base and zone replays leave it alone', () async {
+      final freeProgram = program.copyWith(layerTimings: const {_l2: LaneTiming.free});
+      await start(freeProgram);
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+      expect(players[_l2]!.isPlaying, isTrue, reason: 'free layer ignores that its only pick is Faster');
+      // Taken off the rig by hand, then the zone is re-fired as a beat-sync
+      // flip would: Layer 1 restarts, the free layer is not set going again.
+      players[_l2]!.stop();
+      players[layer1Id]!.stop();
+      smart.replayCurrentZone(
+        chases: const [],
+        scenes: scenes,
+        banks: banks,
+        patchedFixtures: [par, head],
+        universes: const [universe],
+        service: service,
+      );
+      expect(players[layer1Id]!.isPlaying, isTrue);
+      expect(players[_l2]!.isPlaying, isFalse);
+    });
+
+    test('layer timings survive JSON and a layer-target rewrite', () {
+      final timed = program.copyWith(layerTimings: const {_l2: LaneTiming.free, layer1Id: LaneTiming.onBeat});
+      final restored = SmartProgram.fromJson(timed.toJson());
+      expect(restored.timingOfLayer(_l2), LaneTiming.free);
+      expect(restored.timingOfLayer(layer1Id), LaneTiming.onBeat);
+      expect(restored.timingOfLayer(_l3), LaneTiming.followApp);
+      expect(timed.withLayerTargets(timed.layers).timingOfLayer(_l2), LaneTiming.free);
+    });
   });
 }

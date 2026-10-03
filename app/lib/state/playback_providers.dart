@@ -228,6 +228,15 @@ Map<String, Chase> chaseLanes(Chase chase, List<String> existingLayerIds) {
 List<String> chaseLayerIds(ReadProvider read, Chase chase) =>
     chaseLanes(chase, _layerIds(read)).keys.toList();
 
+/// Stops everything running on every layer but [keep] — a Smart Program on
+/// them is handed those layers back, or ended when they were its last.
+void stopLayersExcept(ReadProvider read, Iterable<String> keep) {
+  final kept = keep.toSet();
+  for (final id in _layerIds(read)) {
+    if (!kept.contains(id)) stopLayer(read, id);
+  }
+}
+
 /// Starts [chase] as parallel lanes — each layer its steps name runs its
 /// own steps on its own player, all at once — and marks each started lane
 /// as [playing]. Starting a lane takes its layer back from the Smart
@@ -244,6 +253,7 @@ Future<List<String>> startLayeredChase(
   Duration? Function()? fadeOverride,
   void Function(String layerId, int instantIndex)? onStep,
   bool followBeatSync = false,
+  bool exclusive = false,
 }) async {
   // The players read through this on every step — see [stableRead].
   read = stableRead(read);
@@ -254,14 +264,21 @@ Future<List<String>> startLayeredChase(
   if (!followBeatSync && chase.beatSync) {
     ownBeatSync = await read(activeBeatSourceProvider).start();
   }
+  // A lane set to On beat opens the source itself, whatever the chase or the
+  // dock say; if it can't be opened the lane falls back to its timers.
+  if (chase.laneTimings.values.contains(LaneTiming.onBeat)) {
+    await read(activeBeatSourceProvider).start();
+  }
   // Always wired, even for a chase on its timers: a Beat Flash bank inside
   // it flashes on the beat whenever beats are coming in.
   final beatStream = read(beatPredictorProvider).events;
   final lanes = chaseLanes(chase, _layerIds(read));
+  if (exclusive) stopLayersExcept(read, lanes.keys);
   releaseLayersFromSmart(read, lanes.keys);
   final started = <String>[];
   for (final entry in lanes.entries) {
     final player = read(chasePlayerProvider(entry.key));
+    final mode = chase.timingOfLane(entry.key);
     player.play(
       chase: entry.value,
       scenes: read(scenesProvider),
@@ -276,14 +293,18 @@ Future<List<String>> startLayeredChase(
       liveFlashLength: () => read(flashLengthProvider),
       liveBanks: () => read(banksProvider),
       liveScenes: () => read(scenesProvider),
-      liveBeatSync: followBeatSync ? () => read(beatSyncEnabledProvider) : () => ownBeatSync,
-      liveBeatAvailable: () => read(activeBeatSourceProvider).isListening,
+      liveBeatSync: switch (mode) {
+        LaneTiming.free => () => false,
+        LaneTiming.onBeat => () => read(activeBeatSourceProvider).isListening,
+        LaneTiming.followApp => followBeatSync ? () => read(beatSyncEnabledProvider) : () => ownBeatSync,
+      },
+      liveBeatAvailable: mode == LaneTiming.free ? () => false : () => read(activeBeatSourceProvider).isListening,
       liveFlashGap: () => read(tempoProvider).hold,
       onStep: (index) {
         read(layerStepProvider(entry.key).notifier).state = index;
         onStep?.call(entry.key, index);
       },
-      fadeOverride: fadeOverride,
+      fadeOverride: mode == LaneTiming.free ? null : fadeOverride,
     );
     if (!player.isPlaying) continue;
     read(nowPlayingForLayerProvider(entry.key).notifier).state = playing;
@@ -342,6 +363,9 @@ Future<String> startSmartProgram(ReadProvider read, SmartProgram program) async 
   ]);
   if (!effective.hasAnyTarget) return '${program.name} has no chase or bank set on any layer';
   stopSmartProgram(read);
+  // The program is the whole show: a layer it has nothing for goes quiet too,
+  // instead of carrying on with whatever ran there before.
+  stopLayersExcept(read, const []);
   for (final layer in effective.drivenLayers) {
     stopLayer(read, layer.layerId);
   }

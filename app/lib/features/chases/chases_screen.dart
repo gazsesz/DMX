@@ -12,6 +12,7 @@ import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/layer_badge.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
+import '../../core/widgets/show_items_actions.dart';
 import '../../models/chase.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../models/smart_program.dart';
@@ -96,6 +97,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       chaseAsDashboardPlaysIt(ref.read, chase),
       playing: NowPlaying(id: chase.id, kind: PlaybackKind.chase, name: chase.name),
       dashboardTiming: ref.read(tempoProvider).overrideTiming,
+      exclusive: true,
     );
     // A step whose scene or bank was since deleted flattens to nothing, and
     // the player quietly declines to run zero steps.
@@ -200,7 +202,19 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Chases'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
+      appBar: AppBar(
+        title: const Text('Chases'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.file_open_outlined),
+            tooltip: 'Import chases / banks',
+            onPressed: () => importShowItemsFromFile(context, ref),
+          ),
+          const NodeStatusAction(),
+          const ControlDockAction(),
+          const SaveProjectAction(),
+        ],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
@@ -343,6 +357,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                 builder: (context) {
                   final active = layersPlaying(ref.read, chase.id).isNotEmpty;
                   final layerIds = chaseLayerIds(ref.read, chase);
+                  // Lanes another layer's run has taken over (a Smart Program on
+                  // Layer 1, say) are dimmed: the chase still runs on the rest.
+                  final runningLayers = layersPlaying(ref.read, chase.id).toSet();
                   final onDashboard = ref
                       .watch(dashboardTriggersProvider)
                       .any((t) => t.id == chase.id && t.kind == TriggerKind.chase);
@@ -377,7 +394,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                           Flexible(
                             child: Text(
                               active
-                                  ? 'Running…'
+                                  ? (runningLayers.length < layerIds.length ? 'Running on ${runningLayers.length} of ${layerIds.length} layers' : 'Running…')
                                   : '${chase.steps.length} steps · ${chase.stepSeconds.toStringAsFixed(2)}s/step',
                               style: TextStyle(
                                 fontSize: 11,
@@ -389,7 +406,10 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                           ),
                           for (final id in layerIds) ...[
                             const SizedBox(width: 5),
-                            LayerBadge(index: layers.indexWhere((l) => l.id == id), small: true),
+                            Opacity(
+                              opacity: !active || runningLayers.contains(id) ? 1 : 0.3,
+                              child: LayerBadge(index: layers.indexWhere((l) => l.id == id), small: true),
+                            ),
                           ],
                         ],
                       ),
@@ -419,6 +439,11 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                             icon: const Icon(Icons.copy_outlined, size: 18),
                             onPressed: () => ref.read(chasesProvider.notifier).duplicate(chase.id),
                             tooltip: 'Duplicate',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.upload_file, size: 18),
+                            onPressed: () => exportShowItemsToFile(context, ref, chaseIds: [chase.id]),
+                            tooltip: 'Export (with its banks and scenes)',
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline, size: 18),

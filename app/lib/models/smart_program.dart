@@ -1,3 +1,4 @@
+import 'chase.dart';
 import 'layer.dart';
 
 /// Whether a Smart Program's tempo thresholds are expressed as a percentage
@@ -117,6 +118,14 @@ class SmartProgram {
   /// old show loads as a Layer-1-only program, unchanged.
   final List<LayerZoneTargets> extraLayers;
 
+  /// How each layer is clocked, by layer id (Layer 1 included). A layer not
+  /// listed follows the dock. A [LaneTiming.free] layer plays its Base target
+  /// once, on its own steps' timing, and runs through the zone changes
+  /// untouched.
+  final Map<String, LaneTiming> layerTimings;
+
+  LaneTiming timingOfLayer(String layerId) => layerTimings[layerId] ?? LaneTiming.followApp;
+
   const SmartProgram({
     required this.id,
     required this.name,
@@ -140,6 +149,7 @@ class SmartProgram {
     this.slowerFade = const Duration(milliseconds: 300),
     this.blackoutFade = const Duration(seconds: 3),
     this.extraLayers = const [],
+    this.layerTimings = const {},
   });
 
   /// Layer 1's targets plus every extra layer's — one entry per layer, Layer
@@ -198,6 +208,7 @@ class SmartProgram {
       slowerFade: slowerFade,
       blackoutFade: blackoutFade,
       extraLayers: [for (final l in all) if (l.layerId != layer1Id && !l.isEmpty) l],
+      layerTimings: layerTimings,
     );
   }
 
@@ -225,6 +236,7 @@ class SmartProgram {
     slowerFade: slowerFade,
     blackoutFade: blackoutFade,
     extraLayers: extraLayers,
+    layerTimings: layerTimings,
   );
 
   /// The BPM at/above which the "faster" chase should take over.
@@ -260,6 +272,7 @@ class SmartProgram {
     Duration? slowerHold,
     Duration? slowerFade,
     Duration? blackoutFade,
+    Map<String, LaneTiming>? layerTimings,
     bool clearBase = false,
     bool clearFaster = false,
     bool clearSlower = false,
@@ -287,6 +300,7 @@ class SmartProgram {
       slowerFade: slowerFade ?? this.slowerFade,
       blackoutFade: blackoutFade ?? this.blackoutFade,
       extraLayers: extraLayers,
+      layerTimings: layerTimings ?? this.layerTimings,
     );
   }
 
@@ -313,6 +327,7 @@ class SmartProgram {
     'slowerFadeMs': slowerFade.inMilliseconds,
     'blackoutFadeMs': blackoutFade.inMilliseconds,
     if (extraLayers.isNotEmpty) 'extraLayers': extraLayers.map((l) => l.toJson()).toList(),
+    if (layerTimings.isNotEmpty) 'layerTimings': {for (final e in layerTimings.entries) e.key: e.value.name},
   };
 
   factory SmartProgram.fromJson(Map<String, dynamic> json) {
@@ -347,6 +362,13 @@ class SmartProgram {
       extraLayers: (json['extraLayers'] as List? ?? [])
           .map((l) => LayerZoneTargets.fromJson(l as Map<String, dynamic>))
           .toList(),
+      layerTimings: {
+        for (final e in ((json['layerTimings'] as Map?) ?? const {}).entries)
+          e.key as String: LaneTiming.values.firstWhere(
+            (t) => t.name == e.value,
+            orElse: () => LaneTiming.followApp,
+          ),
+      },
     );
   }
 }

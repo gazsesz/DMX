@@ -31,6 +31,7 @@ Future<List<String>> startChase(
   Chase chase, {
   required NowPlaying playing,
   bool dashboardTiming = true,
+  bool exclusive = false,
 }) {
   // Read on every step — see [stableRead].
   read = stableRead(read);
@@ -39,6 +40,7 @@ Future<List<String>> startChase(
     chase,
     playing: playing,
     followBeatSync: true,
+    exclusive: exclusive,
     // Read fresh on every step rather than captured here, so tempo changes
     // reach the rig without restarting the chase. Returns null while
     // auto-fade is off, leaving the step's own fade alone.
@@ -60,7 +62,13 @@ Chase chaseAsDashboardPlaysIt(ReadProvider read, Chase saved) {
   if (!tempo.overrideTiming) return saved.copyWith(beatSync: beatSync);
   return saved.copyWith(
     beatSync: beatSync,
-    steps: [for (final step in saved.steps) step.copyWith(hold: tempo.hold, fade: tempo.fade)],
+    // A free-running lane keeps its own steps' timing — that is the point of it.
+    steps: [
+      for (final step in saved.steps)
+        saved.timingOfLane(step.layerId ?? layer1Id) == LaneTiming.free
+            ? step
+            : step.copyWith(hold: tempo.hold, fade: tempo.fade),
+    ],
   );
 }
 
@@ -91,6 +99,7 @@ Future<String> togglePlayable(
     chaseAsDashboardPlaysIt(read, matches.first),
     playing: NowPlaying(id: id, kind: PlaybackKind.chase, name: name),
     dashboardTiming: read(tempoProvider).overrideTiming,
+    exclusive: true,
   );
   // A step whose scene or bank no longer exists (deleted out from under it)
   // flattens to nothing, and `play` quietly declines to run zero steps —

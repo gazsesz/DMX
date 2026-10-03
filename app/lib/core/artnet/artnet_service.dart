@@ -197,6 +197,11 @@ class ArtNetService {
   List<String?> _ownersFor(UniverseConfig universe) =>
       _owners.putIfAbsent(universe.id, () => List<String?>.filled(512, null));
 
+  /// Whether [layer] is currently asking for [channel] — what a layer that
+  /// has to black the rig out around another one checks before touching it.
+  bool layerHolds(String layer, UniverseConfig universe, int channel) =>
+      _layerValues[layer]?[universe.id]?.containsKey(channel) ?? false;
+
   /// [setChannel] on behalf of [layer]: remembered for that layer, and
   /// written out only if no layer started after it holds the channel. Call
   /// [flush] afterwards, as with `setChannel(send: false)`.
@@ -331,7 +336,20 @@ class ArtNetService {
     }
   }
 
+  /// A send throws when the network drops (a Wi-Fi blip: "Network is
+  /// unreachable"). That used to escape into the playback loop and end it
+  /// mid-show; a lost frame is harmless, the next tick sends the state again.
   void _send(UniverseConfig universe) {
+    try {
+      _sendFrame(universe);
+    } on SocketException {
+      // dropped frame
+    } on OSError {
+      // dropped frame
+    }
+  }
+
+  void _sendFrame(UniverseConfig universe) {
     final socket = _socket;
     if (socket == null) return;
     final nextSequence = ((_sequences[universe.id] ?? 0) % 255) + 1;

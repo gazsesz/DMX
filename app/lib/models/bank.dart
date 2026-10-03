@@ -1,3 +1,34 @@
+/// One bank step's own Hold/Fade, set on that slot — wins over the bank's
+/// own timing and the dock's, wherever the bank plays.
+class SlotTiming {
+  final int holdMs;
+  final int fadeMs;
+
+  const SlotTiming({required this.holdMs, required this.fadeMs});
+
+  Duration get hold => Duration(milliseconds: holdMs);
+  Duration get fade => Duration(milliseconds: fadeMs);
+
+  SlotTiming copyWith({int? holdMs, int? fadeMs}) =>
+      SlotTiming(holdMs: holdMs ?? this.holdMs, fadeMs: fadeMs ?? this.fadeMs);
+
+  Map<String, dynamic> toJson() => {'holdMs': holdMs, 'fadeMs': fadeMs};
+
+  static SlotTiming? fromJson(dynamic json) {
+    if (json is! Map) return null;
+    return SlotTiming(
+      holdMs: ((json['holdMs'] as num?)?.toInt() ?? 1200).clamp(20, 60000),
+      fadeMs: ((json['fadeMs'] as num?)?.toInt() ?? 300).clamp(0, 120000),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) => other is SlotTiming && other.holdMs == holdMs && other.fadeMs == fadeMs;
+
+  @override
+  int get hashCode => Object.hash(holdMs, fadeMs);
+}
+
 /// A grid of scene slots that can be triggered from the Dashboard.
 class Bank {
   final String id;
@@ -26,6 +57,10 @@ class Bank {
   final int holdMs;
   final int fadeMs;
 
+  /// Per-step Hold/Fade, by slot index (same order as [sceneSlots]; may be
+  /// shorter). Null for a step that follows the bank — see [timingAt].
+  final List<SlotTiming?> slotTimings;
+
   const Bank({
     required this.id,
     required this.name,
@@ -35,10 +70,16 @@ class Bank {
     this.ownTiming = false,
     this.holdMs = 1200,
     this.fadeMs = 300,
+    this.slotTimings = const [],
   });
 
   Duration get hold => Duration(milliseconds: holdMs);
   Duration get fade => Duration(milliseconds: fadeMs);
+
+  /// The step at [slot]'s own timing, or null when it follows the bank.
+  SlotTiming? timingAt(int slot) => slot >= 0 && slot < slotTimings.length ? slotTimings[slot] : null;
+
+  bool get hasStepTimings => slotTimings.any((t) => t != null);
 
   Bank copyWith({
     String? name,
@@ -48,6 +89,7 @@ class Bank {
     bool? ownTiming,
     int? holdMs,
     int? fadeMs,
+    List<SlotTiming?>? slotTimings,
   }) {
     return Bank(
       id: id,
@@ -58,6 +100,7 @@ class Bank {
       ownTiming: ownTiming ?? this.ownTiming,
       holdMs: holdMs ?? this.holdMs,
       fadeMs: fadeMs ?? this.fadeMs,
+      slotTimings: slotTimings ?? this.slotTimings,
     );
   }
 
@@ -66,7 +109,10 @@ class Bank {
     for (var i = 0; i < sceneSlots.length && i < newSize; i++) {
       slots[i] = sceneSlots[i];
     }
-    return copyWith(sceneSlots: slots);
+    return copyWith(
+      sceneSlots: slots,
+      slotTimings: [for (var i = 0; i < newSize && i < slotTimings.length; i++) slotTimings[i]],
+    );
   }
 
   Map<String, dynamic> toJson() => {
@@ -78,6 +124,7 @@ class Bank {
     'ownTiming': ownTiming,
     'holdMs': holdMs,
     'fadeMs': fadeMs,
+    if (hasStepTimings) 'slotTimings': [for (final t in slotTimings) t?.toJson()],
   };
 
   factory Bank.fromJson(Map<String, dynamic> json) {
@@ -90,6 +137,7 @@ class Bank {
       ownTiming: json['ownTiming'] as bool? ?? false,
       holdMs: json['holdMs'] as int? ?? 1200,
       fadeMs: json['fadeMs'] as int? ?? 300,
+      slotTimings: [for (final t in json['slotTimings'] as List? ?? const []) SlotTiming.fromJson(t)],
     );
   }
 }

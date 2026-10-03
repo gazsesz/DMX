@@ -139,11 +139,13 @@ class FixtureLibraryAsset {
     final channels = <FixtureChannel>[];
     for (var i = 0; i < raw.length; i++) {
       final entry = raw[i] as Map;
-      final function = ChannelFunction.values.firstWhere(
-        (f) => f.name == entry['f'],
-        orElse: () => ChannelFunction.generic,
-      );
       final sourceLabel = (entry['l'] as String?)?.trim();
+      // The bundled library was baked before colour wheels, prisms and frost
+      // had functions of their own; read those by name now.
+      final function = upgradedChannelFunction(
+        ChannelFunction.values.firstWhere((f) => f.name == entry['f'], orElse: () => ChannelFunction.generic),
+        sourceLabel,
+      );
       channels.add(FixtureChannel(
         offset: i,
         function: function,

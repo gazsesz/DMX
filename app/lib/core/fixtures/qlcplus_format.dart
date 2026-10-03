@@ -52,6 +52,10 @@ const qlcPresetToFunction = <String, ChannelFunction>{
   'BeamZoomBigSmall': ChannelFunction.zoom,
   'BeamFocusNearFar': ChannelFunction.focus,
   'BeamFocusFarNear': ChannelFunction.focus,
+  'PrismRotationSlowFast': ChannelFunction.prismRotation,
+  'PrismRotationFastSlow': ChannelFunction.prismRotation,
+  'SpeedPanTiltSlowFast': ChannelFunction.panTiltSpeed,
+  'SpeedPanTiltFastSlow': ChannelFunction.panTiltSpeed,
   'NoFunction': ChannelFunction.generic,
 };
 
@@ -103,7 +107,13 @@ String qlcGroupFor(ChannelFunction function) {
       return 'Gobo';
     case ChannelFunction.zoom:
     case ChannelFunction.focus:
+    case ChannelFunction.frost:
       return 'Beam';
+    case ChannelFunction.prism:
+    case ChannelFunction.prismRotation:
+      return 'Prism';
+    case ChannelFunction.panTiltSpeed:
+      return 'Speed';
     case ChannelFunction.autofade:
       return 'Effect';
     case ChannelFunction.generic:
@@ -117,6 +127,11 @@ ChannelFunction functionFromGroupAndName(String group, String name) {
   final n = name.toLowerCase();
   bool has(String needle) => n.contains(needle);
 
+  // Before the plain pan/tilt checks: "Pan/Tilt speed" names both axes but
+  // moves neither.
+  if (has('speed') && (has('pan') || has('tilt') || has('p/t') || group == 'Speed')) {
+    return ChannelFunction.panTiltSpeed;
+  }
   if (has('fine')) {
     if (has('pan')) return ChannelFunction.panFine;
     if (has('tilt')) return ChannelFunction.tiltFine;
@@ -138,6 +153,9 @@ ChannelFunction functionFromGroupAndName(String group, String name) {
   if (has('uv')) return ChannelFunction.uv;
   if (has('zoom')) return ChannelFunction.zoom;
   if (has('focus')) return ChannelFunction.focus;
+  if (has('prism') && (has('rot') || has('index'))) return ChannelFunction.prismRotation;
+  if (has('prism')) return ChannelFunction.prism;
+  if (has('frost')) return ChannelFunction.frost;
   // Auto-programs and sound-active channels are exactly what this app's
   // "autofade" function is for.
   if (has('auto') || has('program') || has('sound') || has('fade')) return ChannelFunction.autofade;
@@ -153,6 +171,10 @@ ChannelFunction functionFromGroupAndName(String group, String name) {
       return ChannelFunction.dimmer;
     case 'Gobo':
       return ChannelFunction.gobo;
+    case 'Prism':
+      return ChannelFunction.prism;
+    case 'Speed':
+      return ChannelFunction.panTiltSpeed;
     case 'Effect':
       // QLC+'s Effect group is where built-in programs, chases and
       // sound-active modes live — the app's autofade function exactly.
