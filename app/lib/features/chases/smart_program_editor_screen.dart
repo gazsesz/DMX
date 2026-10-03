@@ -6,6 +6,7 @@ import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/layer_badge.dart';
+import '../../models/chase.dart';
 import '../../models/layer.dart';
 import '../../models/smart_program.dart';
 import '../../state/bank_providers.dart';
@@ -39,6 +40,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
   late double _slowerHoldSeconds;
   late double _slowerFadeSeconds;
   late double _blackoutFadeSeconds;
+  late Map<String, LaneTiming> _layerTimings;
 
   // Each pick is held as a "chase:<id>" / "bank:<id>" / "lane:<chase>:<layer>"
   // key so one dropdown can offer every kind.
@@ -149,6 +151,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
       for (final layer in ref.read(layersProvider)) layer.id: p.targetsFor(layer.id),
     };
     _baseBpm = p.baseBpm;
+    _layerTimings = {...p.layerTimings};
     _mode = p.thresholdMode;
     _baseFadeSeconds = p.baseFade.inMilliseconds / 1000;
     _fasterThreshold = p.fasterThreshold;
@@ -179,6 +182,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
         slowerHold: Duration(milliseconds: (_slowerHoldSeconds * 1000).round()),
         slowerFade: Duration(milliseconds: (_slowerFadeSeconds * 1000).round()),
         blackoutFade: Duration(milliseconds: (_blackoutFadeSeconds * 1000).round()),
+        layerTimings: {for (final e in _layerTimings.entries) if (e.value != LaneTiming.followApp) e.key: e.value},
       )
       .withLayerTargets(_targets.values.toList());
 
@@ -253,6 +257,40 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     );
   }
 
+  /// How each layer the program can drive is clocked.
+  Widget _layerTimingPickers() {
+    final layers = ref.watch(layersProvider);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var i = 0; i < layers.length; i++)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                SizedBox(width: 30, child: LayerBadge(index: i)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButtonFormField<LaneTiming>(
+                    key: ValueKey('timing-${layers[i].id}'),
+                    initialValue: _layerTimings[layers[i].id] ?? LaneTiming.followApp,
+                    isExpanded: true,
+                    decoration: InputDecoration(labelText: layers[i].name, isDense: true),
+                    items: [
+                      for (final mode in LaneTiming.values) DropdownMenuItem(value: mode, child: Text(mode.label)),
+                    ],
+                    onChanged: (mode) {
+                      if (mode != null) setState(() => _layerTimings[layers[i].id] = mode);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+
   Widget _layerPickers(SmartProgramZone zone) {
     final layers = ref.watch(layersProvider);
     return Column(
@@ -313,6 +351,21 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             'banks spread over several layers: then you\'re asked whether to '
             'put each layer\'s banks on that layer instead.',
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          ),
+          const SizedBox(height: 20),
+          const Text('LAYER TIMING', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
+          const Text(
+            'Follow dock: as above. On beat: steps on the beat even with Beat Sync off on the dock. '
+            'Free-running: plays its Base target once on its own Hold/Fade — no beat, '
+            'not restarted by zone changes, left running through silence. For a slow pan sweep.',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: _layerTimingPickers(),
+            ),
           ),
           const SizedBox(height: 20),
           const Text('BASE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),

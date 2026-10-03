@@ -91,6 +91,17 @@ class SmartProgramPlayer {
   /// until it's started again.
   final Set<String> _released = {};
 
+  /// Free-running layers already set going. They play once and are then left
+  /// alone — zone changes, silence and beat-sync switches don't touch them —
+  /// so a slow sweep runs its whole length instead of restarting each time
+  /// the song crosses a threshold.
+  final Set<String> _freeStarted = {};
+
+  bool _isFree(SmartProgram program, String layerId) => program.timingOfLayer(layerId) == LaneTiming.free;
+
+  /// What a free layer plays: its Base, or failing that whichever zone it has.
+  static ProgramTarget? _freeTarget(LayerZoneTargets layer) => layer.base ?? layer.faster ?? layer.slower;
+
   /// How long to wait without a single beat before assuming the music has
   /// stopped (rather than just being between two real beats of a slow song
   /// — even 40 BPM is a beat every 1.5s, so this leaves a wide margin).
@@ -145,6 +156,7 @@ class SmartProgramPlayer {
 
     _program = program;
     _released.clear();
+    _freeStarted.clear();
     _beatTimes.clear();
     _pendingZone = SmartProgramZone.base;
     _confirmedZone = SmartProgramZone.base;
@@ -209,9 +221,22 @@ class SmartProgramPlayer {
     );
     final fadeChanged = _fadeOf(current, zone) != _fadeOf(program, zone);
     final holdChanged = _zoneHold(current, zone) != _zoneHold(program, zone);
+    // A free-running layer is only restarted when what it plays, or whether
+    // it is free at all, changed — never by a zone's fade or hold.
+    var freeChanged = false;
+    for (final id in layerIds) {
+      final wasFree = _isFree(current, id);
+      final isFree = _isFree(program, id);
+      final before = wasFree ? _freeTarget(current.targetsFor(id)) : null;
+      final after = isFree ? _freeTarget(program.targetsFor(id)) : null;
+      if (wasFree != isFree || before != after) {
+        _freeStarted.remove(id);
+        freeChanged = true;
+      }
+    }
     _program = program;
     if (_isSilent) return;
-    if (!targetChanged && !fadeChanged && !holdChanged) return;
+    if (!targetChanged && !fadeChanged && !holdChanged && !freeChanged) return;
     _playZone(
       zone,
       chases: chases,
@@ -269,7 +294,9 @@ class SmartProgramPlayer {
     if (program == null || _isSilent) return;
     _isSilent = true;
     _confirmTimer?.cancel();
-    final layerIds = drivenLayerIds;
+    // Free-running layers ride out the silence: a slow sweep is not a thing
+    // that should die with the music.
+    final layerIds = [for (final id in drivenLayerIds) if (!_isFree(program, id)) id];
     if (layerIds.isEmpty) return;
     // One fade-out covers the whole rig: every other driven layer stops
     // first, and the first one dies out gently over the program's blackout
@@ -278,7 +305,15 @@ class SmartProgramPlayer {
     for (final id in layerIds.skip(1)) {
       playerFor(id).stop();
     }
-    playerFor(layerIds.first).fadeToBlack(over: program.blackoutFade, service: service, universes: universes);
+    final freeLayers = [for (final id in drivenLayerIds) if (_isFree(program, id)) id];
+    playerFor(layerIds.first).fadeToBlack(
+      over: program.blackoutFade,
+      service: service,
+      universes: universes,
+      keep: freeLayers.isEmpty
+          ? null
+          : (universe, channel) => freeLayers.any((id) => service.layerHolds(id, universe, channel)),
+    );
     _statusController.add(SmartProgramStatus(zone: _confirmedZone, isSilent: true));
   }
 
@@ -407,10 +442,31 @@ class SmartProgramPlayer {
     for (final layer in program.drivenLayers) {
       if (_released.contains(layer.layerId)) continue;
       final player = playerFor(layer.layerId);
-      final target = layer.effective(zone);
+      final timing = program.timingOfLayer(layer.layerId);
+      final free = timing == LaneTiming.free;
+      // A free layer is set going once and then left to run its course.
+      if (free && _freeStarted.contains(layer.layerId)) continue;
+      final target = free ? _freeTarget(layer) : layer.effective(zone);
+      final layerOnBeat = timing == LaneTiming.onBeat || (!free && onBeat);
       final toPlay = target == null
           ? null
-          : _chaseFor(target, program: program, zone: zone, fade: fade, onBeat: onBeat, chases: chases, banks: banks);
+          : _chaseFor(
+              target,
+              program: program,
+              zone: zone,
+              fade: fade,
+              onBeat: layerOnBeat,
+              free: free,
+              chases: chases,
+              banks: banks,
+            );
+      if (free) {
+        if (toPlay == null) {
+          player.stop();
+          continue;
+        }
+        _freeStarted.add(layer.layerId);
+      }
       if (toPlay == null) {
         // Nothing for this layer in this zone (it only has Faster, say, and
         // the song is at Base) — it sits dark until its zone comes round.
@@ -430,8 +486,12 @@ class SmartProgramPlayer {
         flashLength: flashLength(),
         liveBeatRate: beatRate,
         liveFlashLength: flashLength,
-        liveBeatSync: beatSyncEnabled,
-        liveBeatAvailable: () => beatService.isListening,
+        liveBeatSync: free
+            ? () => false
+            : timing == LaneTiming.onBeat
+                ? () => beatService.isListening
+                : beatSyncEnabled,
+        liveBeatAvailable: free ? () => false : () => beatService.isListening,
         claim: false,
         onStep: (_) {},
       );
@@ -450,19 +510,28 @@ class SmartProgramPlayer {
     required SmartProgramZone zone,
     required Duration fade,
     required bool onBeat,
+    bool free = false,
     required List<Chase> chases,
     required List<Bank> banks,
   }) {
     if (target.isBank) {
       final matches = banks.where((b) => b.id == target.id);
       if (matches.isEmpty) return null;
+      final bank = matches.first;
       // A bank has no timing of its own, so it becomes a one-step chase
-      // stepping through its slots at this zone's pace.
+      // stepping through its slots at this zone's pace — except on a free
+      // layer, where the bank's own Hold/Fade (and its steps') are what run.
       return Chase(
         id: 'smart-bank-${target.id}',
-        name: matches.first.name,
+        name: bank.name,
         beatSync: onBeat,
-        steps: [ChaseStep(bankId: target.id, hold: _zoneHold(program, zone), fade: fade)],
+        steps: [
+          ChaseStep(
+            bankId: target.id,
+            hold: free && bank.ownTiming ? bank.hold : _zoneHold(program, zone),
+            fade: free && bank.ownTiming ? bank.fade : fade,
+          ),
+        ],
       );
     }
     final matches = chases.where((c) => c.id == target.id);
@@ -477,7 +546,9 @@ class SmartProgramPlayer {
     if (steps.isEmpty) return null;
     return source.copyWith(
       beatSync: onBeat,
-      steps: [for (final step in steps) step.copyWith(fade: fade, clearLayer: true)],
+      // A free layer keeps each step's own fade — a slow sweep's fade is the
+      // whole point, and the zone's fade is far shorter.
+      steps: [for (final step in steps) free ? step.copyWith(clearLayer: true) : step.copyWith(fade: fade, clearLayer: true)],
     );
   }
 
@@ -498,6 +569,7 @@ class SmartProgramPlayer {
     final layerIds = drivenLayerIds;
     _program = null;
     _released.clear();
+    _freeStarted.clear();
     _beatSub?.cancel();
     _beatSub = null;
     _confirmTimer?.cancel();

@@ -500,11 +500,13 @@ class ChasePlayer {
     required Duration over,
     required ArtNetService service,
     required List<UniverseConfig> universes,
+    // Channels to leave alone (another layer's running move, say).
+    bool Function(UniverseConfig universe, int channel)? keep,
   }) async {
     _halt();
     _service = service;
     if (over <= Duration.zero) {
-      _blackout(service, universes);
+      _blackout(service, universes, keep);
       return;
     }
     final myGeneration = ++_generation;
@@ -522,7 +524,7 @@ class ChasePlayer {
         var touched = false;
         for (var channel = 0; channel < 512; channel++) {
           final from = entry.value[channel];
-          if (from == 0) continue;
+          if (from == 0 || (keep?.call(entry.key, channel) ?? false)) continue;
           _write(service, entry.key, channel, (from * remaining).round());
           touched = true;
         }
@@ -532,20 +534,21 @@ class ChasePlayer {
     }
 
     if (!_isCurrent(myGeneration)) return;
-    _blackout(service, universes);
+    _blackout(service, universes, keep);
     _running = false;
   }
 
   /// Everything this player may write to, to zero. A layered player leaves
   /// alone the channels a newer layer holds — blacking the whole rig out
   /// from under a layer that's still playing isn't its call.
-  void _blackout(ArtNetService service, List<UniverseConfig> universes) {
+  void _blackout(ArtNetService service, List<UniverseConfig> universes, [bool Function(UniverseConfig, int)? keep]) {
     if (layerId == null) {
       service.blackoutAll(universes);
       return;
     }
     for (final universe in universes) {
       for (var channel = 0; channel < 512; channel++) {
+        if (keep?.call(universe, channel) ?? false) continue;
         _write(service, universe, channel, 0);
       }
       service.flush(universe);
