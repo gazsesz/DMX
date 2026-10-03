@@ -356,6 +356,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                 builder: (context) {
                   final active = layersPlaying(ref.read, chase.id).isNotEmpty;
                   final layerIds = chaseLayerIds(ref.read, chase);
+                  // Lanes another layer's run has taken over (a Smart Program on
+                  // Layer 1, say) are dimmed: the chase still runs on the rest.
+                  final runningLayers = layersPlaying(ref.read, chase.id).toSet();
                   final onDashboard = ref
                       .watch(dashboardTriggersProvider)
                       .any((t) => t.id == chase.id && t.kind == TriggerKind.chase);
@@ -390,7 +393,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                           Flexible(
                             child: Text(
                               active
-                                  ? 'Running…'
+                                  ? (runningLayers.length < layerIds.length ? 'Running on ${runningLayers.length} of ${layerIds.length} layers' : 'Running…')
                                   : '${chase.steps.length} steps · ${chase.stepSeconds.toStringAsFixed(2)}s/step',
                               style: TextStyle(
                                 fontSize: 11,
@@ -402,7 +405,10 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                           ),
                           for (final id in layerIds) ...[
                             const SizedBox(width: 5),
-                            LayerBadge(index: layers.indexWhere((l) => l.id == id), small: true),
+                            Opacity(
+                              opacity: !active || runningLayers.contains(id) ? 1 : 0.3,
+                              child: LayerBadge(index: layers.indexWhere((l) => l.id == id), small: true),
+                            ),
                           ],
                         ],
                       ),

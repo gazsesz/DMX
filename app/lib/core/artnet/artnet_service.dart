@@ -336,7 +336,20 @@ class ArtNetService {
     }
   }
 
+  /// A send throws when the network drops (a Wi-Fi blip: "Network is
+  /// unreachable"). That used to escape into the playback loop and end it
+  /// mid-show; a lost frame is harmless, the next tick sends the state again.
   void _send(UniverseConfig universe) {
+    try {
+      _sendFrame(universe);
+    } on SocketException {
+      // dropped frame
+    } on OSError {
+      // dropped frame
+    }
+  }
+
+  void _sendFrame(UniverseConfig universe) {
     final socket = _socket;
     if (socket == null) return;
     final nextSequence = ((_sequences[universe.id] ?? 0) % 255) + 1;
