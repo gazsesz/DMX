@@ -8,6 +8,7 @@ import '../../core/theme/app_theme.dart';
 import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
 import '../../models/fixture_mounting.dart';
+import '../../models/group_position.dart';
 import '../../models/pan_tilt.dart';
 import '../../models/patched_fixture.dart';
 import '../../state/artnet_providers.dart';
@@ -15,12 +16,19 @@ import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
 
 /// Opens the rigging and calibration sheet for one moving head.
-Future<void> showFixtureMountingSheet(BuildContext context, String fixtureId) {
+Future<void> showFixtureMountingSheet(
+  BuildContext context,
+  String fixtureId, {
+  StagePoint? mark,
+  double markHeightM = 0,
+  VoidCallback? onChanged,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: AppColors.panel,
-    builder: (context) => _FixtureMountingSheet(fixtureId: fixtureId),
+    builder: (context) =>
+        _FixtureMountingSheet(fixtureId: fixtureId, mark: mark, markHeightM: markHeightM, onChanged: onChanged),
   );
 }
 
@@ -35,7 +43,17 @@ Future<void> showFixtureMountingSheet(BuildContext context, String fixtureId) {
 class _FixtureMountingSheet extends ConsumerStatefulWidget {
   final String fixtureId;
 
-  const _FixtureMountingSheet({required this.fixtureId});
+  /// Where the beam is held for calibration: a spot on the plan (normalised),
+  /// at [markHeightM] above the floor. Null is the middle of the stage floor.
+  final StagePoint? mark;
+  final double markHeightM;
+
+  /// Opened from an editor that already puts the head on its target live:
+  /// every change just tells it to do so again, instead of this sheet driving
+  /// the head itself.
+  final VoidCallback? onChanged;
+
+  const _FixtureMountingSheet({required this.fixtureId, this.mark, this.markHeightM = 0, this.onChanged});
 
   @override
   ConsumerState<_FixtureMountingSheet> createState() => _FixtureMountingSheetState();
@@ -66,18 +84,28 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
     final fixture = _fixture;
     if (fixture == null) return;
     ref.read(patchedFixturesProvider.notifier).setMounting(fixture.id, change(fixture.mounting));
-    if (_calibrating) _sendToMark();
+    if (widget.onChanged != null) {
+      widget.onChanged!();
+    } else if (_calibrating) {
+      _sendToMark();
+    }
   }
 
   /// Aims the head at the middle of the stage floor, lamp open.
   void _sendToMark() {
     final fixture = _fixture;
     if (fixture == null) return;
+    if (widget.onChanged != null) {
+      widget.onChanged!();
+      setState(() => _calibrating = true);
+      return;
+    }
     final stage = ref.read(stagePlanProvider);
     final aimed = aimAt(
       aimRigFor(fixture, stage),
-      tx: stage.widthM / 2,
-      ty: stage.depthM / 2,
+      tx: (widget.mark?.x ?? 0.5) * stage.widthM,
+      ty: (widget.mark?.y ?? 0.5) * stage.depthM,
+      tz: widget.markHeightM,
       previous: PanTilt.center,
     );
     final service = ref.read(artNetServiceProvider);
@@ -118,7 +146,7 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
 
   void _nudge({double pan = 0, double tilt = 0}) {
     _update((m) => m.copyWith(panOffsetDeg: m.panOffsetDeg + pan, tiltOffsetDeg: m.tiltOffsetDeg + tilt));
-    if (!_calibrating) _sendToMark();
+    if (!_calibrating && widget.onChanged == null) _sendToMark();
   }
 
   @override
@@ -227,9 +255,11 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
             const SizedBox(height: 10),
             _label('CALIBRATION'),
             Text(
-              'Put a mark on the floor in the middle of the stage '
-              '(${(stage.widthM / 2).toStringAsFixed(1)} m from the left edge, '
-              '${(stage.depthM / 2).toStringAsFixed(1)} m from the back). '
+              '${widget.mark == null ? 'Put a mark on the floor in the middle of the stage' : 'Put something at the spot you are aiming at in the Scene editor'}'
+              ' '
+              '(${((widget.mark?.x ?? 0.5) * stage.widthM).toStringAsFixed(1)} m from the left edge, '
+              '${((widget.mark?.y ?? 0.5) * stage.depthM).toStringAsFixed(1)} m from the back'
+              '${widget.markHeightM > 0 ? ', ${widget.markHeightM.toStringAsFixed(1)} m up' : ''}). '
               'Send the head there, nudge it until the beam sits on the mark, and you\'re done — '
               'every nudge is saved as you go.',
               style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),

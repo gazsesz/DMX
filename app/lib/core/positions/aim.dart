@@ -107,7 +107,11 @@ AimResult aimAt(AimRig rig, {required double tx, required double ty, double tz =
       final pan = _wrap180(basePan) + 360 * turns + rig.mounting.panOffsetDeg;
       final overshoot = math.max(0, pan.abs() - halfPan) + math.max(0, tilt.abs() - halfTilt);
       if (overshoot == 0) {
-        final cost = (pan - previousPan).abs() + 0.5 * (tilt - previousTilt).abs();
+        // The flipped answer (pan half a turn round, tilt past the vertical)
+        // only lands right if the tilt zero is exactly straight along the
+        // yoke, which a real head rarely manages — so it is a last resort,
+        // not a coin toss that sends two similar heads opposite ways.
+        final cost = (pan - previousPan).abs() + 0.5 * (tilt - previousTilt).abs() + (flipped ? 150 : 0);
         if (cost < bestCost) {
           bestCost = cost;
           best = (pan, tilt);

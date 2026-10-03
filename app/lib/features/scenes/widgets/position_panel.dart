@@ -12,6 +12,7 @@ import '../../../models/group_position.dart';
 import '../../../models/pan_tilt.dart';
 import '../../../models/patched_fixture.dart';
 import '../../../models/position_preset.dart';
+import '../../fixtures/fixture_mounting_sheet.dart';
 import '../../../models/stage_plan.dart';
 import '../../../state/fixture_providers.dart';
 import '../../../state/stage_providers.dart';
@@ -43,6 +44,10 @@ class PositionPanel extends ConsumerStatefulWidget {
   final void Function(PanTilt base, GroupPosition position) onReplace;
   final ValueChanged<int> onSpeedChanged;
 
+  /// A head's rigging or calibration changed — the editor puts the heads
+  /// back on their targets so it can be watched on the rig as it is dialled.
+  final VoidCallback? onRiggingChanged;
+
   const PositionPanel({
     super.key,
     required this.fixtures,
@@ -52,6 +57,7 @@ class PositionPanel extends ConsumerStatefulWidget {
     required this.onBaseDragged,
     required this.onReplace,
     required this.onSpeedChanged,
+    this.onRiggingChanged,
     this.speed,
     this.speedCapabilities = const [],
   });
@@ -536,6 +542,50 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (widget.fixtures.any((f) => f.mounting.isDefault))
+          Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.12),
+              border: Border.all(color: AppColors.accent),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              '${[for (final f in widget.fixtures) if (f.mounting.isDefault) f.label].join(', ')} still use the '
+              'default rigging: hanging, 3 m, not calibrated. Heads on stands will not aim right — '
+              'Tap its chip below: Standing, its height, which way pan centre faces, then calibrate.',
+              style: const TextStyle(fontSize: 11, color: AppColors.textDim),
+            ),
+          ),
+        _label('RIGGING & CALIBRATION'),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final fixture in spreadOrder(widget.fixtures))
+              ActionChip(
+                avatar: Icon(
+                  fixture.mounting.isDefault ? Icons.warning_amber_rounded : Icons.tune,
+                  size: 16,
+                  color: fixture.mounting.isDefault ? AppColors.accent : AppColors.textDim,
+                ),
+                label: Text(
+                  '${fixture.label} · ${fixture.mounting.mount.label}${fixture.mounting.isCalibrated ? ' · cal' : ''}',
+                  style: const TextStyle(fontSize: 11.5),
+                ),
+                tooltip: 'Rigging, then calibrate this head on the spot you are aiming at',
+                onPressed: () => showFixtureMountingSheet(
+                  context,
+                  fixture.id,
+                  mark: widget.resolved[fixture.id]?.target ?? position.handle,
+                  markHeightM: position.aimHeightM,
+                  onChanged: widget.onRiggingChanged,
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 14),
         _label('AIM AT'),
         Wrap(
           spacing: 6,

@@ -1016,6 +1016,11 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
       onBaseDragged: (to) => _dragBase(group, to),
       onReplace: (base, position) => _replacePosition(group, base, position),
       onSpeedChanged: (v) => _setValueInGroup(group, ChannelFunction.panTiltSpeed, v),
+      onRiggingChanged: () {
+        if (!mounted) return;
+        setState(() {});
+        _pushLiveOutput();
+      },
     );
   }
 
