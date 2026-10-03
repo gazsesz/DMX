@@ -282,6 +282,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     final started = await startLayeredChase(
       ref.read,
       chase,
+      exclusive: true,
       playing: NowPlaying(id: widget.existing.id, kind: PlaybackKind.chase, name: chase.name),
       onStep: (layerId, instant) {
         if (!mounted) return;

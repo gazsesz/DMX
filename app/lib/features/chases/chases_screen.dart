@@ -97,6 +97,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       chaseAsDashboardPlaysIt(ref.read, chase),
       playing: NowPlaying(id: chase.id, kind: PlaybackKind.chase, name: chase.name),
       dashboardTiming: ref.read(tempoProvider).overrideTiming,
+      exclusive: true,
     );
     // A step whose scene or bank was since deleted flattens to nothing, and
     // the player quietly declines to run zero steps.
