@@ -13,6 +13,7 @@ import '../../state/chase_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
+import 'dimmer_dropout_card.dart';
 
 /// Lists every playback layer — what's running on each, and lets the user
 /// stop one, rename it, or add/remove layers. Priority and merge-mode are
@@ -128,6 +129,7 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
                   title: const Text('Új réteg hozzáadása', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
                   onTap: _addLayer,
                 ),
+                const DimmerDropoutCard(),
               ],
             ),
           ),

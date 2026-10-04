@@ -1,4 +1,5 @@
 import 'artnet_settings.dart';
+import '../core/playback/dimmer_dropout.dart';
 import 'bank.dart';
 import 'chase.dart';
 import 'dashboard_trigger.dart';
@@ -37,6 +38,9 @@ class ProjectData {
   /// on instead of always falling back to the first bank in the list.
   final String? lastSelectedBankId;
 
+  /// The dimmer dropout on the Layers screen — part of the show's look.
+  final DropoutSettings dimmerDropout;
+
   const ProjectData({
     required this.name,
     required this.settings,
@@ -53,6 +57,7 @@ class ProjectData {
     this.stagePlan = const StagePlan(),
     this.positionPresets = const [],
     this.lastSelectedBankId,
+    this.dimmerDropout = const DropoutSettings(),
   });
 
   Map<String, dynamic> toJson() => {
@@ -72,6 +77,7 @@ class ProjectData {
     'stagePlan': stagePlan.toJson(),
     'positionPresets': positionPresets.map((p) => p.toJson()).toList(),
     if (lastSelectedBankId != null) 'lastSelectedBankId': lastSelectedBankId,
+    'dimmerDropout': dimmerDropout.toJson(),
   };
 
   factory ProjectData.fromJson(Map<String, dynamic> json, {required List<FixtureProfile> builtIns}) {
@@ -107,6 +113,7 @@ class ProjectData {
           .map((p) => PositionPreset.fromJson(p as Map<String, dynamic>))
           .toList(),
       lastSelectedBankId: json['lastSelectedBankId'] as String?,
+      dimmerDropout: DropoutSettings.fromJson(json['dimmerDropout'] as Map<String, dynamic>?),
     );
   }
 }

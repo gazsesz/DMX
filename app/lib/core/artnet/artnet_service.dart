@@ -5,6 +5,7 @@ import 'dart:typed_data';
 
 import '../../models/artnet_settings.dart';
 import '../../models/universe_config.dart';
+import '../playback/dimmer_dropout.dart';
 import 'artnet_packet.dart';
 import 'sacn_packet.dart';
 
@@ -85,6 +86,43 @@ class ArtNetService {
     _refreshAll();
   }
 
+  /// Channels to take dark in a universe right now — the dimmer dropout. Null
+  /// or empty means none. Applied after [outputOverride] and under [master],
+  /// and held outside the buffers like both, so the dark ends on whatever the
+  /// layers have been playing underneath.
+  Set<int> Function(UniverseConfig universe)? darkChannels;
+
+  /// Sends at ~30 Hz instead of once a second while something is chopping the
+  /// output. A dropout's frame that gets lost on Wi-Fi would otherwise leave
+  /// the lamp dark until the next keep-alive, a second later.
+  bool get fastRefresh => _fastRefresh;
+  bool _fastRefresh = false;
+
+  set fastRefresh(bool value) {
+    if (value == _fastRefresh) return;
+    _fastRefresh = value;
+    if (_keepAliveTimer != null) _startKeepAlive();
+  }
+
+  void _startKeepAlive() {
+    _keepAliveTimer?.cancel();
+    _keepAliveTimer = Timer.periodic(
+      _fastRefresh ? const Duration(milliseconds: 33) : const Duration(seconds: 1),
+      (_) => _refreshAll(),
+    );
+  }
+
+  /// The channels of [within] that one of [layers] currently owns in
+  /// [universe] — what a dropout aimed at those layers is allowed to cut.
+  Set<int> channelsOwnedBy(UniverseConfig universe, Set<String> layers, Set<int> within) {
+    final owners = _owners[universe.id];
+    if (owners == null) return const {};
+    return {
+      for (final channel in within)
+        if (channel >= 0 && channel < owners.length && layers.contains(owners[channel])) channel,
+    };
+  }
+
   /// Re-sends every known universe. What a momentary effect calls when its
   /// own layer changed — a strobe's phase flipping — and the show itself
   /// has written nothing to flush.
@@ -143,7 +181,7 @@ class ArtNetService {
     // Re-send the last known state of every universe periodically so a
     // dropped UDP packet (or a node that just powered on) doesn't leave
     // fixtures stuck on a stale value.
-    _keepAliveTimer = Timer.periodic(const Duration(seconds: 1), (_) => _refreshAll());
+    _startKeepAlive();
   }
 
   Future<void> disconnect() async {
@@ -355,7 +393,9 @@ class ArtNetService {
     final nextSequence = ((_sequences[universe.id] ?? 0) % 255) + 1;
     _sequences[universe.id] = nextSequence;
     final buffer = _buffers[universe.id]!;
-    final data = _withMaster(universe, _override?.call(universe, buffer) ?? buffer);
+    final overridden = _override?.call(universe, buffer) ?? buffer;
+    final dark = darkChannels?.call(universe) ?? const <int>{};
+    final data = _withMaster(universe, applyDropout(overridden, dark));
     final protocol = _settings.protocol;
 
     if (protocol.sendsArtNet) {

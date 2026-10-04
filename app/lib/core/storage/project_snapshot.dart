@@ -6,6 +6,7 @@ import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
+import '../../state/dimmer_dropout_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
@@ -35,6 +36,7 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     stagePlan: ref.read(stagePlanProvider),
     positionPresets: ref.read(positionPresetsProvider),
     lastSelectedBankId: ref.read(selectedBankIdProvider),
+    dimmerDropout: ref.read(dimmerDropoutProvider),
   );
 }
 
@@ -99,6 +101,7 @@ void startProject(
       stagePlan: source.stagePlan,
       positionPresets: source.positionPresets,
       lastSelectedBankId: source.lastSelectedBankId,
+      dimmerDropout: source.dimmerDropout,
     ));
     return;
   }
@@ -127,6 +130,7 @@ void startProject(
   ref.read(dashboardTriggersProvider.notifier).loadAll(const []);
   ref.read(smartProgramsProvider.notifier).loadAll(const []);
   ref.read(layersProvider.notifier).reset();
+  ref.read(dimmerDropoutProvider.notifier).update(const DropoutSettings());
   ref.read(selectedBankIdProvider.notifier).state = null;
 }
 
@@ -149,5 +153,6 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(dashboardTriggersProvider.notifier).loadAll(data.dashboardTriggers);
   ref.read(smartProgramsProvider.notifier).loadAll(data.smartPrograms);
   ref.read(layersProvider.notifier).loadAll(data.layers);
+  ref.read(dimmerDropoutProvider.notifier).update(data.dimmerDropout);
   ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;
 }
