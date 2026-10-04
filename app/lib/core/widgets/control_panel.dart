@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/smart_program.dart';
 import '../../state/audio_providers.dart';
+import '../../state/dimmer_dropout_providers.dart';
 import '../../state/momentary_fx_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
@@ -457,6 +458,20 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
               const SizedBox(width: 8),
             ],
           ],
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          dense: true,
+          title: const Text('Dimmer-bevágás', style: TextStyle(fontSize: 13)),
+          subtitle: const Text(
+            'Beállítások: Layers képernyő',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          ),
+          value: ref.watch(dimmerDropoutProvider).enabled,
+          onChanged: (on) {
+            final settings = ref.read(dimmerDropoutProvider);
+            ref.read(dimmerDropoutProvider.notifier).update(settings.copyWith(enabled: on));
+          },
         ),
         _label('Strobe rate'),
         Slider(

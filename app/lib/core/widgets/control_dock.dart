@@ -5,6 +5,7 @@ import '../../features/dashboard/live_stage_view.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../state/audio_providers.dart';
 import '../../state/control_dock_providers.dart';
+import '../../state/dimmer_dropout_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/tempo_providers.dart';
 import '../playback/chase_player.dart';
@@ -260,6 +261,27 @@ class _DockControls extends ConsumerWidget {
         _dockButtonWidth,
         giveUpAt: 2,
       ),
+      // The hand-set dimmer dropout, on or off. Its settings live on the
+      // Layers screen; a Smart Program's own zone settings take over from it
+      // while one runs, and this switch is what comes back afterwards. Left
+      // off the open dock's rail for the same reason as the momentary three:
+      // one more tile would push Blackout off a phone held sideways. The
+      // panel carries the same switch.
+      if (showMomentaryFx)
+        _DockItem(
+          _DockButton(
+            icon: Icons.flash_off,
+            label: 'Dropout',
+            color: AppColors.accent2,
+            active: ref.watch(dimmerDropoutProvider).enabled,
+            onTap: () {
+              final settings = ref.read(dimmerDropoutProvider);
+              ref.read(dimmerDropoutProvider.notifier).update(settings.copyWith(enabled: !settings.enabled));
+            },
+          ),
+          _dockButtonWidth,
+          giveUpAt: 2,
+        ),
       // The momentary three. Given up before the master fader but after
       // everything else: the fader is how you save a look that's gone wrong,
       // while these are things you reach for on purpose. Strobe outlives the
