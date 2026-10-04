@@ -7,6 +7,7 @@ import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/universe_config.dart';
 import '../artnet/artnet_service.dart';
+import 'dimmer_dropout.dart';
 
 class _Instant {
   final Scene scene;
@@ -124,7 +125,18 @@ class ChasePlayer {
   /// keeps the channels the two share, and [stop] hands its channels back.
   final String? layerId;
 
-  ChasePlayer({this.layerId});
+  /// Told what dimmer dropout the chase now playing on [layerId] asks for, or
+  /// null once it stops — see [DimmerDropoutController.setChaseDropout].
+  final void Function(String layerId, DropoutSettings? settings)? onDropout;
+
+  ChasePlayer({this.layerId, this.onDropout});
+
+  bool _disposed = false;
+
+  void _setDropout(DropoutSettings? settings) {
+    final layer = layerId;
+    if (layer != null && !_disposed) onDropout?.call(layer, settings);
+  }
 
   bool _running = false;
   ArtNetService? _service;
@@ -249,6 +261,7 @@ class ChasePlayer {
       return;
     }
     _service = service;
+    _setDropout(chase.dropout);
     final layer = layerId;
     if (layer != null) {
       if (claim) service.claimLayer(layer);
@@ -505,6 +518,7 @@ class ChasePlayer {
   }) async {
     _halt();
     _service = service;
+    _setDropout(null);
     if (over <= Duration.zero) {
       _blackout(service, universes, keep);
       return;
@@ -563,6 +577,7 @@ class ChasePlayer {
     _halt();
     final layer = layerId;
     if (layer != null) _service?.releaseLayer(layer);
+    _setDropout(null);
   }
 
   /// Ends the running loop but keeps this layer's channels — for handing
@@ -572,5 +587,10 @@ class ChasePlayer {
     _generation++;
   }
 
-  void dispose() => stop();
+  void dispose() {
+    // Stopping tells the dropout controller; that can't be read any more while
+    // the provider container is going down.
+    _disposed = true;
+    stop();
+  }
 }

@@ -12,6 +12,7 @@ import '../audio/beat_source.dart';
 import '../audio/tempo_estimator.dart';
 import 'auto_fade_guard.dart';
 import 'chase_player.dart';
+import 'dimmer_dropout.dart';
 
 export '../../models/smart_program.dart' show SmartProgramZone;
 
@@ -60,6 +61,10 @@ class SmartProgramPlayer {
   final bool Function() isAutoFadeOn;
   final void Function(bool) setAutoFade;
 
+  /// Hands the dimmer dropout the zone's settings, or null when the program
+  /// lets go of it — see [DimmerDropoutController.setProgramOverride].
+  final void Function(DropoutSettings?) setDropout;
+
   SmartProgramPlayer({
     required this.playerFor,
     required this.beatService,
@@ -69,7 +74,9 @@ class SmartProgramPlayer {
     Duration Function()? flashLength,
     bool Function()? isAutoFadeOn,
     void Function(bool)? setAutoFade,
-  })  : beatEvents = beatEvents ?? beatService.beatEvents,
+    void Function(DropoutSettings?)? setDropout,
+  })  : setDropout = setDropout ?? ((_) {}),
+        beatEvents = beatEvents ?? beatService.beatEvents,
         beatSyncEnabled = beatSyncEnabled ?? (() => false),
         beatRate = beatRate ?? (() => BeatRate.normal),
         flashLength = flashLength ?? (() => const Duration(milliseconds: 80)),
@@ -235,6 +242,7 @@ class SmartProgramPlayer {
       }
     }
     _program = program;
+    setDropout(_dropoutFor(program, zone));
     if (_isSilent) return;
     if (!targetChanged && !fadeChanged && !holdChanged && !freeChanged) return;
     _playZone(
@@ -272,6 +280,20 @@ class SmartProgramPlayer {
       universes: universes,
       service: service,
     );
+  }
+
+  /// The dropout [zone] asks for, aimed at the layers this program drives —
+  /// or null for a program that sets none anywhere, which leaves the dropout
+  /// alone for whoever set it by hand. A program that sets one *anywhere*
+  /// owns it while it runs, so a zone without one is explicitly dark-free.
+  DropoutSettings? _dropoutFor(SmartProgram program, SmartProgramZone zone) {
+    if (program.zoneDropouts.values.every((d) => !d.enabled)) return null;
+    final wanted = program.zoneDropouts[zone];
+    if (wanted == null || !wanted.enabled) return const DropoutSettings();
+    final driven = drivenLayerIds.toSet();
+    final targets = wanted.targetLayerIds.isEmpty ? driven : wanted.targetLayerIds.intersection(driven);
+    if (targets.isEmpty) return const DropoutSettings();
+    return wanted.copyWith(targetLayerIds: targets);
   }
 
   static Duration _fadeOf(SmartProgram program, SmartProgramZone zone) => switch (zone) {
@@ -433,6 +455,7 @@ class SmartProgramPlayer {
   }) {
     final program = _program;
     if (program == null) return;
+    setDropout(_dropoutFor(program, zone));
     final fade = _fadeOf(program, zone);
     // With beat sync armed the steps land on the detected beats, and the
     // zone's hold only matters as the fallback the player never reaches.
@@ -577,6 +600,9 @@ class SmartProgramPlayer {
     _silenceTimer?.cancel();
     _silenceTimer = null;
     _isSilent = false;
+    // Not while being disposed: that happens as the provider container goes
+    // down, and the dropout controller can no longer be read then.
+    if (!_disposed) setDropout(null);
     final instruction = _autoFadeGuard.onStopped();
     if (instruction != null) setAutoFade(instruction);
     for (final id in layerIds) {
@@ -584,7 +610,10 @@ class SmartProgramPlayer {
     }
   }
 
+  bool _disposed = false;
+
   void dispose() {
+    _disposed = true;
     stop();
     _statusController.close();
   }

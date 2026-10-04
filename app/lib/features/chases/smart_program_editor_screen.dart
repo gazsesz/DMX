@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/playback/dimmer_dropout.dart';
 import '../../core/playback/smart_layer_display.dart';
 import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
@@ -14,6 +15,7 @@ import '../../state/chase_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
+import '../layers/dropout_controls.dart';
 
 class SmartProgramEditorScreen extends ConsumerStatefulWidget {
   final SmartProgram existing;
@@ -41,6 +43,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
   late double _slowerFadeSeconds;
   late double _blackoutFadeSeconds;
   late Map<String, LaneTiming> _layerTimings;
+  late Map<SmartProgramZone, DropoutSettings> _zoneDropouts;
 
   // Each pick is held as a "chase:<id>" / "bank:<id>" / "lane:<chase>:<layer>"
   // key so one dropdown can offer every kind.
@@ -152,6 +155,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     };
     _baseBpm = p.baseBpm;
     _layerTimings = {...p.layerTimings};
+    _zoneDropouts = {...p.zoneDropouts};
     _mode = p.thresholdMode;
     _baseFadeSeconds = p.baseFade.inMilliseconds / 1000;
     _fasterThreshold = p.fasterThreshold;
@@ -183,6 +187,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
         slowerFade: Duration(milliseconds: (_slowerFadeSeconds * 1000).round()),
         blackoutFade: Duration(milliseconds: (_blackoutFadeSeconds * 1000).round()),
         layerTimings: {for (final e in _layerTimings.entries) if (e.value != LaneTiming.followApp) e.key: e.value},
+        zoneDropouts: {for (final e in _zoneDropouts.entries) if (e.value.enabled) e.key: e.value},
       )
       .withLayerTargets(_targets.values.toList());
 
@@ -302,6 +307,38 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     );
   }
 
+  /// The dimmer dropout for one zone: off, or its own timing and layers. Only
+  /// the layers this program drives are offered as targets.
+  Widget _dropoutSection(SmartProgramZone zone) {
+    final settings = _zoneDropouts[zone] ?? const DropoutSettings();
+    final driven = [
+      for (final layer in ref.watch(layersProvider))
+        if (_targets[layer.id]?.isEmpty == false) layer,
+    ];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 24),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Dimmer-bevágás ebben a zónában', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          subtitle: const Text(
+            'Időnként egy pillanatra sötét; a program rétegeire hat, amíg a zóna fut.',
+            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          ),
+          value: settings.enabled,
+          onChanged: (on) => setState(() => _zoneDropouts[zone] = settings.copyWith(enabled: on)),
+        ),
+        if (settings.enabled)
+          DropoutControls(
+            settings: settings,
+            layers: driven,
+            onChanged: (next) => setState(() => _zoneDropouts[zone] = next),
+          ),
+      ],
+    );
+  }
+
   Widget _fadeSlider(double value, ValueChanged<double> onChanged, {Color color = AppColors.accent}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -399,6 +436,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                     selected: {_mode},
                     onSelectionChanged: (s) => setState(() => _mode = s.first),
                   ),
+                  _dropoutSection(SmartProgramZone.base),
                 ],
               ),
             ),
@@ -456,6 +494,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                       'No layer has a Faster pick — the program stays on Base when the song speeds up.',
                       style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
+                  _dropoutSection(SmartProgramZone.faster),
                 ],
               ),
             ),
@@ -507,6 +546,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                       'No layer has a Slower pick — the program stays on Base when the song slows down.',
                       style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
+                  _dropoutSection(SmartProgramZone.slower),
                 ],
               ),
             ),

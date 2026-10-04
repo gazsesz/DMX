@@ -1,3 +1,4 @@
+import '../core/playback/dimmer_dropout.dart';
 enum ChaseDirection { forward, bounce, random }
 
 /// How one layer of a chase (a lane) is clocked, independent of the others.
@@ -84,6 +85,10 @@ class Chase {
   /// listed follows the dock.
   final Map<String, LaneTiming> laneTimings;
 
+  /// Dark blips laid over the layer this chase plays on while it runs; null
+  /// for none. A Smart Program that plays the chase plays this with it.
+  final DropoutSettings? dropout;
+
   LaneTiming timingOfLane(String layerId) => laneTimings[layerId] ?? LaneTiming.followApp;
 
   const Chase({
@@ -94,6 +99,7 @@ class Chase {
     this.beatSync = false,
     this.direction = ChaseDirection.forward,
     this.laneTimings = const {},
+    this.dropout,
   });
 
   Chase copyWith({
@@ -103,6 +109,8 @@ class Chase {
     bool? beatSync,
     ChaseDirection? direction,
     Map<String, LaneTiming>? laneTimings,
+    DropoutSettings? dropout,
+    bool clearDropout = false,
   }) {
     return Chase(
       id: id,
@@ -112,6 +120,7 @@ class Chase {
       beatSync: beatSync ?? this.beatSync,
       direction: direction ?? this.direction,
       laneTimings: laneTimings ?? this.laneTimings,
+      dropout: clearDropout ? null : (dropout ?? this.dropout),
     );
   }
 
@@ -123,6 +132,7 @@ class Chase {
     'beatSync': beatSync,
     'direction': direction.name,
     if (laneTimings.isNotEmpty) 'laneTimings': {for (final e in laneTimings.entries) e.key: e.value.name},
+    if (dropout != null) 'dropout': dropout!.toJson(),
   };
 
   factory Chase.fromJson(Map<String, dynamic> json) {
@@ -145,6 +155,7 @@ class Chase {
             orElse: () => LaneTiming.followApp,
           ),
       },
+      dropout: json['dropout'] is Map ? DropoutSettings.fromJson(Map<String, dynamic>.from(json['dropout'] as Map)) : null,
     );
   }
 }

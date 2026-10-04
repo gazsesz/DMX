@@ -1,3 +1,4 @@
+import '../core/playback/dimmer_dropout.dart';
 import 'chase.dart';
 import 'layer.dart';
 
@@ -124,6 +125,12 @@ class SmartProgram {
   /// untouched.
   final Map<String, LaneTiming> layerTimings;
 
+  /// A dimmer dropout per zone — what dark blips the program lays over the
+  /// layers it drives while that zone plays. A zone with no entry has none.
+  /// The settings' own layer list narrows it to some of the driven layers;
+  /// empty means every one of them.
+  final Map<SmartProgramZone, DropoutSettings> zoneDropouts;
+
   LaneTiming timingOfLayer(String layerId) => layerTimings[layerId] ?? LaneTiming.followApp;
 
   const SmartProgram({
@@ -150,6 +157,7 @@ class SmartProgram {
     this.blackoutFade = const Duration(seconds: 3),
     this.extraLayers = const [],
     this.layerTimings = const {},
+    this.zoneDropouts = const {},
   });
 
   /// Layer 1's targets plus every extra layer's — one entry per layer, Layer
@@ -209,6 +217,7 @@ class SmartProgram {
       blackoutFade: blackoutFade,
       extraLayers: [for (final l in all) if (l.layerId != layer1Id && !l.isEmpty) l],
       layerTimings: layerTimings,
+      zoneDropouts: zoneDropouts,
     );
   }
 
@@ -237,6 +246,7 @@ class SmartProgram {
     blackoutFade: blackoutFade,
     extraLayers: extraLayers,
     layerTimings: layerTimings,
+    zoneDropouts: zoneDropouts,
   );
 
   /// The BPM at/above which the "faster" chase should take over.
@@ -273,6 +283,7 @@ class SmartProgram {
     Duration? slowerFade,
     Duration? blackoutFade,
     Map<String, LaneTiming>? layerTimings,
+    Map<SmartProgramZone, DropoutSettings>? zoneDropouts,
     bool clearBase = false,
     bool clearFaster = false,
     bool clearSlower = false,
@@ -301,6 +312,7 @@ class SmartProgram {
       blackoutFade: blackoutFade ?? this.blackoutFade,
       extraLayers: extraLayers,
       layerTimings: layerTimings ?? this.layerTimings,
+      zoneDropouts: zoneDropouts ?? this.zoneDropouts,
     );
   }
 
@@ -328,6 +340,7 @@ class SmartProgram {
     'blackoutFadeMs': blackoutFade.inMilliseconds,
     if (extraLayers.isNotEmpty) 'extraLayers': extraLayers.map((l) => l.toJson()).toList(),
     if (layerTimings.isNotEmpty) 'layerTimings': {for (final e in layerTimings.entries) e.key: e.value.name},
+    if (zoneDropouts.isNotEmpty) 'zoneDropouts': {for (final e in zoneDropouts.entries) e.key.name: e.value.toJson()},
   };
 
   factory SmartProgram.fromJson(Map<String, dynamic> json) {
@@ -368,6 +381,11 @@ class SmartProgram {
             (t) => t.name == e.value,
             orElse: () => LaneTiming.followApp,
           ),
+      },
+      zoneDropouts: {
+        for (final zone in SmartProgramZone.values)
+          if ((json['zoneDropouts'] as Map?)?[zone.name] is Map)
+            zone: DropoutSettings.fromJson(Map<String, dynamic>.from((json['zoneDropouts'] as Map)[zone.name] as Map)),
       },
     );
   }

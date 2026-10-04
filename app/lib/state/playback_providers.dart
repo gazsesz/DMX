@@ -9,6 +9,7 @@ import '../models/smart_program.dart';
 import 'artnet_providers.dart';
 import 'bank_providers.dart';
 import 'chase_providers.dart';
+import 'dimmer_dropout_providers.dart';
 import 'fixture_providers.dart';
 import 'layer_providers.dart';
 import 'momentary_fx_providers.dart';
@@ -28,7 +29,12 @@ import 'tempo_providers.dart';
 /// pan/tilt sweep on the same fixture, each only ever writing its own
 /// attributes (see the Scene editor's "INCLUDES" toggles).
 final chasePlayerProvider = Provider.family<ChasePlayer, String>((ref, layerId) {
-  final player = ChasePlayer(layerId: layerId);
+  final player = ChasePlayer(
+    layerId: layerId,
+    // Read when it happens, not captured: the controller only exists once
+    // something asked for it.
+    onDropout: (layer, settings) => ref.read(dimmerDropoutProvider.notifier).setChaseDropout(layer, settings),
+  );
   ref.onDispose(player.dispose);
   return player;
 });
@@ -68,6 +74,9 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
     // program moves off it — see `SmartProgramPlayer._updateAutoFadeSuppression`.
     isAutoFadeOn: () => ref.read(tempoProvider).autoFade,
     setAutoFade: (value) => ref.read(tempoProvider.notifier).setAutoFade(value),
+    // Read lazily: the dropout controller only exists once something asked
+    // for it, and a provider change can't happen while this is being built.
+    setDropout: (settings) => ref.read(dimmerDropoutProvider.notifier).setProgramOverride(settings),
   );
   ref.onDispose(player.dispose);
   return player;

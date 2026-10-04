@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/audio/beat_detector.dart';
+import '../../core/playback/dimmer_dropout.dart';
 import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -14,10 +15,12 @@ import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
+import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/tempo_providers.dart';
+import '../layers/dropout_controls.dart';
 
 class ChaseEditorScreen extends ConsumerStatefulWidget {
   final Chase existing;
@@ -36,6 +39,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   late bool _beatSync;
   late ChaseDirection _direction;
   late Map<String, LaneTiming> _laneTimings;
+  late DropoutSettings _dropout;
   double _sensitivity = 0.6;
   BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
 
@@ -56,6 +60,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     _beatSync = widget.existing.beatSync;
     _direction = widget.existing.direction;
     _laneTimings = {...widget.existing.laneTimings};
+    _dropout = widget.existing.dropout ?? const DropoutSettings();
     _sensitivity = ref.read(beatDetectorProvider).sensitivity;
     _frequencyBand = ref.read(beatDetectorProvider).frequencyBand;
     _wasRunningAtOpen;
@@ -235,6 +240,8 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     beatSync: _beatSync,
     direction: _direction,
     laneTimings: {for (final e in _laneTimings.entries) if (e.value != LaneTiming.followApp) e.key: e.value},
+    dropout: _dropout.enabled ? _dropout : null,
+    clearDropout: !_dropout.enabled,
   );
 
   /// How many instants (played looks) a step expands into — one for a
@@ -740,6 +747,34 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                     selected: {_direction},
                     onSelectionChanged: (s) => setState(() => _direction = s.first),
                   ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Dimmer-bevágás', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    subtitle: const Text(
+                      'Időnként (vagy ütemre) egy pillanatra sötét, amíg a chase fut — arra a rétegre, amelyiken játszik. '
+                      'Smart Programban is vele jön.',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
+                    value: _dropout.enabled,
+                    onChanged: (on) => setState(() => _dropout = _dropout.copyWith(enabled: on)),
+                  ),
+                  if (_dropout.enabled)
+                    DropoutControls(
+                      settings: _dropout,
+                      fixtures: ref.watch(patchedFixturesProvider),
+                      onChanged: (next) => setState(() => _dropout = next),
+                    ),
                 ],
               ),
             ),

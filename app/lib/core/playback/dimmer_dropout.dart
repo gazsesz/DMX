@@ -1,6 +1,8 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show setEquals;
+
 /// A dimmer dropout: the light goes dark for a moment, now and then, while
 /// whatever else the layer is doing — a slow pan, a colour fade — carries on.
 ///
@@ -26,6 +28,15 @@ class DropoutSettings {
   /// 0 is a metronome, 1 swings each gap between none and double the average.
   final double jitter;
 
+  /// Dark on the beat instead of on a timer: every [beatEvery]-th beat the
+  /// light drops for [lengthMs]. [intervalMs] and [jitter] then do nothing.
+  /// With no beat source listening it carries on by the timer, so a lost
+  /// detector does not silently switch the effect off.
+  final bool onBeat;
+
+  /// Which beats drop the light when [onBeat]: every 1st, 2nd, 4th or 8th.
+  final int beatEvery;
+
   const DropoutSettings({
     this.enabled = false,
     this.targetLayerIds = const {},
@@ -33,7 +44,36 @@ class DropoutSettings {
     this.lengthMs = 120,
     this.intervalMs = 4000,
     this.jitter = 0.5,
+    this.onBeat = false,
+    this.beatEvery = 1,
   });
+
+  // By value: a Smart Program hands its zone's settings over on every zone
+  // play, and the controller must be able to tell "same again" from a change
+  // or it would restart the dropout's timer each time.
+  @override
+  bool operator ==(Object other) =>
+      other is DropoutSettings &&
+      other.enabled == enabled &&
+      other.lengthMs == lengthMs &&
+      other.intervalMs == intervalMs &&
+      other.jitter == jitter &&
+      other.onBeat == onBeat &&
+      other.beatEvery == beatEvery &&
+      setEquals(other.targetLayerIds, targetLayerIds) &&
+      setEquals(other.fixtureIds, fixtureIds);
+
+  @override
+  int get hashCode => Object.hash(
+    enabled,
+    lengthMs,
+    intervalMs,
+    jitter,
+    onBeat,
+    beatEvery,
+    Object.hashAllUnordered(targetLayerIds),
+    Object.hashAllUnordered(fixtureIds),
+  );
 
   Map<String, dynamic> toJson() => {
     'enabled': enabled,
@@ -42,6 +82,8 @@ class DropoutSettings {
     'lengthMs': lengthMs,
     'intervalMs': intervalMs,
     'jitter': jitter,
+    'onBeat': onBeat,
+    'beatEvery': beatEvery,
   };
 
   /// Tolerant of a missing or hand-edited entry: anything absent or out of
@@ -56,9 +98,12 @@ class DropoutSettings {
       lengthMs: ((json['lengthMs'] as num?)?.round() ?? base.lengthMs).clamp(minLengthMs, maxLengthMs),
       intervalMs: ((json['intervalMs'] as num?)?.round() ?? base.intervalMs).clamp(minIntervalMs, maxIntervalMs),
       jitter: ((json['jitter'] as num?)?.toDouble() ?? base.jitter).clamp(0.0, 1.0),
+      onBeat: json['onBeat'] as bool? ?? false,
+      beatEvery: beatDivisions.contains(json['beatEvery']) ? json['beatEvery'] as int : 1,
     );
   }
 
+  static const beatDivisions = [1, 2, 4, 8];
   static const minLengthMs = 30;
   static const maxLengthMs = 500;
   static const minIntervalMs = 500;
@@ -71,6 +116,8 @@ class DropoutSettings {
     int? lengthMs,
     int? intervalMs,
     double? jitter,
+    bool? onBeat,
+    int? beatEvery,
   }) => DropoutSettings(
     enabled: enabled ?? this.enabled,
     targetLayerIds: targetLayerIds ?? this.targetLayerIds,
@@ -78,6 +125,8 @@ class DropoutSettings {
     lengthMs: lengthMs ?? this.lengthMs,
     intervalMs: intervalMs ?? this.intervalMs,
     jitter: jitter ?? this.jitter,
+    onBeat: onBeat ?? this.onBeat,
+    beatEvery: beatEvery ?? this.beatEvery,
   );
 }
 
