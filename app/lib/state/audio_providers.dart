@@ -5,6 +5,7 @@ import '../core/audio/beat_detector.dart';
 import '../core/audio/beat_predictor.dart';
 import '../core/audio/beat_source.dart';
 import '../core/audio/midi_beat_source.dart';
+import '../core/audio/osc_beat_source.dart';
 import '../core/playback/chase_player.dart';
 
 /// One shared beat detector for the whole app, so a chase started from any
@@ -24,17 +25,28 @@ final midiBeatSourceProvider = Provider<MidiBeatSource>((ref) {
   return source;
 });
 
+/// rkbx_link's OSC beat over Wi-Fi — see [OscBeatSource]. Listens on
+/// rkbx_link's default destination port, so the PC side only needs this
+/// tablet's IP address.
+final oscBeatSourceProvider = Provider<OscBeatSource>((ref) {
+  final source = OscBeatSource();
+  ref.onDispose(source.dispose);
+  return source;
+});
+
 const prefBeatSourceKind = 'beatSource.kind';
 const prefBeatSourceMidiDeviceId = 'beatSource.midiDeviceId';
 const prefBeatSourceMidiDeviceName = 'beatSource.midiDeviceName';
 
 enum BeatSourceKind {
   mic,
-  midi;
+  midi,
+  osc;
 
   String get label => switch (this) {
     BeatSourceKind.mic => 'Microphone',
     BeatSourceKind.midi => 'MIDI (USB)',
+    BeatSourceKind.osc => 'rkbx_link (Wi-Fi)',
   };
 }
 
@@ -111,6 +123,7 @@ final activeBeatSourceProvider = Provider<BeatSource>((ref) {
   return switch (kind) {
     BeatSourceKind.mic => ref.watch(beatDetectorProvider),
     BeatSourceKind.midi => ref.watch(midiBeatSourceProvider),
+    BeatSourceKind.osc => ref.watch(oscBeatSourceProvider),
   };
 });
 
