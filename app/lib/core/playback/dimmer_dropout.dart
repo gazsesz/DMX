@@ -22,6 +22,10 @@ class DropoutSettings {
   /// How long the dark lasts.
   final int lengthMs;
 
+  /// How long the light takes to fade down to dark before the dark itself
+  /// starts. 0 is a hard cut.
+  final int fadeOutMs;
+
   /// The average time between two dropouts, dark included.
   final int intervalMs;
 
@@ -42,6 +46,7 @@ class DropoutSettings {
     this.targetLayerIds = const {},
     this.fixtureIds = const {},
     this.lengthMs = 120,
+    this.fadeOutMs = 0,
     this.intervalMs = 4000,
     this.jitter = 0.5,
     this.onBeat = false,
@@ -56,6 +61,7 @@ class DropoutSettings {
       other is DropoutSettings &&
       other.enabled == enabled &&
       other.lengthMs == lengthMs &&
+      other.fadeOutMs == fadeOutMs &&
       other.intervalMs == intervalMs &&
       other.jitter == jitter &&
       other.onBeat == onBeat &&
@@ -67,6 +73,7 @@ class DropoutSettings {
   int get hashCode => Object.hash(
     enabled,
     lengthMs,
+    fadeOutMs,
     intervalMs,
     jitter,
     onBeat,
@@ -80,6 +87,7 @@ class DropoutSettings {
     'targetLayerIds': targetLayerIds.toList(),
     'fixtureIds': fixtureIds.toList(),
     'lengthMs': lengthMs,
+    'fadeOutMs': fadeOutMs,
     'intervalMs': intervalMs,
     'jitter': jitter,
     'onBeat': onBeat,
@@ -96,6 +104,7 @@ class DropoutSettings {
       targetLayerIds: {...(json['targetLayerIds'] as List? ?? []).whereType<String>()},
       fixtureIds: {...(json['fixtureIds'] as List? ?? []).whereType<String>()},
       lengthMs: ((json['lengthMs'] as num?)?.round() ?? base.lengthMs).clamp(minLengthMs, maxLengthMs),
+      fadeOutMs: ((json['fadeOutMs'] as num?)?.round() ?? base.fadeOutMs).clamp(0, maxFadeOutMs),
       intervalMs: ((json['intervalMs'] as num?)?.round() ?? base.intervalMs).clamp(minIntervalMs, maxIntervalMs),
       jitter: ((json['jitter'] as num?)?.toDouble() ?? base.jitter).clamp(0.0, 1.0),
       onBeat: json['onBeat'] as bool? ?? false,
@@ -106,6 +115,7 @@ class DropoutSettings {
   static const beatDivisions = [1, 2, 4, 8];
   static const minLengthMs = 30;
   static const maxLengthMs = 500;
+  static const maxFadeOutMs = 1000;
   static const minIntervalMs = 500;
   static const maxIntervalMs = 20000;
 
@@ -114,6 +124,7 @@ class DropoutSettings {
     Set<String>? targetLayerIds,
     Set<String>? fixtureIds,
     int? lengthMs,
+    int? fadeOutMs,
     int? intervalMs,
     double? jitter,
     bool? onBeat,
@@ -123,6 +134,7 @@ class DropoutSettings {
     targetLayerIds: targetLayerIds ?? this.targetLayerIds,
     fixtureIds: fixtureIds ?? this.fixtureIds,
     lengthMs: lengthMs ?? this.lengthMs,
+    fadeOutMs: fadeOutMs ?? this.fadeOutMs,
     intervalMs: intervalMs ?? this.intervalMs,
     jitter: jitter ?? this.jitter,
     onBeat: onBeat ?? this.onBeat,
@@ -136,18 +148,22 @@ class DropoutSettings {
 /// left once it is taken off — and never shorter than a frame or two, or a
 /// jittery setting would chain dropouts into one long blackout.
 Duration dropoutGap(DropoutSettings settings, Random random) {
-  final lit = settings.intervalMs - settings.lengthMs;
+  final lit = settings.intervalMs - settings.lengthMs - settings.fadeOutMs;
   final swing = (random.nextDouble() * 2 - 1) * settings.jitter.clamp(0.0, 1.0);
   final gap = (lit * (1 + swing)).round();
   return Duration(milliseconds: max(gap, 60));
 }
 
-/// [frame] with [dark] taken to zero. Returns [frame] itself when there is
-/// nothing to cut, so the normal case allocates nothing. Never writes into
-/// [frame].
-Uint8List applyDropout(Uint8List frame, Set<int> dark) {
-  if (dark.isEmpty) return frame;
+/// [frame] with [dark] taken to zero and each [dim] channel scaled by its
+/// gain (0..1, a dropout part-way through its fade-out). Returns [frame]
+/// itself when there is nothing to cut, so the normal case allocates nothing.
+/// Never writes into [frame].
+Uint8List applyDropout(Uint8List frame, Set<int> dark, [Map<int, double>? dim]) {
+  if (dark.isEmpty && (dim == null || dim.isEmpty)) return frame;
   final out = Uint8List.fromList(frame);
+  dim?.forEach((channel, gain) {
+    if (channel >= 0 && channel < out.length) out[channel] = (out[channel] * gain.clamp(0.0, 1.0)).round();
+  });
   for (final channel in dark) {
     if (channel >= 0 && channel < out.length) out[channel] = 0;
   }

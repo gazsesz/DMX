@@ -927,7 +927,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 TextButton(onPressed: () => _resizeBank(selected), child: const Text('Edit Size')),
                 const SizedBox(width: 4),
                 Tooltip(
-                  message: 'On: tapping a slot picks its scene and timing instead of playing it',
+                  message: 'On: tap a slot to pick its scene and timing; hold and drag a scene to move it',
                   child: FilterChip(
                     avatar: Icon(Icons.edit_note, size: 16, color: _editSlots ? AppColors.accent2 : AppColors.textFaint),
                     label: const Text('Edit slots'),
@@ -1101,7 +1101,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 final isRunning = isRunningThisBank
                     ? index == highlightIndex
                     : scene != null && index == _manualSlot;
-                return Stack(
+                final tile = Stack(
                   fit: StackFit.expand,
                   children: [
                     InkWell(
@@ -1113,7 +1113,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   // moved to the pencil on the tile, so the gesture that
                   // used to just re-pick now does the thing you actually
                   // came for.
-                  onLongPress: () => _editSlotScene(selected, index),
+                  // In Edit slots mode the long-press starts a drag instead.
+                  onLongPress: _editSlots ? null : () => _editSlotScene(selected, index),
                   child: Container(
                     decoration: BoxDecoration(
                       color: isRunning ? AppColors.accent.withValues(alpha: 0.14) : AppColors.panel,
@@ -1208,6 +1209,57 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         ),
                       ),
                   ],
+                );
+                if (!_editSlots) return tile;
+                // Edit slots: hold a scene, drag it onto another slot and the
+                // slots in between shuffle along (the step's timing travels).
+                return DragTarget<int>(
+                  onWillAcceptWithDetails: (d) => d.data != index,
+                  onAcceptWithDetails: (d) {
+                    ref.read(banksProvider.notifier).moveSlot(selected.id, d.data, index);
+                    setState(() => _manualSlot = null);
+                  },
+                  builder: (context, candidates, _) {
+                    final hovering = candidates.isNotEmpty;
+                    final framed = DecoratedBox(
+                      position: DecorationPosition.foreground,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: hovering ? Border.all(color: AppColors.accent, width: 3) : null,
+                      ),
+                      child: tile,
+                    );
+                    if (scene == null) return framed;
+                    return LongPressDraggable<int>(
+                      data: index,
+                      feedback: Material(
+                        color: Colors.transparent,
+                        child: Opacity(
+                          opacity: 0.85,
+                          child: Container(
+                            width: 96,
+                            height: 96,
+                            alignment: Alignment.center,
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.panel2,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: AppColors.accent2, width: 2),
+                            ),
+                            child: Text(
+                              scene.name,
+                              textAlign: TextAlign.center,
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                        ),
+                      ),
+                      childWhenDragging: Opacity(opacity: 0.3, child: framed),
+                      child: framed,
+                    );
+                  },
                 );
               }, childCount: selected.sceneSlots.length),
               ),

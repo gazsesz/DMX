@@ -19,6 +19,19 @@ void main() {
       expect(out, [10, 0, 30, 0]);
       expect(frame, [10, 20, 30, 40]);
     });
+
+    test('scales dimmed channels by their gain', () {
+      final frame = Uint8List.fromList([100, 200, 50]);
+      expect(applyDropout(frame, const {}, {0: 0.5, 1: 0.0}), [50, 0, 50]);
+      expect(frame, [100, 200, 50]);
+    });
+
+    test('fade-out defaults to 0 and survives json', () {
+      expect(const DropoutSettings().fadeOutMs, 0);
+      expect(DropoutSettings.fromJson({}).fadeOutMs, 0);
+      final back = DropoutSettings.fromJson(const DropoutSettings(fadeOutMs: 250).toJson());
+      expect(back.fadeOutMs, 250);
+    });
   });
 
   group('DropoutSettings json', () {

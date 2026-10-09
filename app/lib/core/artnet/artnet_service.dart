@@ -92,6 +92,10 @@ class ArtNetService {
   /// layers have been playing underneath.
   Set<int> Function(UniverseConfig universe)? darkChannels;
 
+  /// Channels part-way through a dropout's fade-out, with their gain (0..1).
+  /// Applied together with [darkChannels].
+  Map<int, double> Function(UniverseConfig universe)? dimChannels;
+
   /// Sends at ~30 Hz instead of once a second while something is chopping the
   /// output. A dropout's frame that gets lost on Wi-Fi would otherwise leave
   /// the lamp dark until the next keep-alive, a second later.
@@ -395,7 +399,8 @@ class ArtNetService {
     final buffer = _buffers[universe.id]!;
     final overridden = _override?.call(universe, buffer) ?? buffer;
     final dark = darkChannels?.call(universe) ?? const <int>{};
-    final data = _withMaster(universe, applyDropout(overridden, dark));
+    final dim = dimChannels?.call(universe);
+    final data = _withMaster(universe, applyDropout(overridden, dark, dim));
     final protocol = _settings.protocol;
 
     if (protocol.sendsArtNet) {
