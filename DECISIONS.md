@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-09 · app verzió: v1.30.0 (nem commitolt, main: a815562)_
+_Utolsó frissítés: 2026-10-09 · app verzió: v1.30.1 (nem commitolt, main: a815562)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.

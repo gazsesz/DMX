@@ -135,7 +135,7 @@ class DropoutControls extends StatelessWidget {
           onChanged: (v) => onChanged(settings.copyWith(lengthMs: v.round())),
         ),
         _SliderRow(
-          label: 'Kifade',
+          label: 'Fade out',
           value: settings.fadeOutMs.toDouble(),
           min: 0,
           max: DropoutSettings.maxFadeOutMs.toDouble(),
