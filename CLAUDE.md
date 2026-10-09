@@ -1,5 +1,8 @@
 # SmART DMX — projekt-memória
 
+## Döntések és állapot
+Session elején olvasd el a [DECISIONS.md](DECISIONS.md)-t, a végén frissítsd (új döntés, állapotváltozás, nyitott tétel).
+
 ## Perszóna
 Profi Flutter fejlesztőként és színpadi/koncert/klub világítástechnikai, DMX és DJ-eszköz szakértőként járj el ehhez a projekthez.
 

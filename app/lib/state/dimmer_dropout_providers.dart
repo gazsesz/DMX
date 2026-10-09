@@ -56,6 +56,9 @@ class _Lane {
 
   /// True for the length of one dropout.
   bool dark = false;
+
+  /// Running for the length of a dropout's fade-out, before [dark] starts.
+  Stopwatch? fading;
   Timer? timer;
   StreamSubscription<DateTime>? beatSub;
   int beats = 0;
@@ -68,6 +71,7 @@ class _Lane {
     beatSub?.cancel();
     beatSub = null;
     dark = false;
+    fading = null;
   }
 }
 
@@ -159,7 +163,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     for (final key in _lanes.keys.toList()) {
       if (wanted.containsKey(key)) continue;
       final gone = _lanes.remove(key)!;
-      changed = gone.dark || changed;
+      changed = gone.dark || gone.fading != null || changed;
       gone.cancel();
     }
     for (final entry in wanted.entries) {
@@ -178,25 +182,50 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     if (_lanes.isEmpty) {
       if (_service.darkChannels == _darkIn) {
         _service.darkChannels = null;
+        _service.dimChannels = null;
         _service.fastRefresh = false;
       }
     } else {
       _service.darkChannels = _darkIn;
+      _service.dimChannels = _dimIn;
       _service.fastRefresh = true;
     }
     if (changed) _service.refreshOutput();
+  }
+
+  Set<int> _cutBy(_Lane lane, UniverseConfig universe) {
+    final scope = lane.scope[universe.id];
+    if (scope == null || scope.isEmpty) return const {};
+    final layers = lane.settings.targetLayerIds;
+    return layers.isEmpty ? scope : _service.channelsOwnedBy(universe, layers, scope);
   }
 
   Set<int> _darkIn(UniverseConfig universe) {
     Set<int>? out;
     for (final lane in _lanes.values) {
       if (!lane.dark) continue;
-      final scope = lane.scope[universe.id];
-      if (scope == null || scope.isEmpty) continue;
-      final layers = lane.settings.targetLayerIds;
-      final cut = layers.isEmpty ? scope : _service.channelsOwnedBy(universe, layers, scope);
+      final cut = _cutBy(lane, universe);
       if (cut.isEmpty) continue;
       (out ??= <int>{}).addAll(cut);
+    }
+    return out ?? const {};
+  }
+
+  /// Channels of lanes in their fade-out, with the gain they are at right
+  /// now — read on every frame, so the ramp is as smooth as the refresh rate.
+  Map<int, double> _dimIn(UniverseConfig universe) {
+    Map<int, double>? out;
+    for (final lane in _lanes.values) {
+      final watch = lane.fading;
+      if (watch == null) continue;
+      final cut = _cutBy(lane, universe);
+      if (cut.isEmpty) continue;
+      final gain = 1 - watch.elapsedMilliseconds / lane.settings.fadeOutMs;
+      final map = out ??= <int, double>{};
+      for (final channel in cut) {
+        final existing = map[channel];
+        map[channel] = existing == null || gain < existing ? gain : existing;
+      }
     }
     return out ?? const {};
   }
@@ -233,6 +262,23 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
 
   void _goDark(_Lane lane, {required void Function() then}) {
     if (!_lanes.containsValue(lane)) return;
+    lane.timer?.cancel();
+    final fadeMs = lane.settings.fadeOutMs;
+    if (fadeMs > 0) {
+      // Ramp down first; the 30 Hz refresh draws the steps in between.
+      lane.fading = Stopwatch()..start();
+      _service.refreshOutput();
+      lane.timer = Timer(Duration(milliseconds: fadeMs), () {
+        lane.fading = null;
+        _holdDark(lane, then: then);
+      });
+      return;
+    }
+    _holdDark(lane, then: then);
+  }
+
+  void _holdDark(_Lane lane, {required void Function() then}) {
+    if (!_lanes.containsValue(lane)) return;
     lane.dark = true;
     _service.refreshOutput();
     lane.timer?.cancel();
@@ -250,11 +296,13 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
       lane.cancel();
     }
     _lanes.clear();
+    final wasFading = _lanes.values.any((l) => l.fading != null);
     if (_service.darkChannels == _darkIn) {
       _service.darkChannels = null;
+      _service.dimChannels = null;
       _service.fastRefresh = false;
     }
-    if (wasDark) _service.refreshOutput();
+    if (wasDark || wasFading) _service.refreshOutput();
   }
 
   @override

@@ -135,6 +135,14 @@ class DropoutControls extends StatelessWidget {
           onChanged: (v) => onChanged(settings.copyWith(lengthMs: v.round())),
         ),
         _SliderRow(
+          label: 'Kifade',
+          value: settings.fadeOutMs.toDouble(),
+          min: 0,
+          max: DropoutSettings.maxFadeOutMs.toDouble(),
+          text: settings.fadeOutMs == 0 ? 'azonnal' : '${settings.fadeOutMs} ms',
+          onChanged: (v) => onChanged(settings.copyWith(fadeOutMs: v.round())),
+        ),
+        _SliderRow(
           label: settings.onBeat ? 'Köz (ütem nélkül)' : 'Átlagos köz',
           value: settings.intervalMs.toDouble(),
           min: DropoutSettings.minIntervalMs.toDouble(),
