@@ -12,6 +12,7 @@ import '../../state/smart_program_providers.dart';
 import '../../state/tempo_providers.dart';
 import '../audio/beat_detector.dart';
 import '../audio/midi_beat_source.dart';
+import '../audio/osc_beat_source.dart';
 import '../audio/tempo_estimator.dart';
 import '../playback/chase_player.dart';
 import '../playback/smart_program_player.dart';
@@ -351,7 +352,11 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
           contentPadding: EdgeInsets.zero,
           dense: true,
           secondary: Icon(
-            beatSourceKind == BeatSourceKind.midi ? Icons.piano_outlined : Icons.mic_none,
+            switch (beatSourceKind) {
+              BeatSourceKind.mic => Icons.mic_none,
+              BeatSourceKind.midi => Icons.piano_outlined,
+              BeatSourceKind.osc => Icons.wifi_tethering,
+            },
             size: 18,
             color: AppColors.textDim,
           ),
@@ -439,8 +444,10 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
                 },
               ),
             ),
-          ] else
-            _MidiStatusRow(source: ref.watch(midiBeatSourceProvider)),
+          ] else if (beatSourceKind == BeatSourceKind.midi)
+            _MidiStatusRow(source: ref.watch(midiBeatSourceProvider))
+          else
+            _OscStatusRow(source: ref.watch(oscBeatSourceProvider)),
         ],
 
         // Last, and deliberately: the momentary buttons are a copy, not the
@@ -578,6 +585,96 @@ class _MidiStatusRowState extends State<_MidiStatusRow> {
       message = 'Receiving from ${device.name}, but no clock — enable Sync on its output';
     } else {
       message = 'Connected to ${device.name} — waiting for its clock';
+    }
+
+    return Row(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 80),
+          width: 10,
+          height: 10,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: recentBeat ? AppColors.accent : AppColors.panel2,
+            border: Border.all(color: recentBeat ? AppColors.accent : AppColors.border, width: 1.2),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            message,
+            style: TextStyle(fontSize: 11, color: ok ? AppColors.textFaint : AppColors.danger),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// [_MidiStatusRow]'s counterpart for rkbx_link over Wi-Fi: a beat-flash dot
+/// and the master deck's tempo, or what's wrong if nothing is arriving.
+class _OscStatusRow extends StatefulWidget {
+  final OscBeatSource source;
+
+  const _OscStatusRow({required this.source});
+
+  @override
+  State<_OscStatusRow> createState() => _OscStatusRowState();
+}
+
+class _OscStatusRowState extends State<_OscStatusRow> {
+  StreamSubscription<DateTime>? _beatSub;
+  StreamSubscription<DateTime>? _activitySub;
+  Timer? _refreshTimer;
+  DateTime? _lastBeatAt;
+  DateTime? _lastActivityAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _beatSub = widget.source.beatEvents.listen((_) {
+      if (mounted) setState(() => _lastBeatAt = DateTime.now());
+    });
+    _activitySub = widget.source.activity.listen((_) {
+      if (mounted) setState(() => _lastActivityAt = DateTime.now());
+    });
+    _refreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _beatSub?.cancel();
+    _activitySub?.cancel();
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final recentBeat = _lastBeatAt != null && now.difference(_lastBeatAt!) < const Duration(milliseconds: 180);
+    final beatIsCurrent = _lastBeatAt != null && now.difference(_lastBeatAt!) < const Duration(seconds: 3);
+    final recentActivity =
+        _lastActivityAt != null && now.difference(_lastActivityAt!) < const Duration(seconds: 3);
+    final listening = widget.source.isListening;
+    final bpm = widget.source.lastBpm;
+
+    final String message;
+    final bool ok;
+    if (!listening) {
+      message = '${widget.source.lastError ?? 'Not listening'} — check Setup';
+      ok = false;
+    } else if (beatIsCurrent) {
+      message = bpm == null ? 'Beats from rkbx_link' : 'Beats from rkbx_link — ${bpm.toStringAsFixed(1)} BPM';
+      ok = true;
+    } else if (recentActivity) {
+      message = 'rkbx_link is sending, but no beats — is the master deck playing?';
+      ok = false;
+    } else {
+      message = 'Waiting for rkbx_link on port ${widget.source.port}';
+      ok = true;
     }
 
     return Row(

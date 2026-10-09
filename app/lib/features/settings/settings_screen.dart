@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../core/audio/midi_beat_source.dart';
+import '../../core/audio/osc_beat_source.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
@@ -639,7 +640,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 children: [
                   const Text(
                     'What drives beat sync everywhere in the app — the microphone listening '
-                    'to the room, or an exact MIDI clock over USB from a mixer or controller. '
+                    'to the room, an exact MIDI clock over USB from a mixer or controller, or '
+                    'Rekordbox\'s master deck over Wi-Fi via rkbx_link on the DJ laptop. '
                     'Device-level, like the dock — not saved with the show.',
                     style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
@@ -698,6 +700,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                       ),
                     ],
+                  ],
+                  if (beatSource.kind == BeatSourceKind.osc) ...[
+                    const SizedBox(height: 14),
+                    const Text(
+                      'rkbx_link on the DJ laptop',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Same Wi-Fi as this tablet. In rkbx_link\'s config file set:\n'
+                      '  osc.enabled true\n'
+                      '  osc.source 0.0.0.0:4450\n'
+                      '  osc.destination ${_wifiAddress ?? '<this tablet\'s IP>'}:${OscBeatSource.defaultPort}\n'
+                      '  osc.msg.master/beat/trigger 1',
+                      style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.textDim),
+                    ),
+                    const SizedBox(height: 8),
+                    _OscListenRow(
+                      source: ref.read(oscBeatSourceProvider),
+                      listening: ref.watch(beatSyncEnabledProvider),
+                      onListen: () async {
+                        final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(true);
+                        if (error != null && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                        }
+                      },
+                    ),
                   ],
                 ],
               ),
@@ -882,6 +911,97 @@ class _MidiActivityHintState extends State<_MidiActivityHint> {
       color = AppColors.danger;
     } else {
       message = 'Connected to ${device.name}, but nothing has arrived yet.';
+      color = AppColors.textFaint;
+    }
+    return Text(message, style: TextStyle(fontSize: 10.5, color: color));
+  }
+}
+
+/// Setup's live status for the rkbx_link source: a button to start
+/// listening (the same switch as the dock's Beat sync), then what's actually
+/// arriving — so a wrong IP, a missing config line and a stopped deck each
+/// read differently.
+class _OscListenRow extends StatefulWidget {
+  final OscBeatSource source;
+  final bool listening;
+  final VoidCallback onListen;
+
+  const _OscListenRow({required this.source, required this.listening, required this.onListen});
+
+  @override
+  State<_OscListenRow> createState() => _OscListenRowState();
+}
+
+class _OscListenRowState extends State<_OscListenRow> {
+  StreamSubscription<DateTime>? _beatSub;
+  StreamSubscription<DateTime>? _activitySub;
+  StreamSubscription<double>? _bpmSub;
+  Timer? _refreshTimer;
+  DateTime? _lastBeatAt;
+  DateTime? _lastActivityAt;
+
+  @override
+  void initState() {
+    super.initState();
+    _beatSub = widget.source.beatEvents.listen((_) {
+      if (mounted) setState(() => _lastBeatAt = DateTime.now());
+    });
+    _activitySub = widget.source.activity.listen((_) {
+      if (mounted) setState(() => _lastActivityAt = DateTime.now());
+    });
+    _bpmSub = widget.source.bpm.listen((_) {
+      if (mounted) setState(() {});
+    });
+    _refreshTimer = Timer.periodic(const Duration(milliseconds: 200), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _beatSub?.cancel();
+    _activitySub?.cancel();
+    _bpmSub?.cancel();
+    _refreshTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.listening || !widget.source.isListening) {
+      return Row(
+        children: [
+          const Expanded(
+            child: Text(
+              'Not listening — starts with Beat sync.',
+              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+          ),
+          OutlinedButton(onPressed: widget.onListen, child: const Text('Listen')),
+        ],
+      );
+    }
+    final now = DateTime.now();
+    final beatIsCurrent = _lastBeatAt != null && now.difference(_lastBeatAt!) < const Duration(seconds: 3);
+    final recentActivity =
+        _lastActivityAt != null && now.difference(_lastActivityAt!) < const Duration(seconds: 3);
+    final bpm = widget.source.lastBpm;
+    final sender = widget.source.lastSender?.address;
+
+    final String message;
+    final Color color;
+    if (beatIsCurrent) {
+      message = bpm == null
+          ? 'Beats arriving from ${sender ?? 'rkbx_link'} — this is working.'
+          : 'Beats arriving from ${sender ?? 'rkbx_link'} — ${bpm.toStringAsFixed(1)} BPM — this is working.';
+      color = AppColors.success;
+    } else if (recentActivity) {
+      message = 'Receiving from ${sender ?? 'rkbx_link'}, but no beats — check the '
+          '"osc.msg.master/beat/trigger 1" line, and that the master deck is playing.';
+      color = AppColors.danger;
+    } else {
+      message = 'Listening on port ${widget.source.port}, nothing has arrived yet — check the IP in '
+          'rkbx_link\'s config, that it\'s running, and that both are on the same Wi-Fi.';
       color = AppColors.textFaint;
     }
     return Text(message, style: TextStyle(fontSize: 10.5, color: color));
