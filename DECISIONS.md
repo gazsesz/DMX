@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-09 · app verzió: v1.31.0 (nem commitolt, main: a815562)_
+_Utolsó frissítés: 2026-10-09 · app verzió: v1.31.1 (nem commitolt, main: a815562)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -24,6 +24,7 @@ _Utolsó frissítés: 2026-10-09 · app verzió: v1.31.0 (nem commitolt, main: a
 - Dimmer dropout réteg (v1.27–1.28): sötét villanások kiválasztott rétegekre/fixture-ökre, projekttel mentve.
 - Dropout fade out (v1.30) + fade in (v1.31, `fadeInMs`, alap 0, a sötét után ugyanígy visszahalkít): `fadeOutMs` (alap 0 = kemény vágás) a sötét előtt lineárisan halkít; a `dimChannels` hook gain-t ad csatornánként, a 30 Hz refresh rajzolja a lépcsőket. A köz-számításba beleszámít.
 - Bank "Edit slots" (v1.30): a hosszú nyomás húzást (LongPressDraggable→DragTarget, `moveSlot`) indít a jelenet-szerkesztő helyett; a szerkesztés a mód kikapcsolásakor marad a hosszú nyomás.
+- Jelenet duplikálás a slot menüben két módon (v1.31.1): következő szabad slotba (`placeAfter`), vagy közvetlenül a következő lépésre (`insertAfter`): a többi eggyel odébb tolódik az első üres slotig, üres hely híján a bank nő eggyel; a lépés időzítése vele megy.
 - Fixture-csoportok **projekt-szintűek** (`ProjectData`), nem app-szintű pref, mert a fixture id csak egy patch-en belül értelmes.
 - Mentett színek: `SavedColor {name, rgb}`, a név mindig opcionális (hex a fallback), átnevezés csak hosszú nyomásra — ezt megígértük a felhasználónak.
 - Beat forrás: v1.29.0-tól rkbx_link OSC Wi-Fi-n (`core/audio/osc_beat_source.dart`).

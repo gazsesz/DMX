@@ -146,6 +146,34 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     return slots.length;
   }
 
+  /// Puts [sceneId] in the slot right after [slotIndex] and pushes the steps
+  /// behind it one slot on — up to the first empty slot, which the shift
+  /// fills; with no empty slot behind, the bank grows by one. A step's own
+  /// timing moves with it. Returns the slot used, or null when the bank or
+  /// slot doesn't exist.
+  int? insertAfter(String bankId, int slotIndex, String sceneId) {
+    final bank = state.where((b) => b.id == bankId).firstOrNull;
+    if (bank == null || slotIndex < 0 || slotIndex >= bank.sceneSlots.length) return null;
+    final slots = [...bank.sceneSlots];
+    final timings = List<SlotTiming?>.generate(slots.length, bank.timingAt);
+    final target = slotIndex + 1;
+    final gap = [for (var i = target; i < slots.length; i++) i].where((i) => slots[i] == null).firstOrNull;
+    if (gap != null) {
+      slots.removeAt(gap);
+      timings.removeAt(gap);
+    }
+    slots.insert(target, sceneId);
+    timings.insert(target, null);
+    state = [
+      for (final b in state)
+        if (b.id == bankId)
+          b.copyWith(sceneSlots: slots, slotTimings: timings.any((t) => t != null) ? timings : const [])
+        else
+          b,
+    ];
+    return target;
+  }
+
   /// Gives the step in [slotIndex] its own Hold/Fade, or with null puts it
   /// back to following the bank — see [Bank.slotTimings].
   void setSlotTiming(String bankId, int slotIndex, SlotTiming? timing) {
