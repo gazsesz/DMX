@@ -29,7 +29,7 @@ _Utolsó frissítés: 2026-10-09 · app verzió: v1.30.1 (nem commitolt, main: a
 - Beat forrás: v1.29.0-tól rkbx_link OSC Wi-Fi-n (`core/audio/osc_beat_source.dart`).
 
 ## Folyamatban / nyitott
-- **Kétnyelvűsítés (EN+HU, nyelvváltó a Setup oldalon):** felmérés és terv kész, a kivitelezés még nem indult — lásd [I18N_PLAN.md](I18N_PLAN.md) (nyitott döntések a végén).
+- **Kétnyelvűsítés (EN+HU, nyelvváltó a Setup oldalon):** felmérés és terv kész, a kivitelezés még nem indult — lásd [I18N_PLAN.md](I18N_PLAN.md) (döntések rögzítve; a fejlesztés a felhasználó jelzésére indul).
 - **Csoportok + mentett színek:** a szerkesztői fázis kész (2026-09-20; csak lista alapú csoportválasztó, a layout/lasso szándékosan kimaradt). **A fázis 2 hiányzik:** élő Csoport×Szín gyorsalkalmazó sáv (Control panel / `trigger_actions.dart` / `momentary_fx_providers.dart`). A felhasználó sorrendje: előbb szerkesztés, aztán élő sáv.
 - Vizuálisan Claude nem ellenőrizte; smoke teszt: `flutter run -d windows`.
 - A tervezési indoklás és mockupok: `DMX Piackép.html` (repo gyökér; menetközben használt mockup-fájl, nem piackutatás).

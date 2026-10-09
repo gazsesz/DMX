@@ -55,10 +55,14 @@ Cél: az app angol és magyar nyelven fusson; a nyelv a **Setup** oldalon válth
 6. **Logikai szövegek** (enum label-ek, hibaüzenetek típusosítása) — külön PR, mert a modell/állapot réteget érinti.
 7. **Átfutás:** `grep` rá a maradék hardcode-olt `Text('`/`label:`/`tooltip:` literálokra; opcionális lint (`flutter_lints` + egyedi ellenőrző szkript CI-ben), hogy új szöveg ne szivárogjon be; HU szöveg-átnézés a felhasználóval; vizuális ellenőrzés Tab S6 Lite-on és P20 Pro-n (a magyar szövegek hosszabbak → elrendezés/overflow a kis kijelzőn, főleg a nav-sávon és a SegmentedButton-okon).
 
+## Döntések (2026-10-09, felhasználó)
+
+- Szakkifejezések (Hold, Fade, Beat Sync, Bank, Chase, Scene, Layer, Art-Net, DMX, Smart Program stb.) **angolul maradnak** a magyar felületen is.
+- Első indításkor az app **követi a rendszernyelvet** (hu → magyar, minden más → angol); a Setup-ban felülbírálható.
+- A fejlesztés **egyelőre nem indul**, a terv várakozik.
+
 ## Nyitott döntések (a felhasználótól)
 
-- Szakkifejezések (Hold, Fade, Beat Sync, Bank, Chase, Scene, Layer…) magyarul maradjanak angolul, vagy legyen magyar megfelelő? (Javaslat: nav és fő fogalmak magyarul csak ha egyértelmű; Hold/Fade/Beat Sync angolul.)
-- Alapértelmezett nyelv első indításkor: rendszernyelv (javaslat) vagy mindig angol?
 - Exportált fájlok (bank/chase export, projekt) tartalma nyelvfüggetlen marad (igen — csak adat).
 
 ## Hogyan vegyük elő
