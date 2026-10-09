@@ -427,6 +427,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   static const _newSceneSentinel = '__new__';
   static const _stepTimingSentinel = '__timing__';
   static const _duplicateSceneSentinel = '__duplicate__';
+  static const _duplicateShiftSentinel = '__duplicate_shift__';
 
   /// One step's own Hold/Fade. Switched off, the step follows the bank
   /// again (the bank's own timing, or the dock's) — that is the reset.
@@ -552,6 +553,17 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 ],
               ),
             ),
+          if (bank.sceneSlots[slotIndex] != null)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, _duplicateShiftSentinel),
+              child: const Row(
+                children: [
+                  Icon(Icons.keyboard_double_arrow_right, size: 18, color: AppColors.textDim),
+                  SizedBox(width: 8),
+                  Expanded(child: Text('Duplicate into the next step, shift the rest')),
+                ],
+              ),
+            ),
           if (bank.sceneSlots[slotIndex] != null && !bank.isBeatFlash)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, _stepTimingSentinel),
@@ -594,6 +606,18 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       if (copy == null) return;
       final banks = ref.read(banksProvider.notifier);
       final slot = banks.placeAfter(bank.id, slotIndex, copy.id);
+      // The copy plays the way the original does.
+      final timing = bank.timingAt(slotIndex);
+      if (slot != null && timing != null) banks.setSlotTiming(bank.id, slot, timing);
+      return;
+    }
+    if (chosen == _duplicateShiftSentinel) {
+      final sourceId = bank.sceneSlots[slotIndex];
+      if (sourceId == null) return;
+      final copy = ref.read(scenesProvider.notifier).duplicate(sourceId);
+      if (copy == null) return;
+      final banks = ref.read(banksProvider.notifier);
+      final slot = banks.insertAfter(bank.id, slotIndex, copy.id);
       // The copy plays the way the original does.
       final timing = bank.timingAt(slotIndex);
       if (slot != null && timing != null) banks.setSlotTiming(bank.id, slot, timing);

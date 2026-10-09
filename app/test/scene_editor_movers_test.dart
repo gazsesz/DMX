@@ -232,6 +232,18 @@ void main() {
     expect(notifier.placeAfter('gone', 0, 'e'), isNull);
   });
 
+  test('insertAfter pushes the rest on up to the first gap, or grows the bank', () {
+    final notifier = BanksNotifier()
+      ..loadAll([
+        const Bank(id: 'b', name: 'B', sceneSlots: ['a', 'b', null, 'c']),
+      ]);
+    expect(notifier.insertAfter('b', 0, 'x'), 1);
+    expect(notifier.state.single.sceneSlots, ['a', 'x', 'b', 'c']);
+    expect(notifier.insertAfter('b', 3, 'y'), 4);
+    expect(notifier.state.single.sceneSlots, ['a', 'x', 'b', 'c', 'y']);
+    expect(notifier.insertAfter('b', 9, 'z'), isNull);
+  });
+
   testWidgets('a colour channel imported as generic gets swatches', (tester) async {
     final imported = FixtureProfile.fromJson({
       'id': 'zq',

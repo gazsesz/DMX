@@ -31,6 +31,8 @@ void main() {
       expect(DropoutSettings.fromJson({}).fadeOutMs, 0);
       final back = DropoutSettings.fromJson(const DropoutSettings(fadeOutMs: 250).toJson());
       expect(back.fadeOutMs, 250);
+      expect(const DropoutSettings().fadeInMs, 0);
+      expect(DropoutSettings.fromJson(const DropoutSettings(fadeInMs: 300).toJson()).fadeInMs, 300);
     });
   });
 

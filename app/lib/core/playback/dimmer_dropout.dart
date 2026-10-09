@@ -26,6 +26,9 @@ class DropoutSettings {
   /// starts. 0 is a hard cut.
   final int fadeOutMs;
 
+  /// How long the light takes to come back up after the dark. 0 is a hard cut.
+  final int fadeInMs;
+
   /// The average time between two dropouts, dark included.
   final int intervalMs;
 
@@ -47,6 +50,7 @@ class DropoutSettings {
     this.fixtureIds = const {},
     this.lengthMs = 120,
     this.fadeOutMs = 0,
+    this.fadeInMs = 0,
     this.intervalMs = 4000,
     this.jitter = 0.5,
     this.onBeat = false,
@@ -62,6 +66,7 @@ class DropoutSettings {
       other.enabled == enabled &&
       other.lengthMs == lengthMs &&
       other.fadeOutMs == fadeOutMs &&
+      other.fadeInMs == fadeInMs &&
       other.intervalMs == intervalMs &&
       other.jitter == jitter &&
       other.onBeat == onBeat &&
@@ -74,6 +79,7 @@ class DropoutSettings {
     enabled,
     lengthMs,
     fadeOutMs,
+    fadeInMs,
     intervalMs,
     jitter,
     onBeat,
@@ -88,6 +94,7 @@ class DropoutSettings {
     'fixtureIds': fixtureIds.toList(),
     'lengthMs': lengthMs,
     'fadeOutMs': fadeOutMs,
+    'fadeInMs': fadeInMs,
     'intervalMs': intervalMs,
     'jitter': jitter,
     'onBeat': onBeat,
@@ -105,6 +112,7 @@ class DropoutSettings {
       fixtureIds: {...(json['fixtureIds'] as List? ?? []).whereType<String>()},
       lengthMs: ((json['lengthMs'] as num?)?.round() ?? base.lengthMs).clamp(minLengthMs, maxLengthMs),
       fadeOutMs: ((json['fadeOutMs'] as num?)?.round() ?? base.fadeOutMs).clamp(0, maxFadeOutMs),
+      fadeInMs: ((json['fadeInMs'] as num?)?.round() ?? base.fadeInMs).clamp(0, maxFadeInMs),
       intervalMs: ((json['intervalMs'] as num?)?.round() ?? base.intervalMs).clamp(minIntervalMs, maxIntervalMs),
       jitter: ((json['jitter'] as num?)?.toDouble() ?? base.jitter).clamp(0.0, 1.0),
       onBeat: json['onBeat'] as bool? ?? false,
@@ -116,6 +124,7 @@ class DropoutSettings {
   static const minLengthMs = 30;
   static const maxLengthMs = 500;
   static const maxFadeOutMs = 1000;
+  static const maxFadeInMs = maxFadeOutMs;
   static const minIntervalMs = 500;
   static const maxIntervalMs = 20000;
 
@@ -125,6 +134,7 @@ class DropoutSettings {
     Set<String>? fixtureIds,
     int? lengthMs,
     int? fadeOutMs,
+    int? fadeInMs,
     int? intervalMs,
     double? jitter,
     bool? onBeat,
@@ -135,6 +145,7 @@ class DropoutSettings {
     fixtureIds: fixtureIds ?? this.fixtureIds,
     lengthMs: lengthMs ?? this.lengthMs,
     fadeOutMs: fadeOutMs ?? this.fadeOutMs,
+    fadeInMs: fadeInMs ?? this.fadeInMs,
     intervalMs: intervalMs ?? this.intervalMs,
     jitter: jitter ?? this.jitter,
     onBeat: onBeat ?? this.onBeat,
@@ -148,7 +159,7 @@ class DropoutSettings {
 /// left once it is taken off — and never shorter than a frame or two, or a
 /// jittery setting would chain dropouts into one long blackout.
 Duration dropoutGap(DropoutSettings settings, Random random) {
-  final lit = settings.intervalMs - settings.lengthMs - settings.fadeOutMs;
+  final lit = settings.intervalMs - settings.lengthMs - settings.fadeOutMs - settings.fadeInMs;
   final swing = (random.nextDouble() * 2 - 1) * settings.jitter.clamp(0.0, 1.0);
   final gap = (lit * (1 + swing)).round();
   return Duration(milliseconds: max(gap, 60));
