@@ -59,6 +59,9 @@ class _Lane {
 
   /// Running for the length of a dropout's fade-out, before [dark] starts.
   Stopwatch? fading;
+
+  /// Running while the light comes back up after the dark.
+  Stopwatch? fadingIn;
   Timer? timer;
   StreamSubscription<DateTime>? beatSub;
   int beats = 0;
@@ -72,6 +75,7 @@ class _Lane {
     beatSub = null;
     dark = false;
     fading = null;
+    fadingIn = null;
   }
 }
 
@@ -163,7 +167,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     for (final key in _lanes.keys.toList()) {
       if (wanted.containsKey(key)) continue;
       final gone = _lanes.remove(key)!;
-      changed = gone.dark || gone.fading != null || changed;
+      changed = gone.dark || gone.fading != null || gone.fadingIn != null || changed;
       gone.cancel();
     }
     for (final entry in wanted.entries) {
@@ -216,11 +220,16 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
   Map<int, double> _dimIn(UniverseConfig universe) {
     Map<int, double>? out;
     for (final lane in _lanes.values) {
-      final watch = lane.fading;
-      if (watch == null) continue;
+      final double gain;
+      if (lane.fading case final down?) {
+        gain = 1 - down.elapsedMilliseconds / lane.settings.fadeOutMs;
+      } else if (lane.fadingIn case final up?) {
+        gain = up.elapsedMilliseconds / lane.settings.fadeInMs;
+      } else {
+        continue;
+      }
       final cut = _cutBy(lane, universe);
       if (cut.isEmpty) continue;
-      final gain = 1 - watch.elapsedMilliseconds / lane.settings.fadeOutMs;
       final map = out ??= <int, double>{};
       for (final channel in cut) {
         final existing = map[channel];
@@ -263,6 +272,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
   void _goDark(_Lane lane, {required void Function() then}) {
     if (!_lanes.containsValue(lane)) return;
     lane.timer?.cancel();
+    lane.fadingIn = null;
     final fadeMs = lane.settings.fadeOutMs;
     if (fadeMs > 0) {
       // Ramp down first; the 30 Hz refresh draws the steps in between.
@@ -284,6 +294,17 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     lane.timer?.cancel();
     lane.timer = Timer(Duration(milliseconds: lane.settings.lengthMs), () {
       lane.dark = false;
+      final upMs = lane.settings.fadeInMs;
+      if (upMs > 0) {
+        lane.fadingIn = Stopwatch()..start();
+        _service.refreshOutput();
+        lane.timer = Timer(Duration(milliseconds: upMs), () {
+          lane.fadingIn = null;
+          _service.refreshOutput();
+          then();
+        });
+        return;
+      }
       _service.refreshOutput();
       then();
     });
@@ -291,18 +312,17 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
 
   /// Ends every dropout and puts the light back at once.
   void stop() {
-    final wasDark = _lanes.values.any((l) => l.dark);
+    final wasDark = _lanes.values.any((l) => l.dark || l.fading != null || l.fadingIn != null);
     for (final lane in _lanes.values) {
       lane.cancel();
     }
     _lanes.clear();
-    final wasFading = _lanes.values.any((l) => l.fading != null);
     if (_service.darkChannels == _darkIn) {
       _service.darkChannels = null;
       _service.dimChannels = null;
       _service.fastRefresh = false;
     }
-    if (wasDark || wasFading) _service.refreshOutput();
+    if (wasDark) _service.refreshOutput();
   }
 
   @override
