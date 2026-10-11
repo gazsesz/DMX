@@ -40,14 +40,20 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
   }
 
   /// Returns the copy, so the caller can switch to it.
-  Bank? duplicate(String id) {
+  ///
+  /// With a [sceneMap] (old scene id → new), each slot points at the mapped
+  /// scene instead of the original — a slot with no mapping ends up empty.
+  Bank? duplicate(String id, {Map<String, String>? sceneMap}) {
     final source = state.where((b) => b.id == id);
     if (source.isEmpty) return null;
     final original = source.first;
     final copy = Bank(
       id: _uuid.v4(),
       name: '${original.name} Copy',
-      sceneSlots: [...original.sceneSlots],
+      sceneSlots: [
+        for (final s in original.sceneSlots)
+          if (s == null || sceneMap == null) s else sceneMap[s],
+      ],
       isBeatFlash: original.isBeatFlash,
       flashFadeOutMs: original.flashFadeOutMs,
       ownTiming: original.ownTiming,
@@ -144,6 +150,26 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
     resize(bankId, slots.length + 1);
     setSlot(bankId, slots.length, sceneId);
     return slots.length;
+  }
+
+  /// Deletes the slot at [slotIndex] itself — not just its scene — so the
+  /// ones behind it move up. Only an empty slot goes: a scene is never lost
+  /// this way, and the last slot stays. A step's own timing moves with it.
+  /// Returns whether a slot was removed.
+  bool removeEmptySlot(String bankId, int slotIndex) {
+    final bank = state.where((b) => b.id == bankId).firstOrNull;
+    if (bank == null || bank.sceneSlots.length <= 1) return false;
+    if (slotIndex < 0 || slotIndex >= bank.sceneSlots.length || bank.sceneSlots[slotIndex] != null) return false;
+    final slots = [...bank.sceneSlots]..removeAt(slotIndex);
+    final timings = List<SlotTiming?>.generate(bank.sceneSlots.length, bank.timingAt)..removeAt(slotIndex);
+    state = [
+      for (final b in state)
+        if (b.id == bankId)
+          b.copyWith(sceneSlots: slots, slotTimings: timings.any((t) => t != null) ? timings : const [])
+        else
+          b,
+    ];
+    return true;
   }
 
   /// Puts [sceneId] in the slot right after [slotIndex] and pushes the steps

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../state/audio_providers.dart';
+import '../../state/dimmer_dropout_providers.dart';
 import '../../state/playback_providers.dart';
 import 'trigger_actions.dart';
 
@@ -21,6 +22,7 @@ import 'trigger_actions.dart';
 ///   /beatsync    — toggle mic beat sync; `?on=1` / `?on=0` to set it outright
 ///   /predict     — toggle the beat predictor; `?on=1` / `?on=0` outright
 ///   /autofade    — toggle auto-fade; `?on=1` / `?on=0` outright
+///   /dropout     — toggle the dimmer dropout; `?on=1` / `?on=0` outright
 ///   /stop        — stop playback, leaving the rig as it is
 ///   /blackout    — stop everything and take every channel to zero
 ///   /endpoints   — the same tiles as a Wear OS client's menu (text/plain)
@@ -79,6 +81,9 @@ class RemoteControlServer {
           _writeJson(request, {'ok': true, 'message': message});
         case '/autofade':
           final message = setAutoFade(read, on: _parseOnOff(query['on']));
+          _writeJson(request, {'ok': true, 'message': message});
+        case '/dropout':
+          final message = setDropout(read, on: _parseOnOff(query['on']));
           _writeJson(request, {'ok': true, 'message': message});
         case '/stop':
           stopPlayback(read);
@@ -159,6 +164,7 @@ class RemoteControlServer {
     lines.add('--- bs,Beat Sync,/beatsync');
     lines.add('--- pr,Predict,/predict');
     lines.add('--- af,AutoFade,/autofade');
+    lines.add('--- dro,Dropout,/dropout');
     lines.add('--- stop,Stop,/stop');
     lines.add('--- blk,Blackout,/blackout');
     return lines.join('\n');
@@ -169,6 +175,7 @@ class RemoteControlServer {
     return {
       'ok': true,
       'beatSync': read(beatSyncEnabledProvider),
+      'dropout': read(dimmerDropoutProvider).enabled,
       'nowPlaying': nowPlaying == null
           ? null
           : {'name': nowPlaying.name, 'kind': nowPlaying.kind.name},

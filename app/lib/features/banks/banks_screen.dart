@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/color_picker_dialog.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/duplicate_bank.dart';
 import '../../core/widgets/fixture_select.dart';
 import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/layer_picker_sheet.dart';
@@ -428,6 +429,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   static const _stepTimingSentinel = '__timing__';
   static const _duplicateSceneSentinel = '__duplicate__';
   static const _duplicateShiftSentinel = '__duplicate_shift__';
+  static const _deleteSlotSentinel = '__delete_slot__';
 
   /// One step's own Hold/Fade. Switched off, the step follows the bank
   /// again (the bank's own timing, or the dock's) — that is the reset.
@@ -588,6 +590,19 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               onPressed: () => Navigator.pop(context, ''),
               child: const Text('Clear slot', style: TextStyle(color: AppColors.danger)),
             ),
+          if (bank.sceneSlots[slotIndex] == null && bank.sceneSlots.length > 1)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, _deleteSlotSentinel),
+              child: const Row(
+                children: [
+                  Icon(Icons.remove_circle_outline, size: 18, color: AppColors.danger),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Delete this empty slot', style: TextStyle(color: AppColors.danger)),
+                  ),
+                ],
+              ),
+            ),
           if (scenes.isNotEmpty) const Divider(height: 8),
           for (final scene in scenes)
             SimpleDialogOption(
@@ -609,6 +624,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       // The copy plays the way the original does.
       final timing = bank.timingAt(slotIndex);
       if (slot != null && timing != null) banks.setSlotTiming(bank.id, slot, timing);
+      return;
+    }
+    if (chosen == _deleteSlotSentinel) {
+      ref.read(banksProvider.notifier).removeEmptySlot(bank.id, slotIndex);
+      setState(() => _manualSlot = null);
       return;
     }
     if (chosen == _duplicateShiftSentinel) {
@@ -1296,8 +1316,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {
-                      final copy = ref.read(banksProvider.notifier).duplicate(selected.id);
+                    onPressed: () async {
+                      final copy = await duplicateBankAsking(context, ref, selected);
                       if (copy != null) ref.read(selectedBankIdProvider.notifier).state = copy.id;
                     },
                     child: const Text('Duplicate Bank'),

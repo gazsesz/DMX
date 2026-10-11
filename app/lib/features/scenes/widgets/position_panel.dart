@@ -68,6 +68,7 @@ class PositionPanel extends ConsumerStatefulWidget {
 
 class _PositionPanelState extends ConsumerState<PositionPanel> {
   bool _fine = false;
+  PadSnap _snap = PadSnap.off;
 
   int get _panRange => widget.fixtures.isEmpty ? 540 : widget.fixtures.first.profile.panRangeDeg;
   int get _tiltRange => widget.fixtures.isEmpty ? 270 : widget.fixtures.first.profile.tiltRangeDeg;
@@ -280,6 +281,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
   Future<void> _fullscreenPad() async {
     var current = widget.base;
     var fine = _fine;
+    var snap = _snap;
     await showDialog<void>(
       context: context,
       builder: (context) => Dialog.fullscreen(
@@ -297,6 +299,16 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                         child: Text('Position', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                       ),
                       _CoarseFineToggle(fine: fine, onChanged: (v) => setDialogState(() => fine = v)),
+                      if (!fine) ...[
+                        const SizedBox(width: 8),
+                        _SnapToggle(
+                          snap: snap,
+                          onChanged: (v) => setDialogState(() {
+                            snap = v;
+                            _snap = v;
+                          }),
+                        ),
+                      ],
                       IconButton(
                         tooltip: 'Done',
                         icon: const Icon(Icons.close_fullscreen),
@@ -317,6 +329,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                             child: PanTiltPad(
                               value: current,
                               fine: fine,
+                              snap: snap,
                               panRangeDeg: _panRange,
                               tiltRangeDeg: _tiltRange,
                               onChanged: (value) {
@@ -368,6 +381,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                 ),
                 if (!isStage) ...[
                   _CoarseFineToggle(fine: _fine, onChanged: (v) => setState(() => _fine = v)),
+                  if (!_fine) _SnapToggle(snap: _snap, onChanged: (v) => setState(() => _snap = v)),
                   IconButton(
                     tooltip: 'Full screen',
                     visualDensity: VisualDensity.compact,
@@ -396,6 +410,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                       value: widget.base,
                       markers: _markers,
                       fine: _fine,
+                      snap: _snap,
                       panRangeDeg: _panRange,
                       tiltRangeDeg: _tiltRange,
                       onChanged: widget.onBaseDragged,
@@ -847,6 +862,31 @@ final _segmentStyle = SegmentedButton.styleFrom(
   visualDensity: VisualDensity.compact,
   textStyle: const TextStyle(fontFamily: appFontFamily, fontSize: 11.5, fontWeight: FontWeight.w700),
 );
+
+/// Where a coarse drag lands: anywhere, or on the pad's grid — whole 45° cells,
+/// halves or quarters.
+class _SnapToggle extends StatelessWidget {
+  final PadSnap snap;
+  final ValueChanged<PadSnap> onChanged;
+
+  const _SnapToggle({required this.snap, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Snap to the grid: whole, half or quarter of a grid cell',
+      child: SegmentedButton<PadSnap>(
+        showSelectedIcon: false,
+        style: _segmentStyle,
+        segments: [
+          for (final s in PadSnap.values) ButtonSegment(value: s, label: Text(s == PadSnap.off ? 'Snap off' : s.label)),
+        ],
+        selected: {snap},
+        onSelectionChanged: (s) => onChanged(s.first),
+      ),
+    );
+  }
+}
 
 class _CoarseFineToggle extends StatelessWidget {
   final bool fine;

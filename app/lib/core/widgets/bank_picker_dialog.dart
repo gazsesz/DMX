@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../state/bank_providers.dart';
 import '../theme/app_colors.dart';
+import 'duplicate_bank.dart';
 
 /// Asks the user to pick a bank, with room to spin up a new one or duplicate
 /// an existing one without leaving the dialog. Returns the chosen bank's id,
@@ -38,7 +39,7 @@ Future<String?> showBankPicker(BuildContext context, {String title = 'Assign to 
                           trailing: IconButton(
                             icon: const Icon(Icons.copy_outlined, size: 18),
                             tooltip: 'Duplicate this bank',
-                            onPressed: () => ref.read(banksProvider.notifier).duplicate(bank.id),
+                            onPressed: () => duplicateBankAsking(context, ref, bank),
                           ),
                           onTap: () => Navigator.pop(dialogContext, bank.id),
                         ),
