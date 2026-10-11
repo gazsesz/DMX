@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-09 · app verzió: v1.32.0 (nem commitolt, main: a815562)_
+_Utolsó frissítés: 2026-10-09 · app verzió: v1.32.1 (main: a815562)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -26,6 +26,7 @@ _Utolsó frissítés: 2026-10-09 · app verzió: v1.32.0 (nem commitolt, main: a
 - Bank "Edit slots" (v1.30): a hosszú nyomás húzást (LongPressDraggable→DragTarget, `moveSlot`) indít a jelenet-szerkesztő helyett; a szerkesztés a mód kikapcsolásakor marad a hosszú nyomás.
 - Jelenet duplikálás a slot menüben két módon (v1.31.1): következő szabad slotba (`placeAfter`), vagy közvetlenül a következő lépésre (`insertAfter`): a többi eggyel odébb tolódik az első üres slotig, üres hely híján a bank nő eggyel; a lépés időzítése vele megy.
 - v1.32.0: (1) mozgófej XY pad rácsra ugrás (`PadSnap`: Free/1/½/¼ a 45°-os rácscellából, csak coarse módban, a rács a mozgástartomány közepéhez horgonyzott); (2) üres köztes slot törölhető (`removeEmptySlot`, csak üres, az utolsó slot marad); (3) bank másolásnál kérdés: jelenetek klónozása (alap) vagy közös használata (`duplicateBankAsking`); (4) dropout távvezérlő végpont: `/dropout?on=1/0`, a Wear OS menüben és a `/status`-ban is.
+- Bank képernyő Stop (v1.32.1): a bankot minden rétegről leállítja (`stopEverywhere`), nem csak a Layer 1-ről; a gomb Stop, ha a bank bármelyik rétegen fut.
 - Fixture-csoportok **projekt-szintűek** (`ProjectData`), nem app-szintű pref, mert a fixture id csak egy patch-en belül értelmes.
 - Mentett színek: `SavedColor {name, rgb}`, a név mindig opcionális (hex a fallback), átnevezés csak hosszú nyomásra — ezt megígértük a felhasználónak.
 - Beat forrás: v1.29.0-tól rkbx_link OSC Wi-Fi-n (`core/audio/osc_beat_source.dart`).

@@ -132,6 +132,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
   bool _isThisBankRunning(Bank bank) => layersPlaying(ref.read, bank.id).contains(layer1Id);
 
+  /// Whether [bank] plays on any layer at all — what the Stop button goes by.
+  bool _isThisBankRunningAnywhere(Bank bank) => layersPlaying(ref.read, bank.id).isNotEmpty;
+
   /// Whether [bank] is currently running on any layer other than Layer 1 —
   /// drives the "run on another layer" icon's active color.
   bool _isThisBankRunningOnAnyOtherLayer(Bank bank) {
@@ -144,8 +147,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   }
 
   void _toggleRun(Bank bank) {
-    if (_isThisBankRunning(bank)) {
-      stopLayer(ref.read, layer1Id);
+    if (_isThisBankRunningAnywhere(bank)) {
+      // Stop ends the bank wherever it runs, not just on Layer 1.
+      stopEverywhere(ref.read, bank.id);
+      setState(() {});
       return;
     }
     // The same start as the layer picker and a Dashboard tile, so a bank
@@ -792,6 +797,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     );
     ref.watch(nowPlayingProvider);
     final isRunningThisBank = _isThisBankRunning(selected);
+    final isRunningThisBankAnywhere = _isThisBankRunningAnywhere(selected);
     final runningSlot = ref.watch(layerStepProvider(layer1Id));
     // Watch every other layer's now-playing so this rebuilds when one of
     // them starts/stops this bank, not just when Layer 1 does.
@@ -992,8 +998,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               children: [
                 OutlinedButton.icon(
                   onPressed: () => _toggleRun(selected),
-                  icon: Icon(isRunningThisBank ? Icons.stop : Icons.play_arrow),
-                  label: Text(isRunningThisBank ? 'Stop' : 'Run Bank'),
+                  icon: Icon(isRunningThisBankAnywhere ? Icons.stop : Icons.play_arrow),
+                  label: Text(isRunningThisBankAnywhere ? 'Stop' : 'Run Bank'),
                 ),
                 IconButton(
                   onPressed: () => showLayerPickerSheet(context, bank: selected),
