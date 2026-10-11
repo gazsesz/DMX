@@ -10,9 +10,26 @@ import 'package:dmx_controller/models/fixture_profile.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
 import 'package:dmx_controller/models/scene.dart';
 import 'package:dmx_controller/models/universe_config.dart';
+import 'package:dmx_controller/models/layer.dart';
+import 'package:dmx_controller/state/artnet_providers.dart';
+import 'package:dmx_controller/state/bank_providers.dart';
+import 'package:dmx_controller/state/fixture_providers.dart';
+import 'package:dmx_controller/state/playback_providers.dart';
+import 'package:dmx_controller/state/scene_providers.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUp(() {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
+      const MethodChannel('com.llfbandit.record/messages'),
+      (call) async => null,
+    );
+    SharedPreferences.setMockInitialValues({});
+  });
   const universe = UniverseConfig(id: 'u1', name: 'Universe 1', universe: 0);
   final head = FixtureProfile(
     id: 'head',
@@ -49,4 +66,41 @@ void main() {
       await service.disconnect();
     });
   }
+  bankStopTests();
+}
+
+/// The same through the app's own providers: a bank on a slow Fade, stopped
+/// the way the Banks screen's Stop button does it.
+void bankStopTests() {
+  test('stopping a bank mid-fade (stopLayer) freezes the head', () async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    await container.read(artNetServiceProvider).connect(const ArtNetSettings(demoMode: true));
+    final head = FixtureProfile(
+      id: 'head',
+      name: 'Head',
+      category: FixtureCategory.movingHead,
+      channels: const [FixtureChannel(offset: 0, function: ChannelFunction.pan)],
+    );
+    container.read(patchedFixturesProvider.notifier).loadAll([
+      PatchedFixture(id: 'h', label: 'H', profile: head, universeId: 'u1', startChannel: 0),
+    ]);
+    container.read(scenesProvider.notifier)
+      ..upsert(const Scene(id: 'a', name: 'A', fixtureValues: {'h': {0: 0}}))
+      ..upsert(const Scene(id: 'b', name: 'B', fixtureValues: {'h': {0: 200}}));
+    final bankId = container.read(banksProvider).first.id;
+    container.read(banksProvider.notifier)
+      ..setSlot(bankId, 0, 'a')
+      ..setSlot(bankId, 1, 'b')
+      ..setTiming(bankId, ownTiming: true, holdMs: 100, fadeMs: 3000);
+
+    expect(runBankOnLayer(container.read, bank: container.read(banksProvider).first, layerId: layer1Id), isNull);
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    stopLayer(container.read, layer1Id);
+    final service = container.read(artNetServiceProvider);
+    const universe = UniverseConfig(id: 'u1', name: 'Universe 1', universe: 0);
+    final atStop = service.getChannelValue(universe, 0);
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    expect(service.getChannelValue(universe, 0), atStop, reason: 'stopped at $atStop');
+  });
 }
