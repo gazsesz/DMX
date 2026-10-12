@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/color_picker_dialog.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/duplicate_bank.dart';
 import '../../core/widgets/fixture_select.dart';
 import '../../core/widgets/log_scale.dart';
 import '../../core/widgets/layer_picker_sheet.dart';
@@ -133,6 +134,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
   bool _isThisBankRunning(Bank bank) => layersPlaying(ref.read, bank.id).contains(layer1Id);
 
+  /// Whether [bank] plays on any layer at all — what the Stop button goes by.
+  bool _isThisBankRunningAnywhere(Bank bank) => layersPlaying(ref.read, bank.id).isNotEmpty;
+
   /// Whether [bank] is currently running on any layer other than Layer 1 —
   /// drives the "run on another layer" icon's active color.
   bool _isThisBankRunningOnAnyOtherLayer(Bank bank) {
@@ -145,8 +149,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   }
 
   void _toggleRun(Bank bank) {
-    if (_isThisBankRunning(bank)) {
-      stopLayer(ref.read, layer1Id);
+    if (_isThisBankRunningAnywhere(bank)) {
+      // Stop ends the bank wherever it runs, not just on Layer 1.
+      stopEverywhere(ref.read, bank.id);
+      setState(() {});
       return;
     }
     // The same start as the layer picker and a Dashboard tile, so a bank
@@ -477,6 +483,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   static const _stepTimingSentinel = '__timing__';
   static const _duplicateSceneSentinel = '__duplicate__';
   static const _duplicateShiftSentinel = '__duplicate_shift__';
+  static const _deleteSlotSentinel = '__delete_slot__';
 
   /// One step's own Hold/Fade. Switched off, the step follows the bank
   /// again (the bank's own timing, or the dock's) — that is the reset.
@@ -637,6 +644,19 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               onPressed: () => Navigator.pop(context, ''),
               child: const Text('Clear slot', style: TextStyle(color: AppColors.danger)),
             ),
+          if (bank.sceneSlots[slotIndex] == null && bank.sceneSlots.length > 1)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(context, _deleteSlotSentinel),
+              child: const Row(
+                children: [
+                  Icon(Icons.remove_circle_outline, size: 18, color: AppColors.danger),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Delete this empty slot', style: TextStyle(color: AppColors.danger)),
+                  ),
+                ],
+              ),
+            ),
           if (scenes.isNotEmpty) const Divider(height: 8),
           for (final scene in scenes)
             SimpleDialogOption(
@@ -658,6 +678,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       // The copy plays the way the original does.
       final timing = bank.timingAt(slotIndex);
       if (slot != null && timing != null) banks.setSlotTiming(bank.id, slot, timing);
+      return;
+    }
+    if (chosen == _deleteSlotSentinel) {
+      ref.read(banksProvider.notifier).removeEmptySlot(bank.id, slotIndex);
+      setState(() => _manualSlot = null);
       return;
     }
     if (chosen == _duplicateShiftSentinel) {
@@ -821,6 +846,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     );
     ref.watch(nowPlayingProvider);
     final isRunningThisBank = _isThisBankRunning(selected);
+    final isRunningThisBankAnywhere = _isThisBankRunningAnywhere(selected);
     final runningSlot = ref.watch(layerStepProvider(layer1Id));
     // Watch every other layer's now-playing so this rebuilds when one of
     // them starts/stops this bank, not just when Layer 1 does.
@@ -1027,8 +1053,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               children: [
                 OutlinedButton.icon(
                   onPressed: () => _toggleRun(selected),
-                  icon: Icon(isRunningThisBank ? Icons.stop : Icons.play_arrow),
-                  label: Text(isRunningThisBank ? 'Stop' : 'Run Bank'),
+                  icon: Icon(isRunningThisBankAnywhere ? Icons.stop : Icons.play_arrow),
+                  label: Text(isRunningThisBankAnywhere ? 'Stop' : 'Run Bank'),
                 ),
                 IconButton(
                   onPressed: () => showLayerPickerSheet(context, bank: selected),
@@ -1352,8 +1378,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               children: [
                 Expanded(
                   child: OutlinedButton(
-                    onPressed: () {
-                      final copy = ref.read(banksProvider.notifier).duplicate(selected.id);
+                    onPressed: () async {
+                      final copy = await duplicateBankAsking(context, ref, selected);
                       if (copy != null) ref.read(selectedBankIdProvider.notifier).state = copy.id;
                     },
                     child: const Text('Duplicate Bank'),

@@ -5,6 +5,22 @@ import '../../models/pan_tilt.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
+/// Whether a coarse drag lands anywhere or jumps to the pad's grid — whole
+/// 45° cells, halves of them, or quarters. Fine mode ignores it.
+enum PadSnap {
+  off('Free', 0),
+  whole('1', 1),
+  half('½', 0.5),
+  quarter('¼', 0.25);
+
+  final String label;
+
+  /// Fraction of a 45° grid cell; 0 means no snapping.
+  final double cell;
+
+  const PadSnap(this.label, this.cell);
+}
+
 /// Another head drawn on the pad: where a fanned or individually-set head
 /// in the same group actually sits, as a dashed ring.
 class PadMarker {
@@ -27,6 +43,7 @@ class PanTiltPad extends StatefulWidget {
   final int panRangeDeg;
   final int tiltRangeDeg;
   final bool fine;
+  final PadSnap snap;
   final ValueChanged<PanTilt> onChanged;
 
   const PanTiltPad({
@@ -37,6 +54,7 @@ class PanTiltPad extends StatefulWidget {
     required this.onChanged,
     this.markers = const [],
     this.fine = false,
+    this.snap = PadSnap.off,
   });
 
   /// How much of each axis the fine-mode view spans.
@@ -65,11 +83,21 @@ class _PanTiltPadState extends State<PanTiltPad> {
   PanTilt? _fineStart;
   Offset _fineAccum = Offset.zero;
 
+  /// [v] pulled to the nearest grid line when snapping is on. The grid is
+  /// anchored on the centre of travel, the same as the lines the painter draws.
+  int _snapped(double v, int rangeDeg) {
+    if (widget.snap == PadSnap.off) return v.round();
+    const centre = PanTilt.max / 2;
+    final step = PanTilt.max * 45 * widget.snap.cell / rangeDeg;
+    final snapped = centre + ((v - centre) / step).round() * step;
+    return snapped.clamp(0.0, PanTilt.max.toDouble()).round();
+  }
+
   PanTilt _absoluteAt(Offset local) {
     if (_size.width <= 0 || _size.height <= 0) return widget.value;
     final x = (local.dx / _size.width).clamp(0.0, 1.0);
     final y = (local.dy / _size.height).clamp(0.0, 1.0);
-    return PanTilt((x * PanTilt.max).round(), (y * PanTilt.max).round());
+    return PanTilt(_snapped(x * PanTilt.max, widget.panRangeDeg), _snapped(y * PanTilt.max, widget.tiltRangeDeg));
   }
 
   void _onStart(DragStartDetails details) {
@@ -126,6 +154,7 @@ class _PanTiltPadState extends State<PanTiltPad> {
                   value: widget.value,
                   markers: widget.markers,
                   fine: widget.fine,
+                  snap: widget.snap,
                   panRangeDeg: widget.panRangeDeg,
                   tiltRangeDeg: widget.tiltRangeDeg,
                 ),
@@ -145,6 +174,7 @@ class _PadPainter extends CustomPainter {
   final PanTilt value;
   final List<PadMarker> markers;
   final bool fine;
+  final PadSnap snap;
   final int panRangeDeg;
   final int tiltRangeDeg;
 
@@ -152,6 +182,7 @@ class _PadPainter extends CustomPainter {
     required this.value,
     required this.markers,
     required this.fine,
+    required this.snap,
     required this.panRangeDeg,
     required this.tiltRangeDeg,
   });
@@ -198,6 +229,23 @@ class _PadPainter extends CustomPainter {
     for (var v = centre - ((centre - tiltMin) / tiltStep).floor() * tiltStep; v <= tiltMax; v += tiltStep) {
       final y = (v - tiltMin) / (tiltMax - tiltMin) * size.height;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), (v - centre).abs() < 1 ? major : grid);
+    }
+
+    // Snapping to halves or quarters: the in-between lines it lands on.
+    if (!fine && snap != PadSnap.off && snap.cell < 1) {
+      final sub = Paint()
+        ..color = AppColors.border.withValues(alpha: 0.45)
+        ..strokeWidth = 0.8;
+      final panSub = panStep * snap.cell;
+      final tiltSub = tiltStep * snap.cell;
+      for (var v = centre - (centre / panSub).floor() * panSub; v <= panMax; v += panSub) {
+        final x = (v - panMin) / (panMax - panMin) * size.width;
+        canvas.drawLine(Offset(x, 0), Offset(x, size.height), sub);
+      }
+      for (var v = centre - (centre / tiltSub).floor() * tiltSub; v <= tiltMax; v += tiltSub) {
+        final y = (v - tiltMin) / (tiltMax - tiltMin) * size.height;
+        canvas.drawLine(Offset(0, y), Offset(size.width, y), sub);
+      }
     }
 
     final handle = _toCanvas(value, size);
@@ -276,6 +324,7 @@ class _PadPainter extends CustomPainter {
   bool shouldRepaint(_PadPainter old) =>
       old.value != value ||
       old.fine != fine ||
+      old.snap != snap ||
       old.markers.length != markers.length ||
       old.panRangeDeg != panRangeDeg ||
       old.tiltRangeDeg != tiltRangeDeg ||

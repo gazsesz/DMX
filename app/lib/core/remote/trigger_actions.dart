@@ -7,6 +7,7 @@ import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
+import '../../state/dimmer_dropout_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
@@ -240,6 +241,18 @@ String setAutoFade(ReadProvider read, {bool? on}) {
   if (target == tempo.autoFade) return 'AutoFade already ${target ? 'on' : 'off'}';
   read(tempoProvider.notifier).setAutoFade(target);
   return 'AutoFade ${target ? 'on' : 'off'}';
+}
+
+/// Switches the dimmer dropout on or off — the same switch as the one on the
+/// Layers screen and the control panel. [on] null toggles it. It acts on the
+/// hand-set dropout; a running Smart Program's zone or a chase keeps its own.
+String setDropout(ReadProvider read, {bool? on}) {
+  final controller = read(dimmerDropoutProvider.notifier);
+  final current = read(dimmerDropoutProvider);
+  final target = on ?? !current.enabled;
+  if (target == current.enabled) return 'Dropout already ${target ? 'on' : 'off'}';
+  controller.update(current.copyWith(enabled: target));
+  return 'Dropout ${target ? 'on' : 'off'}';
 }
 
 /// Something the remote endpoint can fire, and the name it answers to.
