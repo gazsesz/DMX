@@ -111,6 +111,17 @@ class MovementFx {
   final Set<String> groupIds;
   final Set<String> fixtureIds;
 
+  /// A scene bank played alongside the path — the colours, gobo, dimmer… that
+  /// go with the movement. Its pan/tilt is ignored for the heads the path
+  /// drives. Null for none.
+  final String? lookBankId;
+
+  /// The look steps at its own [lookHoldMs]/[lookFadeMs] instead of the
+  /// dock's Hold/Fade (and beat sync, which only the dock's timing follows).
+  final bool lookOwnTiming;
+  final int lookHoldMs;
+  final int lookFadeMs;
+
   static const periodRange = (min: 0.5, max: 60.0);
   static const beatChoices = [0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0];
 
@@ -133,6 +144,10 @@ class MovementFx {
     this.mirror = false,
     this.groupIds = const {},
     this.fixtureIds = const {},
+    this.lookBankId,
+    this.lookOwnTiming = false,
+    this.lookHoldMs = 1200,
+    this.lookFadeMs = 300,
   });
 
   /// One-tap starting points for the Banks screen.
@@ -169,6 +184,11 @@ class MovementFx {
     bool? mirror,
     Set<String>? groupIds,
     Set<String>? fixtureIds,
+    String? lookBankId,
+    bool clearLook = false,
+    bool? lookOwnTiming,
+    int? lookHoldMs,
+    int? lookFadeMs,
   }) {
     return MovementFx(
       shape: shape ?? this.shape,
@@ -189,6 +209,10 @@ class MovementFx {
       mirror: mirror ?? this.mirror,
       groupIds: groupIds ?? this.groupIds,
       fixtureIds: fixtureIds ?? this.fixtureIds,
+      lookBankId: clearLook ? null : (lookBankId ?? this.lookBankId),
+      lookOwnTiming: lookOwnTiming ?? this.lookOwnTiming,
+      lookHoldMs: lookHoldMs ?? this.lookHoldMs,
+      lookFadeMs: lookFadeMs ?? this.lookFadeMs,
     );
   }
 
@@ -211,6 +235,10 @@ class MovementFx {
     'mirror': mirror,
     if (groupIds.isNotEmpty) 'groupIds': groupIds.toList(),
     if (fixtureIds.isNotEmpty) 'fixtureIds': fixtureIds.toList(),
+    if (lookBankId != null) 'lookBankId': lookBankId,
+    if (lookOwnTiming) 'lookOwnTiming': true,
+    if (lookOwnTiming) 'lookHoldMs': lookHoldMs,
+    if (lookOwnTiming) 'lookFadeMs': lookFadeMs,
   };
 
   static MovementFx? fromJson(dynamic json) {
@@ -237,6 +265,10 @@ class MovementFx {
       mirror: json['mirror'] == true,
       groupIds: ids('groupIds'),
       fixtureIds: ids('fixtureIds'),
+      lookBankId: json['lookBankId'] as String?,
+      lookOwnTiming: json['lookOwnTiming'] == true,
+      lookHoldMs: number('lookHoldMs', 1200, 20, 60000).round(),
+      lookFadeMs: number('lookFadeMs', 300, 0, 120000).round(),
     );
   }
 

@@ -182,6 +182,7 @@ class _RecordingPlayer extends ChasePlayer {
     bool claim = true,
     StagePlan Function()? liveStage,
     List<FixtureGroup> Function()? liveGroups,
+    ({Duration hold, Duration fade}) Function()? liveDockTiming,
   }) async {
     played = chase;
   }

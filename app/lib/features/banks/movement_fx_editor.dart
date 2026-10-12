@@ -218,6 +218,9 @@ class MovementFxEditor extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 4),
+          _label('Look'),
+          _LookSection(fx: fx, banks: ref.watch(banksProvider), onChanged: update),
+          const SizedBox(height: 4),
           _label('Heads'),
           Text(
             fx.groupIds.isEmpty && fx.fixtureIds.isEmpty
@@ -407,4 +410,117 @@ class _PathPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PathPainter old) => old.fx != fx;
+}
+
+/// The scenes (colours, gobo, dimmer…) that play alongside the path, picked
+/// from the scene banks. They step on the dock's Hold/Fade and beat sync, or
+/// at a pace of their own.
+class _LookSection extends StatelessWidget {
+  final MovementFx fx;
+  final List<Bank> banks;
+  final ValueChanged<MovementFx> onChanged;
+
+  const _LookSection({required this.fx, required this.banks, required this.onChanged});
+
+  Future<void> _pick(BuildContext context) async {
+    final candidates = banks.where((b) => !b.isMovementFx).toList();
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      backgroundColor: AppColors.panel,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text('Look bank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+            if (candidates.isEmpty)
+              const ListTile(title: Text('No scene banks yet — make one on the Banks screen')),
+            for (final bank in candidates)
+              ListTile(
+                dense: true,
+                leading: const Icon(Icons.palette_outlined, color: AppColors.accent2),
+                title: Text(bank.name),
+                subtitle: Text('${bank.sceneSlots.where((s) => s != null).length} scenes'),
+                selected: bank.id == fx.lookBankId,
+                onTap: () => Navigator.pop(context, bank.id),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (picked != null) onChanged(fx.copyWith(lookBankId: picked));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bank = banks.where((b) => b.id == fx.lookBankId).firstOrNull;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                fx.lookBankId == null
+                    ? 'None — the colours come from whatever else is playing'
+                    : bank == null
+                        ? 'The look bank is gone'
+                        : bank.name,
+                style: TextStyle(fontSize: 12, color: bank == null ? AppColors.textFaint : AppColors.text),
+              ),
+            ),
+            TextButton(onPressed: () => _pick(context), child: Text(fx.lookBankId == null ? 'Pick bank' : 'Change')),
+            if (fx.lookBankId != null)
+              IconButton(
+                icon: const Icon(Icons.close, size: 16),
+                tooltip: 'No look',
+                onPressed: () => onChanged(fx.copyWith(clearLook: true)),
+              ),
+          ],
+        ),
+        if (fx.lookBankId != null) ...[
+          const Text(
+            'Its pan/tilt is ignored for the heads the path moves.',
+            style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+          ),
+          const SizedBox(height: 4),
+          SegmentedButton<bool>(
+            segments: const [
+              ButtonSegment(value: false, label: Text('Dock Hold/Fade')),
+              ButtonSegment(value: true, label: Text('Own timing')),
+            ],
+            selected: {fx.lookOwnTiming},
+            showSelectedIcon: false,
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            onSelectionChanged: (s) => onChanged(fx.copyWith(lookOwnTiming: s.first)),
+          ),
+          if (!fx.lookOwnTiming)
+            const Padding(
+              padding: EdgeInsets.only(top: 4),
+              child: Text(
+                'Follows the dock: its Hold and Fade, and the beat when Beat Sync is on.',
+                style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+              ),
+            )
+          else ...[
+            MovementFxEditor._slider(
+              'Look hold',
+              holdTimeScale.positionOf(fx.lookHoldMs / 1000),
+              '${(fx.lookHoldMs / 1000).toStringAsFixed(2)} s',
+              (v) => onChanged(fx.copyWith(lookHoldMs: (holdTimeScale.valueAt(v) * 1000).round().clamp(20, 60000))),
+            ),
+            MovementFxEditor._slider(
+              'Look fade',
+              fadeTimeScale.positionOf(fx.lookFadeMs / 1000),
+              '${(fx.lookFadeMs / 1000).toStringAsFixed(2)} s',
+              (v) => onChanged(fx.copyWith(lookFadeMs: (fadeTimeScale.valueAt(v) * 1000).round().clamp(0, 120000))),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
 }

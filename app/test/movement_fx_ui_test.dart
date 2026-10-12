@@ -13,10 +13,11 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(
-      const MethodChannel('com.llfbandit.record/messages'),
-      (call) async => null,
-    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('com.llfbandit.record/messages'),
+          (call) async => null,
+        );
     SharedPreferences.setMockInitialValues({});
   });
 
@@ -27,23 +28,38 @@ void main() {
     container.read(selectedBankIdProvider.notifier).state = banks.first.id;
     await tester.binding.setSurfaceSize(const Size(1000, 1400));
     addTearDown(() => tester.binding.setSurfaceSize(null));
-    await tester.pumpWidget(UncontrolledProviderScope(
-      container: container,
-      child: MaterialApp(theme: buildAppTheme(), home: const BanksScreen()),
-    ));
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(theme: buildAppTheme(), home: const BanksScreen()),
+      ),
+    );
     await _settle(tester);
     return container;
   }
 
-  testWidgets('a Movement FX bank shows its editor instead of the slot grid', (tester) async {
-    await open(tester, [const Bank(id: 'fx', name: 'Swim', sceneSlots: [], fx: MovementFx(shape: MovementShape.swim))]);
+  testWidgets('a Movement FX bank shows its editor instead of the slot grid', (
+    tester,
+  ) async {
+    await open(tester, [
+      const Bank(
+        id: 'fx',
+        name: 'Swim',
+        sceneSlots: [],
+        fx: MovementFx(shape: MovementShape.swim),
+      ),
+    ]);
     expect(find.text('Lock to the beat'), findsOneWidget);
     expect(find.text('Edit slots'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('picking a shape and locking to the beat edits the bank', (tester) async {
-    final container = await open(tester, [const Bank(id: 'fx', name: 'Move', sceneSlots: [], fx: MovementFx())]);
+  testWidgets('picking a shape and locking to the beat edits the bank', (
+    tester,
+  ) async {
+    final container = await open(tester, [
+      const Bank(id: 'fx', name: 'Move', sceneSlots: [], fx: MovementFx()),
+    ]);
     await tester.tap(find.widgetWithText(ChoiceChip, 'Float'));
     await _settle(tester);
     expect(container.read(banksProvider).first.fx!.shape, MovementShape.float);
@@ -55,8 +71,12 @@ void main() {
     expect(container.read(banksProvider).first.fx!.beats, 8);
   });
 
-  testWidgets('the Movement FX button makes a bank from a preset', (tester) async {
-    final container = await open(tester, [const Bank(id: 'b', name: 'Bank 1', sceneSlots: [null])]);
+  testWidgets('the Movement FX button makes a bank from a preset', (
+    tester,
+  ) async {
+    final container = await open(tester, [
+      const Bank(id: 'b', name: 'Bank 1', sceneSlots: [null]),
+    ]);
     await tester.tap(find.text('Movement FX'));
     await _settle(tester);
     await tester.tap(find.text('Light rider'));
@@ -66,6 +86,31 @@ void main() {
     expect(banks.last.fx!.shape, MovementShape.lightRider);
     expect(banks.last.sceneSlots, isEmpty);
     expect(container.read(selectedBankIdProvider), banks.last.id);
+  });
+
+  testWidgets('a look bank is picked, timed and cleared in the editor', (
+    tester,
+  ) async {
+    final container = await open(tester, [
+      const Bank(id: 'fx', name: 'Move', sceneSlots: [], fx: MovementFx()),
+      const Bank(id: 'cols', name: 'Colours', sceneSlots: ['s1']),
+    ]);
+    await tester.scrollUntilVisible(
+      find.text('Pick bank'),
+      200,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Pick bank'));
+    await _settle(tester);
+    await tester.tap(find.text('Colours').last);
+    await _settle(tester);
+    expect(container.read(banksProvider).first.fx!.lookBankId, 'cols');
+    await tester.tap(find.text('Own timing'));
+    await _settle(tester);
+    expect(container.read(banksProvider).first.fx!.lookOwnTiming, isTrue);
+    await tester.tap(find.byTooltip('No look'));
+    await _settle(tester);
+    expect(container.read(banksProvider).first.fx!.lookBankId, isNull);
   });
 }
 

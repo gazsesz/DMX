@@ -71,6 +71,7 @@ class SmartProgramPlayer {
   final StagePlan Function()? liveStage;
   final List<FixtureGroup> Function()? liveGroups;
   final List<Bank> Function()? liveBanks;
+  final ({Duration hold, Duration fade}) Function()? liveDockTiming;
 
   SmartProgramPlayer({
     required this.playerFor,
@@ -85,6 +86,7 @@ class SmartProgramPlayer {
     this.liveStage,
     this.liveGroups,
     this.liveBanks,
+    this.liveDockTiming,
   })  : setDropout = setDropout ?? ((_) {}),
         beatEvents = beatEvents ?? beatService.beatEvents,
         beatSyncEnabled = beatSyncEnabled ?? (() => false),
@@ -529,6 +531,7 @@ class SmartProgramPlayer {
         liveStage: liveStage,
         liveGroups: liveGroups,
         liveBanks: liveBanks,
+        liveDockTiming: liveDockTiming,
         onStep: (_) {},
       );
     }

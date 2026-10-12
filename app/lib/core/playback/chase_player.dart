@@ -3,6 +3,7 @@ import 'dart:math';
 
 import '../../models/bank.dart';
 import '../../models/chase.dart';
+import '../../models/fixture_channel.dart';
 import '../../models/fixture_group.dart';
 import '../../models/movement_fx.dart';
 import '../../models/pan_tilt.dart';
@@ -282,6 +283,8 @@ class ChasePlayer {
     // to. Read as the effect runs, so an edit lands straight away.
     StagePlan Function()? liveStage,
     List<FixtureGroup> Function()? liveGroups,
+    // The dock's current Hold and Fade, for a Movement FX look that follows them.
+    ({Duration hold, Duration fade}) Function()? liveDockTiming,
   }) async {
     _halt();
     var instants = _flatten(chase, scenes, banks);
@@ -306,6 +309,17 @@ class ChasePlayer {
             final channels = keep.putIfAbsent(head.fixture.universeId, () => <int>{});
             for (final offset in head.offsets) {
               channels.add(head.fixture.startChannel + offset);
+            }
+          }
+          final heads = movementHeads(instantFx, patchedFixtures, liveGroups?.call() ?? const []);
+          for (final look in _lookInstants(instantFx, heads, banks, scenes, patchedFixtures)) {
+            for (final entry in look.scene!.fixtureValues.entries) {
+              final fixture = patchedFixtures.where((f) => f.id == entry.key).firstOrNull;
+              if (fixture == null) continue;
+              final channels = keep.putIfAbsent(fixture.universeId, () => <int>{});
+              for (final offset in entry.value.keys) {
+                channels.add(fixture.startChannel + offset);
+              }
             }
           }
         }
@@ -362,9 +376,15 @@ class ChasePlayer {
           universes: universes,
           generation: myGeneration,
           beatStream: beatStream,
+          banks: playedBanks,
+          scenes: playedScenes,
           liveBanks: liveBanks,
+          liveScenes: liveScenes,
           liveStage: liveStage,
           liveGroups: liveGroups,
+          liveDockTiming: liveDockTiming,
+          liveBeatSync: instant.isFlash ? flashOnBeat : beatSynced,
+          liveBeatRate: liveBeatRate ?? () => beatRate,
         );
         if (!_isCurrent(myGeneration)) break;
         _advance(instants.length, chase.direction);
@@ -468,26 +488,92 @@ class ChasePlayer {
   final _fxClock = MovementClock();
   static const _fxTick = Duration(milliseconds: 25);
 
+  /// The scenes of an FX bank's look, as played next to the path: its pan and
+  /// tilt are dropped for the heads the path drives, so the two never fight.
+  List<_Instant> _lookInstants(
+    MovementFx fx,
+    List<MovementHead> heads,
+    List<Bank> banks,
+    List<Scene> scenes,
+    List<PatchedFixture> patchedFixtures,
+  ) {
+    final bankId = fx.lookBankId;
+    if (bankId == null || banks.any((b) => b.id == bankId && b.isMovementFx)) return const [];
+    final flat = _flatten(
+      Chase(
+        id: 'look',
+        name: 'look',
+        steps: [
+          ChaseStep(
+            bankId: bankId,
+            hold: Duration(milliseconds: fx.lookHoldMs),
+            fade: Duration(milliseconds: fx.lookFadeMs),
+          ),
+        ],
+      ),
+      scenes,
+      banks,
+    );
+    final moving = {for (final head in heads) head.fixture.id};
+    return [
+      for (final instant in flat)
+        _Instant(
+          scene: _withoutPosition(instant.scene!, moving, patchedFixtures),
+          hold: instant.hold,
+          fade: instant.fade,
+          ownTiming: instant.ownTiming,
+        ),
+    ];
+  }
+
+  static Scene _withoutPosition(Scene scene, Set<String> movingIds, List<PatchedFixture> patchedFixtures) {
+    return scene.copyWith(fixtureValues: {
+      for (final entry in scene.fixtureValues.entries)
+        entry.key: movingIds.contains(entry.key)
+            ? () {
+                final fixture = patchedFixtures.where((f) => f.id == entry.key).firstOrNull;
+                final position = {
+                  for (final channel in fixture?.profile.channels ?? const <FixtureChannel>[])
+                    if (channel.function.isPanTilt) channel.offset,
+                };
+                return {
+                  for (final value in entry.value.entries)
+                    if (!position.contains(value.key)) value.key: value.value,
+                };
+              }()
+            : entry.value,
+    });
+  }
+
   /// Runs a Movement FX step: writes the heads' pan/tilt every [_fxTick]
   /// for the step's hold (forever when it is zero), after gliding onto the
   /// path from wherever the heads are over the step's fade. Only the pan/tilt
-  /// channels are touched, so the colour layers on other lanes carry on.
+  /// channels are touched by the path; the optional look (colours, gobo…)
+  /// steps through its scenes alongside, on the dock's Hold/Fade and beat
+  /// sync or on its own timing.
   Future<void> _runFx(
     _Instant instant, {
     required ArtNetService service,
     required List<PatchedFixture> patchedFixtures,
     required List<UniverseConfig> universes,
     required int generation,
+    required List<Bank> banks,
+    required List<Scene> scenes,
     Stream<DateTime>? beatStream,
     List<Bank> Function()? liveBanks,
+    List<Scene> Function()? liveScenes,
     StagePlan Function()? liveStage,
     List<FixtureGroup> Function()? liveGroups,
+    ({Duration hold, Duration fade}) Function()? liveDockTiming,
+    bool Function()? liveBeatSync,
+    BeatRate Function()? liveBeatRate,
   }) async {
     var fx = instant.fx!;
     if (instant.restartFx) _fxClock.phase = 0;
     List<MovementHead> headsFor(MovementFx effect) =>
         movementHeads(effect, patchedFixtures, liveGroups?.call() ?? const []);
     var heads = headsFor(fx);
+    var look = _lookInstants(fx, heads, banks, scenes, patchedFixtures);
     final universeOf = {for (final universe in universes) universe.id: universe};
 
     int read(MovementHead head, UniverseConfig universe, int offset) =>
@@ -499,17 +585,36 @@ class ChasePlayer {
       tiltFine: head.tiltFineOffset == null ? 0 : read(head, universe, head.tiltFineOffset!),
     );
 
+    // The look: one fade-then-hold per scene, in order, round and round.
+    var lookIndex = 0;
+    var lookStepAt = Duration.zero;
+    var lookNeedsStart = true;
+    var lookSettled = false;
+    var lookFade = Duration.zero;
+    var lookHold = Duration.zero;
+    var lookTargets = <({UniverseConfig universe, int channel, int from, int to})>[];
+    var beatsSeen = 0;
+    var lookAdvance = false;
+
     DateTime? lastBeat;
     final beatSub = beatStream?.listen((at) {
       final gap = lastBeat == null ? null : at.difference(lastBeat!);
       lastBeat = at;
       _fxClock.onBeat(fx, interval: gap);
+      beatsSeen++;
+      final skip = (liveBeatRate?.call() ?? BeatRate.normal) == BeatRate.half ? 2 : 1;
+      if (beatsSeen >= skip) {
+        beatsSeen = 0;
+        lookAdvance = true;
+      }
     });
 
     final hold = instant.hold <= Duration.zero ? null : (instant.hold < _minStepDuration ? _minStepDuration : instant.hold);
     final glideUs = instant.fade.inMicroseconds;
     final from = <String, PanTilt>{};
     var previous = <String, PanTilt>{};
+    var banksNow = banks;
+    var scenesNow = scenes;
     final clock = Stopwatch()..start();
     var last = Duration.zero;
     try {
@@ -517,13 +622,21 @@ class ChasePlayer {
         final now = clock.elapsed;
         if (hold != null && now >= hold) break;
 
-        final bankId = instant.bankId;
-        if (bankId != null && liveBanks != null) {
-          final edited = liveBanks().where((b) => b.id == bankId).firstOrNull?.fx;
-          if (edited != null && edited != fx) {
-            fx = edited;
-            heads = headsFor(fx);
-          }
+        // Live edits: the bank's path and look, or the scenes the look plays.
+        final newBanks = liveBanks?.call() ?? banksNow;
+        final newScenes = liveScenes?.call() ?? scenesNow;
+        final liveFx = instant.bankId == null ? null : newBanks.where((b) => b.id == instant.bankId).firstOrNull?.fx;
+        final changed = (liveFx != null && liveFx != fx) ||
+            !identical(newBanks, banksNow) ||
+            !identical(newScenes, scenesNow);
+        if (changed) {
+          if (liveFx != null) fx = liveFx;
+          banksNow = newBanks;
+          scenesNow = newScenes;
+          heads = headsFor(fx);
+          look = _lookInstants(fx, heads, banksNow, scenesNow, patchedFixtures);
+          if (lookIndex >= look.length) lookIndex = 0;
+          lookNeedsStart = true;
         }
 
         _fxClock.tick(now - last, fx);
@@ -549,6 +662,52 @@ class ChasePlayer {
           touched.add(universe);
         }
         previous = written;
+
+        if (look.isNotEmpty) {
+          final step = look[lookIndex % look.length];
+          final dock = liveDockTiming?.call();
+          final ownClock = fx.lookOwnTiming || dock == null;
+          final beatStepping = !ownClock && beatStream != null && (liveBeatSync?.call() ?? false);
+          if (lookNeedsStart) {
+            lookNeedsStart = false;
+            lookSettled = false;
+            lookAdvance = false;
+            beatsSeen = 0;
+            lookStepAt = now;
+            lookFade = ownClock || step.ownTiming ? step.fade : dock.fade;
+            lookHold = ownClock || step.ownTiming ? step.hold : dock.hold;
+            lookTargets = [
+              for (final entry in step.scene!.fixtureValues.entries)
+                for (final value in entry.value.entries)
+                  if (patchedFixtures.where((f) => f.id == entry.key).firstOrNull case final fixture?)
+                    if (universeOf[fixture.universeId] case final universe?)
+                      (
+                        universe: universe,
+                        channel: fixture.startChannel + value.key,
+                        from: service.getChannelValue(universe, fixture.startChannel + value.key),
+                        to: value.value,
+                      ),
+            ];
+          }
+          if (!lookSettled) {
+            final t = lookFade <= Duration.zero
+                ? 1.0
+                : ((now - lookStepAt).inMicroseconds / lookFade.inMicroseconds).clamp(0.0, 1.0);
+            for (final target in lookTargets) {
+              _write(service, target.universe, target.channel, (target.from + (target.to - target.from) * t).round());
+              touched.add(target.universe);
+            }
+            if (t >= 1) lookSettled = true;
+          }
+          if (look.length > 1) {
+            final due = beatStepping ? lookAdvance : now - lookStepAt >= lookFade + lookHold;
+            if (due) {
+              lookIndex = (lookIndex + 1) % look.length;
+              lookNeedsStart = true;
+            }
+          }
+        }
+
         for (final universe in touched) {
           service.flush(universe);
         }

@@ -81,6 +81,7 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
     setDropout: (settings) => ref.read(dimmerDropoutProvider.notifier).setProgramOverride(settings),
     liveStage: () => ref.read(stagePlanProvider),
     liveGroups: () => ref.read(fixtureGroupsProvider),
+    liveDockTiming: () => (hold: ref.read(tempoProvider).hold, fade: ref.read(tempoProvider).fade),
     liveBanks: () => ref.read(banksProvider),
   );
   ref.onDispose(player.dispose);
@@ -309,6 +310,7 @@ Future<List<String>> startLayeredChase(
       liveScenes: () => read(scenesProvider),
       liveStage: () => read(stagePlanProvider),
       liveGroups: () => read(fixtureGroupsProvider),
+      liveDockTiming: () => (hold: read(tempoProvider).hold, fade: read(tempoProvider).fade),
       liveBeatSync: switch (mode) {
         LaneTiming.free => () => false,
         LaneTiming.onBeat => () => read(activeBeatSourceProvider).isListening,
@@ -517,6 +519,7 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
     liveScenes: () => read(scenesProvider),
     liveStage: () => read(stagePlanProvider),
     liveGroups: () => read(fixtureGroupsProvider),
+    liveDockTiming: () => (hold: read(tempoProvider).hold, fade: read(tempoProvider).fade),
     // Auto-fade is the dock's; a bank keeping its own timing keeps its own
     // fade too.
     fadeOverride: bank.ownTiming

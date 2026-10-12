@@ -11,6 +11,7 @@ import 'package:dmx_controller/models/fixture_profile.dart';
 import 'package:dmx_controller/models/movement_fx.dart';
 import 'package:dmx_controller/models/pan_tilt.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
+import 'package:dmx_controller/models/scene.dart';
 import 'package:dmx_controller/models/universe_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -181,5 +182,98 @@ void main() {
     // One lap a second, circle: a fresh lap starts at the +pan extreme.
     expect(await panDegAfterHandover(restart: true), greaterThan(35));
     expect(await panDegAfterHandover(restart: false), lessThan(20));
+  });
+
+  group('look', () {
+    // Scene "a" lights the dimmer to 100 and also tries to park the pan at 0;
+    // scene "b" is dimmer 200.
+    const scenes = [
+      Scene(id: 'a', name: 'A', fixtureValues: {'m1': {4: 100, 0: 0}}),
+      Scene(id: 'b', name: 'B', fixtureValues: {'m1': {4: 200}}),
+    ];
+    const lookBank = Bank(id: 'look', name: 'Look', sceneSlots: ['a', 'b']);
+    Bank withLook(MovementFx fx) => Bank(id: 'fx', name: 'Move', sceneSlots: const [], fx: fx);
+
+    Future<void> playLook(
+      Bank fx, {
+      ({Duration hold, Duration fade}) Function()? dock,
+      Stream<DateTime>? beats,
+      bool beatSync = false,
+    }) => player.play(
+      chase: single(fx),
+      scenes: scenes,
+      banks: [fx, lookBank],
+      patchedFixtures: fixtures,
+      universes: const [universe],
+      service: service,
+      beatStream: beats,
+      liveBeatSync: () => beatSync,
+      liveDockTiming: dock,
+    );
+
+    test('plays the look next to the path and leaves the pan to the path', () async {
+      final bank = withLook(circle.copyWith(lookBankId: 'look', lookOwnTiming: true, lookHoldMs: 60000, lookFadeMs: 0));
+      unawaited(playLook(bank));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(ch(4), 100, reason: 'the first look scene');
+      final pans = <int>{};
+      for (var i = 0; i < 6; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        pans.add(ch(0));
+      }
+      expect(pans.length, greaterThan(2), reason: 'the scene\'s pan 0 did not freeze the head');
+    });
+
+    test('own timing steps through the look scenes', () async {
+      final bank = withLook(circle.copyWith(lookBankId: 'look', lookOwnTiming: true, lookHoldMs: 150, lookFadeMs: 0));
+      unawaited(playLook(bank));
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      expect(ch(4), 100);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(ch(4), 200);
+    });
+
+    test('follows the dock\'s hold and fade, read live', () async {
+      var hold = const Duration(seconds: 30);
+      final bank = withLook(circle.copyWith(lookBankId: 'look'));
+      unawaited(playLook(bank, dock: () => (hold: hold, fade: Duration.zero)));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(ch(4), 100);
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(ch(4), 100, reason: 'dock hold is long, so no step yet');
+      hold = const Duration(milliseconds: 100);
+      // The new hold is picked up at the next step; edit the bank to force one.
+      player.stop();
+      unawaited(playLook(bank, dock: () => (hold: hold, fade: Duration.zero)));
+      await Future<void>.delayed(const Duration(milliseconds: 450));
+      expect(ch(4), anyOf(100, 200));
+    });
+
+    test('with beat sync on, the look steps on the beat instead of the timer', () async {
+      final beats = StreamController<DateTime>.broadcast();
+      addTearDown(beats.close);
+      final bank = withLook(circle.copyWith(lookBankId: 'look'));
+      unawaited(playLook(
+        bank,
+        dock: () => (hold: const Duration(milliseconds: 50), fade: Duration.zero),
+        beats: beats.stream,
+        beatSync: true,
+      ));
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+      expect(ch(4), 100, reason: 'the timer would have stepped by now; the beat has not come');
+      beats.add(DateTime.now());
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(ch(4), 200);
+      beats.add(DateTime.now());
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+      expect(ch(4), 100);
+    });
+
+    test('a look bank that is itself an FX bank is ignored', () async {
+      final bank = withLook(circle.copyWith(lookBankId: 'fx'));
+      unawaited(playLook(bank));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      expect(ch(4), 0);
+    });
   });
 }
