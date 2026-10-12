@@ -22,6 +22,7 @@ import '../../core/remote/background_service.dart';
 import '../../core/remote/remote_control_server.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/remote_providers.dart';
+import 'dmx_map_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -762,6 +763,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onPressed: () => ref.read(universesProvider.notifier).addUniverse(),
             icon: const Icon(Icons.add),
             label: const Text('Add Universe'),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const DmxMapScreen())),
+            icon: const Icon(Icons.grid_view),
+            label: const Text('DMX channel map'),
           ),
           const SizedBox(height: 20),
           _SectionTitle('About & Diagnostics'),
