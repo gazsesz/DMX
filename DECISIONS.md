@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-09 · app verzió: v1.31.1 (nem commitolt, main: a815562)_
+_Utolsó frissítés: 2026-10-12 · app verzió: v1.33.0 (branch claude/movement-fx; az 1.32.x a claude/adoring-knuth-w028o9 ágon van, még nincs mergelve)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -37,3 +37,10 @@ _Utolsó frissítés: 2026-10-09 · app verzió: v1.31.1 (nem commitolt, main: a
 
 ## Verifikáció (utolsó ismert)
 - `flutter analyze` tiszta, `flutter test` 176/176 (a csoport/szín munka idején; azóta új teszt: `osc_beat_source_test.dart`).
+
+## Movement FX (v1.33.0, branch `claude/movement-fx`)
+- A mozgás **paraméteres, élő számolású bank** (`Bank.fx`, `models/movement_fx.dart`), nem jelenet-sorozat: alak, méret, sebesség (szabad vagy beat-hez kötött), irány, fázis-szórás, cél csoport/fixture. Terv és indoklás: [MOVEMENT_FX_PLAN.md](MOVEMENT_FX_PLAN.md).
+- Lejátszás a `ChasePlayer`-ben (`_runFx`, 25 ms tick, csak pan/tilt csatornákat ír), ezért chase, smart chase, dashboard, layer picker változtatás nélkül használja. A számolás `core/movement/movement_engine.dart` (tiszta függvények, tesztelt).
+- Döntések a felhasználótól: (1) FX közben nem nyúlunk a pan/tilt speed csatornához, legfeljebb blackoutnál (még nincs megvalósítva); (2) FX lépések közt a fázis **folytonos**, chase-lépésenként átállítható „Start the lap from the top” (`ChaseStep.fxRestart`).
+- Idő: önállóan futtatott FX-bank és Smart Program célpont **hold = 0 = végtelen**; chase-lépésben a hold a futási idő (alap 8 s), a fade a „glide” a pályára. Szerkesztés élő: a futó bank a `liveBanks`-ből veszi az új paramétert.
+- Nyitott: a régi Generate Program mozgás-effektjeinek kivezetése/átkötése; blackout-kori speed csatorna; valós fejeken tesztelni (Tab S6 Lite, P20 Pro) — a gépen csak unit/widget teszt futott.

@@ -19,6 +19,7 @@ import '../../core/widgets/show_items_actions.dart';
 import '../../models/bank.dart';
 import '../../models/dashboard_trigger.dart';
 import '../../models/layer.dart';
+import '../../models/movement_fx.dart';
 import '../../models/scene.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
@@ -33,6 +34,7 @@ import '../../state/scene_providers.dart';
 import '../../state/tempo_providers.dart';
 import '../scenes/scene_editor_screen.dart';
 import '../scenes/scenes_screen.dart';
+import 'movement_fx_editor.dart';
 import 'program_generator_screen.dart';
 
 const _uuid = Uuid();
@@ -361,6 +363,53 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         ),
       ),
     );
+  }
+
+  /// A new Movement FX bank from a one-tap starting point; the editor below
+  /// takes it from there.
+  Future<void> _addMovementFxBank() async {
+    const presets = [
+      (MovementShape.circle, Icons.panorama_fish_eye, 'Slow round and round'),
+      (MovementShape.swim, Icons.waves, 'Figure of eight, heads a half lap apart'),
+      (MovementShape.float, Icons.air, 'Wanders, never repeats the same shape'),
+      (MovementShape.lightRider, Icons.swap_horiz, 'A scanner bar, easing at each end'),
+      (MovementShape.panSweep, Icons.east, 'Left and right'),
+      (MovementShape.tiltSweep, Icons.unfold_more, 'Up and down'),
+      (MovementShape.square, Icons.crop_square, 'Round the corners of a square'),
+      (MovementShape.diamond, Icons.diamond_outlined, 'Round the corners of a diamond'),
+    ];
+    final shape = await showModalBottomSheet<MovementShape>(
+      context: context,
+      backgroundColor: AppColors.panel,
+      showDragHandle: true,
+      builder: (context) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            const Padding(
+              padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text('New Movement FX bank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+            for (final (shape, icon, hint) in presets)
+              ListTile(
+                leading: Icon(icon, color: AppColors.accent2),
+                title: Text(shape.label),
+                subtitle: Text(hint),
+                onTap: () => Navigator.pop(context, shape),
+              ),
+          ],
+        ),
+      ),
+    );
+    if (shape == null || !mounted) return;
+    final notifier = ref.read(banksProvider.notifier);
+    final taken = {for (final b in ref.read(banksProvider)) b.name};
+    var name = shape.label;
+    for (var n = 2; taken.contains(name); n++) {
+      name = '${shape.label} $n';
+    }
+    final bank = notifier.addBank(name: name, fx: MovementFx.preset(shape));
+    _selectBank(bank.id);
   }
 
   Future<void> _addBeatFlashBank() async {
@@ -884,6 +933,12 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       tooltip: 'Every lamp, full, on every beat',
                       onPressed: _addBeatFlashBank,
                     ),
+                    ActionChip(
+                      avatar: const Icon(Icons.open_with, size: 16, color: AppColors.accent2),
+                      label: const Text('Movement FX'),
+                      tooltip: 'Circle, swim, sweep… for the moving heads — set by shape and speed, not by steps',
+                      onPressed: _addMovementFxBank,
+                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -920,7 +975,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               ],
             ),
           ),
-          Padding(
+          if (!selected.isMovementFx) Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Row(
               children: [
@@ -1032,7 +1087,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 const SizedBox(width: 8),
                 // What this bank plays at, and the way to change it: its
                 // own Hold/Fade, or the dock's when it follows those.
-                Expanded(
+                if (selected.isMovementFx) const Spacer() else Expanded(
                   child: InkWell(
                     onTap: () => _editBankTiming(selected.id),
                     borderRadius: BorderRadius.circular(6),
@@ -1062,6 +1117,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               ],
             ),
           ),
+          if (selected.isMovementFx) MovementFxEditor(bank: selected),
           if (selected.isBeatFlash)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
@@ -1097,7 +1153,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               ],
             ),
           ),
-          Builder(builder: (context) {
+          if (!selected.isMovementFx) Builder(builder: (context) {
               final filledIndices = [
                 for (var i = 0; i < selected.sceneSlots.length; i++)
                   if (selected.sceneSlots[i] != null) i,

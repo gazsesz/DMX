@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/bank.dart';
+import '../models/movement_fx.dart';
 
 const _uuid = Uuid();
 const defaultBankSize = 16;
@@ -28,12 +29,14 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
   /// size and called the right thing, instead of an empty "Bank N" the
   /// caller then has to rename and resize in two more state updates.
   /// [isBeatFlash] tags a bank built by the Beat Flash preset — see [Bank].
-  Bank addBank({String? name, int? slots, bool isBeatFlash = false}) {
+  /// [fx] makes it a Movement FX bank, which has no scene slots.
+  Bank addBank({String? name, int? slots, bool isBeatFlash = false, MovementFx? fx}) {
     final bank = Bank(
       id: _uuid.v4(),
       name: name ?? 'Bank ${state.length + 1}',
-      sceneSlots: List.filled(slots ?? defaultBankSize, null),
+      sceneSlots: List.filled(fx != null ? 0 : (slots ?? defaultBankSize), null),
       isBeatFlash: isBeatFlash,
+      fx: fx,
     );
     state = [...state, bank];
     return bank;
@@ -54,9 +57,19 @@ class BanksNotifier extends StateNotifier<List<Bank>> {
       holdMs: original.holdMs,
       fadeMs: original.fadeMs,
       slotTimings: [...original.slotTimings],
+      fx: original.fx,
     );
     state = [...state, copy];
     return copy;
+  }
+
+  /// Replaces a Movement FX bank's path. A running bank picks it up on its
+  /// next tick (the chase player reads the banks live).
+  void setFx(String id, MovementFx fx) {
+    state = [
+      for (final b in state)
+        if (b.id == id && b.isMovementFx) b.copyWith(fx: fx) else b,
+    ];
   }
 
   /// Marks [id] as a Beat Flash bank (dark/lit pairs, flashing) or not —

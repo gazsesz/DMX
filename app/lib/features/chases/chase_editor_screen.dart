@@ -124,7 +124,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       ),
     );
     if (chosenId == null) return;
-    final hold = Duration(milliseconds: (_stepSeconds * 1000).round());
+    // A movement path is no use for a sub-second step; start it at 8 s.
+    final isFx = asBank && ref.read(banksProvider).any((b) => b.id == chosenId && b.isMovementFx);
+    final hold = isFx ? const Duration(seconds: 8) : Duration(milliseconds: (_stepSeconds * 1000).round());
     final fade = Duration(milliseconds: (_defaultFadeSeconds * 1000).round());
     final layer = _storedLayerId(layerId);
     setState(() {
@@ -189,31 +191,71 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   /// the long end of a log slider is too coarse for hundredths anyway.
   static double _roundTime(double s) => s < 10 ? (s * 100).round() / 100 : s < 60 ? (s * 10).round() / 10 : s.roundToDouble();
 
+  bool _isFxStep(ChaseStep step) =>
+      step.bankId != null && ref.read(banksProvider).any((b) => b.id == step.bankId && b.isMovementFx);
+
   Future<void> _editStepTiming(int index) async {
     final step = _steps[index];
+    final isFx = _isFxStep(step);
     var hold = step.hold.inMilliseconds / 1000.0;
     var fade = step.fade.inMilliseconds / 1000.0;
+    // A movement step with no hold runs until the chase is stopped.
+    var endless = isFx && step.hold <= Duration.zero;
+    if (endless) hold = 8;
+    var restart = step.fxRestart;
     final result = await showDialog<bool>(
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.panel,
-          title: const Text('Step Timing'),
+          title: Text(isFx ? 'Movement Step' : 'Step Timing'),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Hold: ${hold.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),
-              Slider(
-                value: holdTimeScale.positionOf(hold),
-                onChanged: (p) => setDialogState(() => hold = _roundTime(holdTimeScale.valueAt(p))),
+              if (isFx)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('Run until stopped'),
+                  subtitle: const Text(
+                    'The chase stays on this step; only the next lane or a Stop ends it',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: endless,
+                  onChanged: (v) => setDialogState(() => endless = v),
+                ),
+              if (!endless) ...[
+                Text(
+                  isFx ? 'Runs for: ${hold.toStringAsFixed(2)}s' : 'Hold: ${hold.toStringAsFixed(2)}s',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
+                ),
+                Slider(
+                  value: holdTimeScale.positionOf(hold),
+                  onChanged: (p) => setDialogState(() => hold = _roundTime(holdTimeScale.valueAt(p))),
+                ),
+                const SizedBox(height: 8),
+              ],
+              Text(
+                isFx ? 'Glide onto the path: ${fade.toStringAsFixed(2)}s' : 'Fade: ${fade.toStringAsFixed(2)}s',
+                style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
               ),
-              const SizedBox(height: 8),
-              Text('Fade: ${fade.toStringAsFixed(2)}s', style: const TextStyle(fontSize: 12, color: AppColors.textFaint)),
               Slider(
                 value: fadeTimeScale.positionOf(fade),
                 onChanged: (p) => setDialogState(() => fade = _roundTime(fadeTimeScale.valueAt(p))),
               ),
+              if (isFx)
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: const Text('Start the lap from the top'),
+                  subtitle: const Text(
+                    'Off: the path carries on from where the previous movement step was',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: restart,
+                  onChanged: (v) => setDialogState(() => restart = v),
+                ),
             ],
           ),
           actions: [
@@ -226,8 +268,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     if (result == true) {
       setState(() {
         _steps[index] = step.copyWith(
-          hold: Duration(milliseconds: (hold * 1000).round()),
+          hold: endless ? Duration.zero : Duration(milliseconds: (hold * 1000).round()),
           fade: Duration(milliseconds: (fade * 1000).round()),
+          fxRestart: isFx ? restart : null,
         );
       });
     }
@@ -252,6 +295,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     if (step.sceneId != null) return scenes.any((s) => s.id == step.sceneId) ? 1 : 0;
     final banks = ref.read(banksProvider).where((b) => b.id == step.bankId);
     if (banks.isEmpty) return 0;
+    if (banks.first.isMovementFx) return 1;
     return banks.first.sceneSlots.where((id) => id != null && scenes.any((s) => s.id == id)).length;
   }
 
@@ -342,7 +386,8 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     }
     if (step.bankId != null) {
       final matches = ref.read(banksProvider).where((b) => b.id == step.bankId);
-      return matches.isEmpty ? 'Missing bank' : 'Bank: ${matches.first.name}';
+      if (matches.isEmpty) return 'Missing bank';
+      return matches.first.isMovementFx ? 'Movement: ${matches.first.name}' : 'Bank: ${matches.first.name}';
     }
     return 'Empty step';
   }
@@ -519,11 +564,18 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   List<Widget> _stepTile(int i, int position, String layerId, List<Layer> layers) {
     final step = _steps[i];
     final playing = _playingStep[layerId] == i;
-    final timing =
-        'Hold ${(step.hold.inMilliseconds / 1000).toStringAsFixed(2)}s · Fade ${(step.fade.inMilliseconds / 1000).toStringAsFixed(2)}s';
+    final isFx = _isFxStep(step);
+    final seconds = (step.hold.inMilliseconds / 1000).toStringAsFixed(2);
+    final glide = (step.fade.inMilliseconds / 1000).toStringAsFixed(2);
+    final timing = isFx
+        ? '${step.hold <= Duration.zero ? 'Runs until stopped' : 'Runs ${seconds}s'} · Glide ${glide}s'
+              '${step.fxRestart ? ' · restarts' : ''}'
+        : 'Hold ${seconds}s · Fade ${glide}s';
     return [
       ListTile(
-        onTap: step.bankId != null
+        onTap: isFx
+            ? () => _editStepTiming(i)
+            : step.bankId != null
             ? () => setState(() {
                 if (!_expandedBankSteps.remove(i)) _expandedBankSteps.add(i);
               })
@@ -536,13 +588,13 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
         ),
         title: Text(_stepLabel(step), style: const TextStyle(fontSize: 13)),
         subtitle: Text(
-          step.bankId != null ? '$timing · tap to see scenes' : '$timing · tap to edit',
+          step.bankId != null && !isFx ? '$timing · tap to see scenes' : '$timing · tap to edit',
           style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (step.bankId != null)
+            if (step.bankId != null && !isFx)
               IconButton(
                 icon: const Icon(Icons.schedule, size: 16),
                 tooltip: 'Edit timing',
@@ -575,7 +627,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
           ],
         ),
       ),
-      if (step.bankId != null && _expandedBankSteps.contains(i))
+      if (step.bankId != null && !isFx && _expandedBankSteps.contains(i))
         Padding(
           padding: const EdgeInsets.fromLTRB(56, 0, 16, 10),
           child: Column(

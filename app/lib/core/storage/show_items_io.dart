@@ -289,6 +289,7 @@ ShowItemsImport importShowItems(
       holdMs: source.holdMs,
       fadeMs: source.fadeMs,
       slotTimings: source.slotTimings,
+      fx: source.fx,
     ));
   }
 

@@ -26,7 +26,7 @@ Future<String?> showBankPicker(BuildContext context, {String title = 'Assign to 
                   child: ListView(
                     shrinkWrap: true,
                     children: [
-                      for (final bank in banks)
+                      for (final bank in banks.where((b) => !b.isMovementFx))
                         ListTile(
                           dense: true,
                           leading: const Icon(Icons.grid_view_outlined, size: 18, color: AppColors.accent2),

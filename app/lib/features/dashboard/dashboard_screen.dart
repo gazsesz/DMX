@@ -93,7 +93,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             id: bank.id,
             kind: TriggerKind.bank,
             name: bank.name,
-            sub: '${bank.sceneSlots.where((s) => s != null).length}/${bank.sceneSlots.length} scenes',
+            sub: bank.isMovementFx
+                ? 'movement · ${bank.fx!.shape.label.toLowerCase()}'
+                : '${bank.sceneSlots.where((s) => s != null).length}/${bank.sceneSlots.length} scenes',
           ),
         );
       } else {

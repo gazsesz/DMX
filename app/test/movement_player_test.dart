@@ -11,7 +11,6 @@ import 'package:dmx_controller/models/fixture_profile.dart';
 import 'package:dmx_controller/models/movement_fx.dart';
 import 'package:dmx_controller/models/pan_tilt.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
-import 'package:dmx_controller/models/scene.dart';
 import 'package:dmx_controller/models/universe_config.dart';
 import 'package:flutter_test/flutter_test.dart';
 
