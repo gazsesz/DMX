@@ -571,6 +571,14 @@ class ControlDockAction extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
+          tooltip: dock.movementBarVisible ? 'Hide the Movement knobs' : 'Show the Movement knobs',
+          icon: Icon(
+            Icons.open_with,
+            color: dock.movementBarVisible ? AppColors.accent2 : null,
+          ),
+          onPressed: () => ref.read(controlDockProvider.notifier).toggleMovementBar(),
+        ),
+        IconButton(
           tooltip: dock.stageVisible ? 'Hide live stage' : 'Show live stage',
           icon: Icon(
             dock.stageVisible ? Icons.lightbulb : Icons.lightbulb_outline,

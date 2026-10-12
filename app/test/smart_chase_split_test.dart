@@ -9,6 +9,7 @@ import 'package:dmx_controller/models/bank.dart';
 import 'package:dmx_controller/models/chase.dart';
 import 'package:dmx_controller/models/fixture_group.dart';
 import 'package:dmx_controller/models/layer.dart';
+import 'package:dmx_controller/models/movement_fx.dart';
 import 'package:dmx_controller/models/scene.dart';
 import 'package:dmx_controller/models/smart_program.dart';
 import 'package:dmx_controller/models/stage_plan.dart';
@@ -183,6 +184,7 @@ class _RecordingPlayer extends ChasePlayer {
     StagePlan Function()? liveStage,
     List<FixtureGroup> Function()? liveGroups,
     ({Duration hold, Duration fade}) Function()? liveDockTiming,
+    MovementLive Function()? liveMovement,
   }) async {
     played = chase;
   }

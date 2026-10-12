@@ -15,6 +15,7 @@ import 'dimmer_dropout_providers.dart';
 import 'fixture_providers.dart';
 import 'layer_providers.dart';
 import 'momentary_fx_providers.dart';
+import 'movement_live_providers.dart';
 import 'provider_reader.dart';
 import 'audio_providers.dart';
 import 'scene_providers.dart';
@@ -82,6 +83,7 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
     liveStage: () => ref.read(stagePlanProvider),
     liveGroups: () => ref.read(fixtureGroupsProvider),
     liveDockTiming: () => (hold: ref.read(tempoProvider).hold, fade: ref.read(tempoProvider).fade),
+    liveMovement: () => ref.read(movementLiveProvider),
     liveBanks: () => ref.read(banksProvider),
   );
   ref.onDispose(player.dispose);
@@ -311,6 +313,7 @@ Future<List<String>> startLayeredChase(
       liveStage: () => read(stagePlanProvider),
       liveGroups: () => read(fixtureGroupsProvider),
       liveDockTiming: () => (hold: read(tempoProvider).hold, fade: read(tempoProvider).fade),
+      liveMovement: () => read(movementLiveProvider),
       liveBeatSync: switch (mode) {
         LaneTiming.free => () => false,
         LaneTiming.onBeat => () => read(activeBeatSourceProvider).isListening,
@@ -520,6 +523,7 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
     liveStage: () => read(stagePlanProvider),
     liveGroups: () => read(fixtureGroupsProvider),
     liveDockTiming: () => (hold: read(tempoProvider).hold, fade: read(tempoProvider).fade),
+    liveMovement: () => read(movementLiveProvider),
     // Auto-fade is the dock's; a bank keeping its own timing keeps its own
     // fade too.
     fadeOverride: bank.ownTiming

@@ -4,6 +4,7 @@ import '../../models/bank.dart';
 import '../../models/chase.dart';
 import '../../models/fixture_group.dart';
 import '../../models/layer.dart';
+import '../../models/movement_fx.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/smart_program.dart';
@@ -72,6 +73,7 @@ class SmartProgramPlayer {
   final List<FixtureGroup> Function()? liveGroups;
   final List<Bank> Function()? liveBanks;
   final ({Duration hold, Duration fade}) Function()? liveDockTiming;
+  final MovementLive Function()? liveMovement;
 
   SmartProgramPlayer({
     required this.playerFor,
@@ -87,6 +89,7 @@ class SmartProgramPlayer {
     this.liveGroups,
     this.liveBanks,
     this.liveDockTiming,
+    this.liveMovement,
   })  : setDropout = setDropout ?? ((_) {}),
         beatEvents = beatEvents ?? beatService.beatEvents,
         beatSyncEnabled = beatSyncEnabled ?? (() => false),
@@ -532,6 +535,7 @@ class SmartProgramPlayer {
         liveGroups: liveGroups,
         liveBanks: liveBanks,
         liveDockTiming: liveDockTiming,
+        liveMovement: liveMovement,
         onStep: (_) {},
       );
     }

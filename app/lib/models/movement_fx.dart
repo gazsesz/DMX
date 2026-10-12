@@ -328,3 +328,65 @@ bool _sameJson(Map<String, dynamic> a, Map<String, dynamic> b) {
   }
   return true;
 }
+
+/// The live knobs laid over whatever Movement FX is running — what the
+/// Movement strip and the remote's `/fx` endpoint set. They multiply or add
+/// to the bank's own settings and never change the bank, so the bank is
+/// still what you built when the knobs go back to neutral.
+class MovementLive {
+  /// Scales how far the path swings (every size field). 1 is the bank's own.
+  final double size;
+
+  /// Scales the pace, 1 is the bank's own: 2 laps twice as fast.
+  final double speed;
+
+  /// Added to the bank's wave across heads, as a fraction of a lap.
+  final double shift;
+
+  /// Rounds the move off: how long, 0..1 of 1.5 s, the heads take to catch up
+  /// with where the path says they should be. Softens sharp turns and turns
+  /// jumps into glides.
+  final double smooth;
+
+  const MovementLive({this.size = 1, this.speed = 1, this.shift = 0, this.smooth = 0});
+
+  static const neutral = MovementLive();
+  static const sizeRange = (min: 0.0, max: 2.0);
+  static const speedRange = (min: 0.25, max: 4.0);
+
+  bool get isNeutral => this == neutral;
+
+  /// How long the heads take to catch up with the path.
+  Duration get smoothing => Duration(milliseconds: (smooth.clamp(0.0, 1.0) * 1500).round());
+
+  MovementLive copyWith({double? size, double? speed, double? shift, double? smooth}) => MovementLive(
+    size: (size ?? this.size).clamp(sizeRange.min, sizeRange.max),
+    speed: (speed ?? this.speed).clamp(speedRange.min, speedRange.max),
+    shift: (shift ?? this.shift).clamp(0.0, 1.0),
+    smooth: (smooth ?? this.smooth).clamp(0.0, 1.0),
+  );
+
+  /// [fx] with the size and shift knobs applied (speed and smoothing act on
+  /// the clock and on the output, not on the path).
+  MovementFx applyTo(MovementFx fx) {
+    if (size == 1 && shift == 0) return fx;
+    return fx.copyWith(
+      sizePanDeg: fx.sizePanDeg * size,
+      sizeTiltDeg: fx.sizeTiltDeg * size,
+      sizeXM: fx.sizeXM * size,
+      sizeYM: fx.sizeYM * size,
+      phaseSpread: (fx.phaseSpread + shift).clamp(0.0, 1.0),
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is MovementLive &&
+      other.size == size &&
+      other.speed == speed &&
+      other.shift == shift &&
+      other.smooth == smooth;
+
+  @override
+  int get hashCode => Object.hash(size, speed, shift, smooth);
+}

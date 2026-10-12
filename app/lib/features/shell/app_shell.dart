@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/movement_live_bar.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
@@ -70,6 +71,11 @@ class _AppShellState extends ConsumerState<AppShell> {
   Widget _withDocks(Widget content) {
     final dock = ref.watch(controlDockProvider);
     var body = content;
+    // Closest to the content, above the Live Stage strip: the live knobs sit
+    // right under the thing they act on.
+    if (dock.movementBarVisible) {
+      body = Column(children: [Expanded(child: body), const MovementLiveBar()]);
+    }
     if (dock.stageVisible) {
       body = Column(children: [Expanded(child: body), const LiveStageDock()]);
     }

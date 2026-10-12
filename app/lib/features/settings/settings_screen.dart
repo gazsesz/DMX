@@ -627,6 +627,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     value: ref.watch(controlDockProvider).stageVisible,
                     onChanged: (_) => ref.read(controlDockProvider.notifier).toggleStageVisible(),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show the Movement strip'),
+                    subtitle: const Text(
+                      'Live Size, Speed, Shift and Smooth knobs for the running Movement FX, above the dock',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
+                    value: ref.watch(controlDockProvider).movementBarVisible,
+                    onChanged: (_) => ref.read(controlDockProvider.notifier).toggleMovementBar(),
+                  ),
                 ],
               ),
             ),

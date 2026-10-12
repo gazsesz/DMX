@@ -8,6 +8,7 @@ import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/dimmer_dropout_providers.dart';
+import '../../state/movement_live_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
@@ -253,6 +254,29 @@ String setDropout(ReadProvider read, {bool? on}) {
   if (target == current.enabled) return 'Dropout already ${target ? 'on' : 'off'}';
   controller.update(current.copyWith(enabled: target));
   return 'Dropout ${target ? 'on' : 'off'}';
+}
+
+/// Sets the Movement strip's knobs (Size ×0–2, Speed ×0.25–4, Shift 0–1,
+/// Smooth 0–1) — the same ones as on the strip. Values out of range are
+/// pulled into range; [reset] puts every knob back to neutral first.
+String setMovementLive(
+  ReadProvider read, {
+  double? size,
+  double? speed,
+  double? shift,
+  double? smooth,
+  bool reset = false,
+}) {
+  final notifier = read(movementLiveProvider.notifier);
+  if (reset) notifier.reset();
+  if (size != null || speed != null || shift != null || smooth != null) {
+    notifier.set(size: size, speed: speed, shift: shift, smooth: smooth);
+  }
+  final now = read(movementLiveProvider);
+  return now.isNeutral
+      ? 'Movement knobs neutral'
+      : 'Movement size ${now.size.toStringAsFixed(2)} · speed ${now.speed.toStringAsFixed(2)} · '
+            'shift ${now.shift.toStringAsFixed(2)} · smooth ${now.smooth.toStringAsFixed(2)}';
 }
 
 /// Something the remote endpoint can fire, and the name it answers to.

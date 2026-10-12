@@ -53,6 +53,7 @@ Future<void> main() async {
     expanded: prefs.getBool(prefDockExpanded),
     position: prefs.getString(prefDockPosition),
     stageVisible: prefs.getBool(prefStageVisible),
+    movementBarVisible: prefs.getBool(prefMovementBarVisible),
   );
 
   final initialBeatSource = beatSourcePrefsFromStrings(

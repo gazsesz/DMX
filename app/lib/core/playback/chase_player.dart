@@ -285,6 +285,8 @@ class ChasePlayer {
     List<FixtureGroup> Function()? liveGroups,
     // The dock's current Hold and Fade, for a Movement FX look that follows them.
     ({Duration hold, Duration fade}) Function()? liveDockTiming,
+    // The Movement strip's knobs, read as the effect runs.
+    MovementLive Function()? liveMovement,
   }) async {
     _halt();
     var instants = _flatten(chase, scenes, banks);
@@ -383,6 +385,7 @@ class ChasePlayer {
           liveStage: liveStage,
           liveGroups: liveGroups,
           liveDockTiming: liveDockTiming,
+          liveMovement: liveMovement,
           liveBeatSync: instant.isFlash ? flashOnBeat : beatSynced,
           liveBeatRate: liveBeatRate ?? () => beatRate,
         );
@@ -567,6 +570,7 @@ class ChasePlayer {
     ({Duration hold, Duration fade}) Function()? liveDockTiming,
     bool Function()? liveBeatSync,
     BeatRate Function()? liveBeatRate,
+    MovementLive Function()? liveMovement,
   }) async {
     var fx = instant.fx!;
     if (instant.restartFx) _fxClock.phase = 0;
@@ -600,7 +604,9 @@ class ChasePlayer {
     final beatSub = beatStream?.listen((at) {
       final gap = lastBeat == null ? null : at.difference(lastBeat!);
       lastBeat = at;
-      _fxClock.onBeat(fx, interval: gap);
+      // Off the grid on purpose while the speed knob is off 1: the beat
+      // then only keeps the tempo, it doesn't pull the lap back onto it.
+      _fxClock.onBeat(fx, interval: gap, nudge: (liveMovement?.call().speed ?? 1) == 1);
       beatsSeen++;
       final skip = (liveBeatRate?.call() ?? BeatRate.normal) == BeatRate.half ? 2 : 1;
       if (beatsSeen >= skip) {
@@ -613,6 +619,7 @@ class ChasePlayer {
     final glideUs = instant.fade.inMicroseconds;
     final from = <String, PanTilt>{};
     var previous = <String, PanTilt>{};
+    final smoothed = <String, PanTilt>{};
     var banksNow = banks;
     var scenesNow = scenes;
     final clock = Stopwatch()..start();
@@ -639,9 +646,15 @@ class ChasePlayer {
           lookNeedsStart = true;
         }
 
-        _fxClock.tick(now - last, fx);
+        final live = liveMovement?.call() ?? MovementLive.neutral;
+        final effective = live.applyTo(fx);
+        final elapsed = now - last;
+        _fxClock.tick(
+          live.speed == 1 ? elapsed : Duration(microseconds: (elapsed.inMicroseconds * live.speed).round()),
+          effective,
+        );
         last = now;
-        final frame = movementFrame(fx, heads, _fxClock.phase, liveStage?.call() ?? const StagePlan(), previous: previous);
+        final frame = movementFrame(effective, heads, _fxClock.phase, liveStage?.call() ?? const StagePlan(), previous: previous);
         final glide = glideUs <= 0 ? 1.0 : (now.inMicroseconds / glideUs).clamp(0.0, 1.0);
         final eased = glide * glide * (3 - 2 * glide);
 
@@ -652,7 +665,16 @@ class ChasePlayer {
           final target = frame[head.fixture.id];
           if (universe == null || target == null) continue;
           final start = from.putIfAbsent(head.fixture.id, () => current(head, universe));
-          final position = lerpPanTilt(start, target, eased);
+          var position = lerpPanTilt(start, target, eased);
+          final tau = live.smoothing;
+          if (tau > Duration.zero) {
+            // The head chases the path with a lag: sharp turns round off and
+            // a jump becomes a glide.
+            final before = smoothed[head.fixture.id] ?? position;
+            final alpha = 1 - exp(-elapsed.inMicroseconds / tau.inMicroseconds);
+            position = lerpPanTilt(before, position, alpha);
+          }
+          smoothed[head.fixture.id] = position;
           written[head.fixture.id] = position;
           final base = head.fixture.startChannel;
           _write(service, universe, base + head.panOffset, position.panCoarse);

@@ -156,4 +156,17 @@ void main() {
     expect(body['ok'], isFalse);
     expect(body['message'], contains('Unknown endpoint'));
   });
+
+  test('/fx sets any subset of the Movement knobs, clamps them, and resets', () async {
+    var body = await get('/fx?size=1.5&speed=2');
+    expect(body['movement'], {'size': 1.5, 'speed': 2.0, 'shift': 0.0, 'smooth': 0.0});
+    body = await get('/fx?speed=99&shift=-1');
+    expect((body['movement'] as Map)['speed'], 4.0);
+    expect((body['movement'] as Map)['shift'], 0.0);
+    expect((body['movement'] as Map)['size'], 1.5, reason: 'untouched knobs stay');
+    expect((await get('/status'))['movement'], isA<Map>());
+    body = await get('/fx?reset=1');
+    expect(body['message'], 'Movement knobs neutral');
+    expect(body['movement'], {'size': 1.0, 'speed': 1.0, 'shift': 0.0, 'smooth': 0.0});
+  });
 }

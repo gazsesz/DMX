@@ -4,6 +4,7 @@ import 'dart:io';
 
 import '../../state/audio_providers.dart';
 import '../../state/dimmer_dropout_providers.dart';
+import '../../state/movement_live_providers.dart';
 import '../../state/playback_providers.dart';
 import 'trigger_actions.dart';
 
@@ -23,6 +24,7 @@ import 'trigger_actions.dart';
 ///   /predict     — toggle the beat predictor; `?on=1` / `?on=0` outright
 ///   /autofade    — toggle auto-fade; `?on=1` / `?on=0` outright
 ///   /dropout     — toggle the dimmer dropout; `?on=1` / `?on=0` outright
+///   /fx          — the Movement knobs: `?size=1.5&speed=2&shift=0.3&smooth=0.2` (any subset), `?reset=1`
 ///   /stop        — stop playback, leaving the rig as it is
 ///   /blackout    — stop everything and take every channel to zero
 ///   /endpoints   — the same tiles as a Wear OS client's menu (text/plain)
@@ -85,6 +87,19 @@ class RemoteControlServer {
         case '/dropout':
           final message = setDropout(read, on: _parseOnOff(query['on']));
           _writeJson(request, {'ok': true, 'message': message});
+        case '/fx':
+          // The Movement knobs: /fx?size=1.5&speed=2&shift=0.3&smooth=0.2,
+          // any subset; /fx?reset=1 puts them all back to neutral. With no
+          // parameters it just reports where they are.
+          final message = setMovementLive(
+            read,
+            size: double.tryParse(query['size'] ?? ''),
+            speed: double.tryParse(query['speed'] ?? ''),
+            shift: double.tryParse(query['shift'] ?? ''),
+            smooth: double.tryParse(query['smooth'] ?? ''),
+            reset: _parseOnOff(query['reset']) ?? false,
+          );
+          _writeJson(request, {'ok': true, 'message': message, 'movement': _movementStatus()});
         case '/stop':
           stopPlayback(read);
           _writeJson(request, {'ok': true, 'message': 'Stopped'});
@@ -167,7 +182,20 @@ class RemoteControlServer {
     lines.add('--- dro,Dropout,/dropout');
     lines.add('--- stop,Stop,/stop');
     lines.add('--- blk,Blackout,/blackout');
+    // A watch has no sliders: a few fixed steps on the movement knobs.
+    lines.add('-- mov,Movement');
+    lines.add('--- fxr,Reset,/fx?reset=1');
+    lines.add('--- fxs2,Speed x2,/fx?speed=2');
+    lines.add('--- fxsh,Speed half,/fx?speed=0.5');
+    lines.add('--- fxbg,Size big,/fx?size=1.6');
+    lines.add('--- fxsm,Size small,/fx?size=0.5');
+    lines.add('--- fxsf,Smooth,/fx?smooth=0.6');
     return lines.join('\n');
+  }
+
+  Map<String, double> _movementStatus() {
+    final live = read(movementLiveProvider);
+    return {'size': live.size, 'speed': live.speed, 'shift': live.shift, 'smooth': live.smooth};
   }
 
   Map<String, dynamic> _status() {
@@ -176,6 +204,7 @@ class RemoteControlServer {
       'ok': true,
       'beatSync': read(beatSyncEnabledProvider),
       'dropout': read(dimmerDropoutProvider).enabled,
+      'movement': _movementStatus(),
       'nowPlaying': nowPlaying == null
           ? null
           : {'name': nowPlaying.name, 'kind': nowPlaying.kind.name},

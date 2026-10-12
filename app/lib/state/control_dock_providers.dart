@@ -6,6 +6,7 @@ import '../models/control_dock_prefs.dart';
 const prefDockExpanded = 'dock.expanded';
 const prefDockPosition = 'dock.position';
 const prefStageVisible = 'dock.stageVisible';
+const prefMovementBarVisible = 'dock.movementBar';
 
 class ControlDockState {
   /// The dock's panel is open, showing the tempo and beat controls.
@@ -21,17 +22,28 @@ class ControlDockState {
   /// to be readable, so it doesn't get the dock's side option.
   final bool stageVisible;
 
+  /// The Movement strip: live Size / Speed / Shift / Smooth knobs for the
+  /// running Movement FX. On by default, and a switch hides it.
+  final bool movementBarVisible;
+
   const ControlDockState({
     this.expanded = false,
     this.position = ControlDockPosition.bottom,
     this.stageVisible = false,
+    this.movementBarVisible = true,
   });
 
-  ControlDockState copyWith({bool? expanded, ControlDockPosition? position, bool? stageVisible}) {
+  ControlDockState copyWith({
+    bool? expanded,
+    ControlDockPosition? position,
+    bool? stageVisible,
+    bool? movementBarVisible,
+  }) {
     return ControlDockState(
       expanded: expanded ?? this.expanded,
       position: position ?? this.position,
       stageVisible: stageVisible ?? this.stageVisible,
+      movementBarVisible: movementBarVisible ?? this.movementBarVisible,
     );
   }
 }
@@ -50,6 +62,8 @@ class ControlDockNotifier extends StateNotifier<ControlDockState> {
 
   void toggleStageVisible() => _set(state.copyWith(stageVisible: !state.stageVisible));
 
+  void toggleMovementBar() => _set(state.copyWith(movementBarVisible: !state.movementBarVisible));
+
   void setPosition(ControlDockPosition position) => _set(state.copyWith(position: position));
 
   void _set(ControlDockState next) {
@@ -62,6 +76,7 @@ class ControlDockNotifier extends StateNotifier<ControlDockState> {
     await sp.setBool(prefDockExpanded, prefs.expanded);
     await sp.setString(prefDockPosition, prefs.position.name);
     await sp.setBool(prefStageVisible, prefs.stageVisible);
+    await sp.setBool(prefMovementBarVisible, prefs.movementBarVisible);
   }
 }
 
@@ -69,7 +84,12 @@ final controlDockProvider = StateNotifierProvider<ControlDockNotifier, ControlDo
   return ControlDockNotifier(const ControlDockState());
 });
 
-ControlDockState controlDockFromPrefs({bool? expanded, String? position, bool? stageVisible}) {
+ControlDockState controlDockFromPrefs({
+  bool? expanded,
+  String? position,
+  bool? stageVisible,
+  bool? movementBarVisible,
+}) {
   return ControlDockState(
     expanded: expanded ?? false,
     position: ControlDockPosition.values.firstWhere(
@@ -77,5 +97,6 @@ ControlDockState controlDockFromPrefs({bool? expanded, String? position, bool? s
       orElse: () => ControlDockPosition.bottom,
     ),
     stageVisible: stageVisible ?? false,
+    movementBarVisible: movementBarVisible ?? true,
   );
 }

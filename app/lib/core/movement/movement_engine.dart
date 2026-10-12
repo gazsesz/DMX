@@ -114,11 +114,11 @@ class MovementClock {
   /// For a beat-locked effect the lap is pulled a third of the way towards
   /// the nearest beat boundary, so a late or early beat is absorbed over a
   /// few beats instead of making the heads jump.
-  void onBeat(MovementFx fx, {Duration? interval}) {
+  void onBeat(MovementFx fx, {Duration? interval, bool nudge = true}) {
     if (interval != null && interval >= const Duration(milliseconds: 200) && interval <= const Duration(seconds: 2)) {
       beatInterval = interval;
     }
-    if (!fx.beatLocked || fx.beats <= 0) return;
+    if (!nudge || !fx.beatLocked || fx.beats <= 0) return;
     final unit = 1 / fx.beats;
     final target = (phase / unit).round() * unit;
     phase = (phase + (target - phase) * 0.35) % 1.0;
