@@ -7,9 +7,11 @@ import 'package:dmx_controller/features/chases/smart_program_editor_screen.dart'
 import 'package:dmx_controller/models/artnet_settings.dart';
 import 'package:dmx_controller/models/bank.dart';
 import 'package:dmx_controller/models/chase.dart';
+import 'package:dmx_controller/models/fixture_group.dart';
 import 'package:dmx_controller/models/layer.dart';
 import 'package:dmx_controller/models/scene.dart';
 import 'package:dmx_controller/models/smart_program.dart';
+import 'package:dmx_controller/models/stage_plan.dart';
 import 'package:dmx_controller/state/bank_providers.dart';
 import 'package:dmx_controller/state/chase_providers.dart';
 import 'package:dmx_controller/state/smart_program_providers.dart';
@@ -178,6 +180,8 @@ class _RecordingPlayer extends ChasePlayer {
     List<Bank> Function()? liveBanks,
     List<Scene> Function()? liveScenes,
     bool claim = true,
+    StagePlan Function()? liveStage,
+    List<FixtureGroup> Function()? liveGroups,
   }) async {
     played = chase;
   }

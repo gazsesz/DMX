@@ -35,22 +35,30 @@ class ChaseStep {
   /// `chaseLanes`).
   final String? layerId;
 
+  /// For a Movement FX bank step: start the path from the top of its lap
+  /// instead of carrying on from wherever the previous step left it. Off by
+  /// default — two FX steps in a row (or a Smart Program changing zone) then
+  /// flow into each other without the heads jumping.
+  final bool fxRestart;
+
   const ChaseStep({
     this.sceneId,
     this.bankId,
     this.hold = const Duration(milliseconds: 800),
     this.fade = const Duration(milliseconds: 300),
     this.layerId,
+    this.fxRestart = false,
   });
 
   /// [clearLayer] puts the step back on the default layer.
-  ChaseStep copyWith({Duration? hold, Duration? fade, String? layerId, bool clearLayer = false}) {
+  ChaseStep copyWith({Duration? hold, Duration? fade, String? layerId, bool clearLayer = false, bool? fxRestart}) {
     return ChaseStep(
       sceneId: sceneId,
       bankId: bankId,
       hold: hold ?? this.hold,
       fade: fade ?? this.fade,
       layerId: clearLayer ? null : (layerId ?? this.layerId),
+      fxRestart: fxRestart ?? this.fxRestart,
     );
   }
 
@@ -60,6 +68,7 @@ class ChaseStep {
     'holdMs': hold.inMilliseconds,
     'fadeMs': fade.inMilliseconds,
     if (layerId != null) 'layerId': layerId,
+    if (fxRestart) 'fxRestart': true,
   };
 
   factory ChaseStep.fromJson(Map<String, dynamic> json) {
@@ -69,6 +78,7 @@ class ChaseStep {
       hold: Duration(milliseconds: json['holdMs'] as int? ?? 800),
       fade: Duration(milliseconds: json['fadeMs'] as int? ?? 300),
       layerId: json['layerId'] as String?,
+      fxRestart: json['fxRestart'] == true,
     );
   }
 }

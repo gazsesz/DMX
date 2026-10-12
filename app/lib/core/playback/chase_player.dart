@@ -3,14 +3,27 @@ import 'dart:math';
 
 import '../../models/bank.dart';
 import '../../models/chase.dart';
+import '../../models/fixture_group.dart';
+import '../../models/movement_fx.dart';
+import '../../models/pan_tilt.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
+import '../../models/stage_plan.dart';
 import '../../models/universe_config.dart';
 import '../artnet/artnet_service.dart';
+import '../movement/movement_engine.dart';
 import 'dimmer_dropout.dart';
 
 class _Instant {
-  final Scene scene;
+  /// What to fade to. Null for a Movement FX step, which has [fx] instead.
+  final Scene? scene;
+
+  /// A Movement FX bank step: the path to run for [hold] (forever when the
+  /// hold is zero), gliding onto it over [fade]. [bankId] lets the running
+  /// path pick up edits to the bank live.
+  final MovementFx? fx;
+  final String? bankId;
+  final bool restartFx;
   final Duration hold;
   final Duration fade;
 
@@ -36,7 +49,10 @@ class _Instant {
   final bool ownTiming;
 
   const _Instant({
-    required this.scene,
+    this.scene,
+    this.fx,
+    this.bankId,
+    this.restartFx = false,
     required this.hold,
     required this.fade,
     this.flashFadeOut,
@@ -162,6 +178,16 @@ class ChasePlayer {
         final bankMatches = banks.where((b) => b.id == step.bankId);
         if (bankMatches.isEmpty) continue;
         final bank = bankMatches.first;
+        if (bank.fx != null) {
+          result.add(_Instant(
+            fx: bank.fx,
+            bankId: bank.id,
+            restartFx: step.fxRestart,
+            hold: step.hold,
+            fade: step.fade,
+          ));
+          continue;
+        }
         // A Beat Flash bank is always [dark, lit] pairs (see
         // `buildBeatFlashScenes`) — the even slot in each pair is the dark
         // one, which is where a configured release time applies.
@@ -251,6 +277,11 @@ class ChasePlayer {
     // other layers. Off for a restart that shouldn't jump the queue (a
     // Smart Program changing zone).
     bool claim = true,
+    // What Movement FX banks need beyond the patch: the stage plan (for
+    // paths drawn on the floor) and the fixture groups they can be limited
+    // to. Read as the effect runs, so an edit lands straight away.
+    StagePlan Function()? liveStage,
+    List<FixtureGroup> Function()? liveGroups,
   }) async {
     _halt();
     var instants = _flatten(chase, scenes, banks);
@@ -269,7 +300,16 @@ class ChasePlayer {
       // to whichever layer wants them, instead of staying parked here.
       final keep = <String, Set<int>>{};
       for (final instant in instants) {
-        for (final entry in instant.scene.fixtureValues.entries) {
+        final instantFx = instant.fx;
+        if (instantFx != null) {
+          for (final head in movementHeads(instantFx, patchedFixtures, liveGroups?.call() ?? const [])) {
+            final channels = keep.putIfAbsent(head.fixture.universeId, () => <int>{});
+            for (final offset in head.offsets) {
+              channels.add(head.fixture.startChannel + offset);
+            }
+          }
+        }
+        for (final entry in instant.scene?.fixtureValues.entries ?? const <MapEntry<String, Map<int, int>>>[]) {
           final fixture = patchedFixtures.where((f) => f.id == entry.key).firstOrNull;
           if (fixture == null) continue;
           final channels = keep.putIfAbsent(fixture.universeId, () => <int>{});
@@ -314,8 +354,24 @@ class ChasePlayer {
       if (!useBeat) stepIsOffBeat = false;
       final rate = instant.isFlash ? BeatRate.flash : (liveBeatRate?.call() ?? beatRate);
       onStep?.call(_index);
+      if (instant.fx != null) {
+        await _runFx(
+          instant,
+          service: service,
+          patchedFixtures: patchedFixtures,
+          universes: universes,
+          generation: myGeneration,
+          beatStream: beatStream,
+          liveBanks: liveBanks,
+          liveStage: liveStage,
+          liveGroups: liveGroups,
+        );
+        if (!_isCurrent(myGeneration)) break;
+        _advance(instants.length, chase.direction);
+        continue;
+      }
       await _crossfadeTo(
-        instant.scene,
+        instant.scene!,
         // Asked per step rather than baked in at play() time, so auto-fade
         // can track the tempo without restarting the chase — restarting is
         // what used to make a beat-synced bank stutter. Flash overrides
@@ -404,6 +460,103 @@ class ChasePlayer {
     safetyCheck.cancel();
     await subscription.cancel();
     return beatAt;
+  }
+
+  /// Where the movement path has got to. Kept across steps and restarts of
+  /// the player, so one FX step flows into the next (and a Smart Program
+  /// changing zone doesn't throw the heads back to the start of a lap).
+  final _fxClock = MovementClock();
+  static const _fxTick = Duration(milliseconds: 25);
+
+  /// Runs a Movement FX step: writes the heads' pan/tilt every [_fxTick]
+  /// for the step's hold (forever when it is zero), after gliding onto the
+  /// path from wherever the heads are over the step's fade. Only the pan/tilt
+  /// channels are touched, so the colour layers on other lanes carry on.
+  Future<void> _runFx(
+    _Instant instant, {
+    required ArtNetService service,
+    required List<PatchedFixture> patchedFixtures,
+    required List<UniverseConfig> universes,
+    required int generation,
+    Stream<DateTime>? beatStream,
+    List<Bank> Function()? liveBanks,
+    StagePlan Function()? liveStage,
+    List<FixtureGroup> Function()? liveGroups,
+  }) async {
+    var fx = instant.fx!;
+    if (instant.restartFx) _fxClock.phase = 0;
+    List<MovementHead> headsFor(MovementFx effect) =>
+        movementHeads(effect, patchedFixtures, liveGroups?.call() ?? const []);
+    var heads = headsFor(fx);
+    final universeOf = {for (final universe in universes) universe.id: universe};
+
+    int read(MovementHead head, UniverseConfig universe, int offset) =>
+        service.getChannelValue(universe, head.fixture.startChannel + offset);
+    PanTilt current(MovementHead head, UniverseConfig universe) => PanTilt.fromChannels(
+      pan: read(head, universe, head.panOffset),
+      panFine: head.panFineOffset == null ? 0 : read(head, universe, head.panFineOffset!),
+      tilt: read(head, universe, head.tiltOffset),
+      tiltFine: head.tiltFineOffset == null ? 0 : read(head, universe, head.tiltFineOffset!),
+    );
+
+    DateTime? lastBeat;
+    final beatSub = beatStream?.listen((at) {
+      final gap = lastBeat == null ? null : at.difference(lastBeat!);
+      lastBeat = at;
+      _fxClock.onBeat(fx, interval: gap);
+    });
+
+    final hold = instant.hold <= Duration.zero ? null : (instant.hold < _minStepDuration ? _minStepDuration : instant.hold);
+    final glideUs = instant.fade.inMicroseconds;
+    final from = <String, PanTilt>{};
+    var previous = <String, PanTilt>{};
+    final clock = Stopwatch()..start();
+    var last = Duration.zero;
+    try {
+      while (_isCurrent(generation)) {
+        final now = clock.elapsed;
+        if (hold != null && now >= hold) break;
+
+        final bankId = instant.bankId;
+        if (bankId != null && liveBanks != null) {
+          final edited = liveBanks().where((b) => b.id == bankId).firstOrNull?.fx;
+          if (edited != null && edited != fx) {
+            fx = edited;
+            heads = headsFor(fx);
+          }
+        }
+
+        _fxClock.tick(now - last, fx);
+        last = now;
+        final frame = movementFrame(fx, heads, _fxClock.phase, liveStage?.call() ?? const StagePlan(), previous: previous);
+        final glide = glideUs <= 0 ? 1.0 : (now.inMicroseconds / glideUs).clamp(0.0, 1.0);
+        final eased = glide * glide * (3 - 2 * glide);
+
+        final touched = <UniverseConfig>{};
+        final written = <String, PanTilt>{};
+        for (final head in heads) {
+          final universe = universeOf[head.fixture.universeId];
+          final target = frame[head.fixture.id];
+          if (universe == null || target == null) continue;
+          final start = from.putIfAbsent(head.fixture.id, () => current(head, universe));
+          final position = lerpPanTilt(start, target, eased);
+          written[head.fixture.id] = position;
+          final base = head.fixture.startChannel;
+          _write(service, universe, base + head.panOffset, position.panCoarse);
+          if (head.panFineOffset != null) _write(service, universe, base + head.panFineOffset!, position.panFine);
+          _write(service, universe, base + head.tiltOffset, position.tiltCoarse);
+          if (head.tiltFineOffset != null) _write(service, universe, base + head.tiltFineOffset!, position.tiltFine);
+          touched.add(universe);
+        }
+        previous = written;
+        for (final universe in touched) {
+          service.flush(universe);
+        }
+        await Future<void>.delayed(_fxTick);
+      }
+    } finally {
+      await beatSub?.cancel();
+    }
   }
 
   Future<void> _crossfadeTo(

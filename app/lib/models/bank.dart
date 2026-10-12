@@ -1,3 +1,5 @@
+import 'movement_fx.dart';
+
 /// One bank step's own Hold/Fade, set on that slot — wins over the bank's
 /// own timing and the dock's, wherever the bank plays.
 class SlotTiming {
@@ -61,6 +63,11 @@ class Bank {
   /// shorter). Null for a step that follows the bank — see [timingAt].
   final List<SlotTiming?> slotTimings;
 
+  /// Set on a Movement FX bank: a live moving-head path instead of scene
+  /// slots (which such a bank leaves empty). Played by the chase player, so
+  /// chases and Smart Programs use it like any other bank.
+  final MovementFx? fx;
+
   const Bank({
     required this.id,
     required this.name,
@@ -71,7 +78,10 @@ class Bank {
     this.holdMs = 1200,
     this.fadeMs = 300,
     this.slotTimings = const [],
+    this.fx,
   });
+
+  bool get isMovementFx => fx != null;
 
   Duration get hold => Duration(milliseconds: holdMs);
   Duration get fade => Duration(milliseconds: fadeMs);
@@ -90,6 +100,7 @@ class Bank {
     int? holdMs,
     int? fadeMs,
     List<SlotTiming?>? slotTimings,
+    MovementFx? fx,
   }) {
     return Bank(
       id: id,
@@ -101,6 +112,7 @@ class Bank {
       holdMs: holdMs ?? this.holdMs,
       fadeMs: fadeMs ?? this.fadeMs,
       slotTimings: slotTimings ?? this.slotTimings,
+      fx: fx ?? this.fx,
     );
   }
 
@@ -125,6 +137,7 @@ class Bank {
     'holdMs': holdMs,
     'fadeMs': fadeMs,
     if (hasStepTimings) 'slotTimings': [for (final t in slotTimings) t?.toJson()],
+    if (fx != null) 'fx': fx!.toJson(),
   };
 
   factory Bank.fromJson(Map<String, dynamic> json) {
@@ -138,6 +151,7 @@ class Bank {
       holdMs: json['holdMs'] as int? ?? 1200,
       fadeMs: json['fadeMs'] as int? ?? 300,
       slotTimings: [for (final t in json['slotTimings'] as List? ?? const []) SlotTiming.fromJson(t)],
+      fx: MovementFx.fromJson(json['fx']),
     );
   }
 }

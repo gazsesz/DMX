@@ -8,6 +8,8 @@ import '../models/layer.dart';
 import '../models/smart_program.dart';
 import 'artnet_providers.dart';
 import 'bank_providers.dart';
+import 'fixture_group_providers.dart';
+import 'stage_providers.dart';
 import 'chase_providers.dart';
 import 'dimmer_dropout_providers.dart';
 import 'fixture_providers.dart';
@@ -77,6 +79,9 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
     // Read lazily: the dropout controller only exists once something asked
     // for it, and a provider change can't happen while this is being built.
     setDropout: (settings) => ref.read(dimmerDropoutProvider.notifier).setProgramOverride(settings),
+    liveStage: () => ref.read(stagePlanProvider),
+    liveGroups: () => ref.read(fixtureGroupsProvider),
+    liveBanks: () => ref.read(banksProvider),
   );
   ref.onDispose(player.dispose);
   return player;
@@ -302,6 +307,8 @@ Future<List<String>> startLayeredChase(
       liveFlashLength: () => read(flashLengthProvider),
       liveBanks: () => read(banksProvider),
       liveScenes: () => read(scenesProvider),
+      liveStage: () => read(stagePlanProvider),
+      liveGroups: () => read(fixtureGroupsProvider),
       liveBeatSync: switch (mode) {
         LaneTiming.free => () => false,
         LaneTiming.onBeat => () => read(activeBeatSourceProvider).isListening,
@@ -470,7 +477,8 @@ Chase bankRunChase(ReadProvider read, Bank bank, {required String layerId}) {
     steps: [
       ChaseStep(
         bankId: bank.id,
-        hold: bank.ownTiming ? bank.hold : tempo.hold,
+        // A movement path runs until stopped; zero hold means just that.
+        hold: bank.isMovementFx ? Duration.zero : (bank.ownTiming ? bank.hold : tempo.hold),
         fade: bank.ownTiming ? bank.fade : tempo.fade,
       ),
     ],
@@ -507,6 +515,8 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
     liveFlashLength: () => read(flashLengthProvider),
     liveBanks: () => read(banksProvider),
     liveScenes: () => read(scenesProvider),
+    liveStage: () => read(stagePlanProvider),
+    liveGroups: () => read(fixtureGroupsProvider),
     // Auto-fade is the dock's; a bank keeping its own timing keeps its own
     // fade too.
     fadeOverride: bank.ownTiming

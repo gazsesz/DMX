@@ -2,10 +2,12 @@ import 'dart:async';
 
 import '../../models/bank.dart';
 import '../../models/chase.dart';
+import '../../models/fixture_group.dart';
 import '../../models/layer.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
 import '../../models/smart_program.dart';
+import '../../models/stage_plan.dart';
 import '../../models/universe_config.dart';
 import '../artnet/artnet_service.dart';
 import '../audio/beat_source.dart';
@@ -65,6 +67,11 @@ class SmartProgramPlayer {
   /// lets go of it — see [DimmerDropoutController.setProgramOverride].
   final void Function(DropoutSettings?) setDropout;
 
+  /// For Movement FX banks a zone plays — see [ChasePlayer.play].
+  final StagePlan Function()? liveStage;
+  final List<FixtureGroup> Function()? liveGroups;
+  final List<Bank> Function()? liveBanks;
+
   SmartProgramPlayer({
     required this.playerFor,
     required this.beatService,
@@ -75,6 +82,9 @@ class SmartProgramPlayer {
     bool Function()? isAutoFadeOn,
     void Function(bool)? setAutoFade,
     void Function(DropoutSettings?)? setDropout,
+    this.liveStage,
+    this.liveGroups,
+    this.liveBanks,
   })  : setDropout = setDropout ?? ((_) {}),
         beatEvents = beatEvents ?? beatService.beatEvents,
         beatSyncEnabled = beatSyncEnabled ?? (() => false),
@@ -516,6 +526,9 @@ class SmartProgramPlayer {
                 : beatSyncEnabled,
         liveBeatAvailable: free ? () => false : () => beatService.isListening,
         claim: false,
+        liveStage: liveStage,
+        liveGroups: liveGroups,
+        liveBanks: liveBanks,
         onStep: (_) {},
       );
     }
@@ -551,7 +564,7 @@ class SmartProgramPlayer {
         steps: [
           ChaseStep(
             bankId: target.id,
-            hold: free && bank.ownTiming ? bank.hold : _zoneHold(program, zone),
+            hold: bank.isMovementFx ? Duration.zero : (free && bank.ownTiming ? bank.hold : _zoneHold(program, zone)),
             fade: free && bank.ownTiming ? bank.fade : fade,
           ),
         ],
