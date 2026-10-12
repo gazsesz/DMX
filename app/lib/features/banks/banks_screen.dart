@@ -940,12 +940,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
                     ActionChip(
+                    backgroundColor: AppColors.accent2.withValues(alpha: 0.16),
+                    side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.list, size: 16, color: AppColors.accent2),
                       label: Text('All banks (${banks.length})'),
                       tooltip: 'Find a bank by name',
                       onPressed: () => _showAllBanks(banks, selected.id),
                     ),
                     ActionChip(
+                    backgroundColor: AppColors.accent2.withValues(alpha: 0.16),
+                    side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.add, size: 16),
                       label: const Text('New'),
                       onPressed: () {
@@ -954,12 +958,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       },
                     ),
                     ActionChip(
+                    backgroundColor: AppColors.accent2.withValues(alpha: 0.16),
+                    side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.flash_on, size: 16, color: AppColors.accent),
                       label: const Text('Beat Flash'),
                       tooltip: 'Every lamp, full, on every beat',
                       onPressed: _addBeatFlashBank,
                     ),
                     ActionChip(
+                    backgroundColor: AppColors.accent2.withValues(alpha: 0.16),
+                    side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.open_with, size: 16, color: AppColors.accent2),
                       label: const Text('Movement FX'),
                       tooltip: 'Circle, swim, sweep… for the moving heads — set by shape and speed, not by steps',
