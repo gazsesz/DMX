@@ -383,6 +383,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       (MovementShape.tiltSweep, Icons.unfold_more, 'Up and down'),
       (MovementShape.square, Icons.crop_square, 'Round the corners of a square'),
       (MovementShape.diamond, Icons.diamond_outlined, 'Round the corners of a diamond'),
+      (MovementShape.random, Icons.casino_outlined, 'Wanders between random spots'),
+      (MovementShape.randomJump, Icons.shuffle, 'Jumps to a new random spot on the beat'),
+      (MovementShape.hold, Icons.gps_fixed, 'Stays at the centre — move it with the pad'),
     ];
     final shape = await showModalBottomSheet<MovementShape>(
       context: context,

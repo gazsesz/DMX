@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/movement/movement_engine.dart';
@@ -59,7 +60,10 @@ class MovementFxEditor extends ConsumerWidget {
             ],
           ),
           const SizedBox(height: 8),
-          SizedBox(height: 110, child: _PathPreview(fx: fx)),
+          SizedBox(
+            height: 130,
+            child: _PathPreview(fx: fx, heads: movers.isEmpty ? 3 : math.min(movers.length, 6)),
+          ),
           const SizedBox(height: 8),
           _label('Speed'),
           SwitchListTile(
@@ -217,6 +221,20 @@ class MovementFxEditor extends ConsumerWidget {
               fx.copyWith(rotationDeg: (v * 360 - 180).roundToDouble()),
             ),
           ),
+          if (fx.space == MovementSpace.panTilt)
+            _slider(
+              'Fan',
+              fx.fanPanDeg / 90,
+              fx.fanPanDeg == 0 ? 'off' : '${fx.fanPanDeg.round()}° per head',
+              (v) => update(fx.copyWith(fanPanDeg: (v * 90).roundToDouble())),
+            )
+          else
+            _slider(
+              'Fan',
+              fx.fanXM / 5,
+              fx.fanXM == 0 ? 'off' : '${fx.fanXM.toStringAsFixed(1)} m per head',
+              (v) => update(fx.copyWith(fanXM: double.parse((v * 5).toStringAsFixed(1)))),
+            ),
           const SizedBox(height: 4),
           _label('Look'),
           _LookSection(fx: fx, banks: ref.watch(banksProvider), onChanged: update),
@@ -337,79 +355,125 @@ class MovementFxEditor extends ConsumerWidget {
   }
 }
 
-/// The shape as drawn, sized and rotated as the effect has it — the arrow
-/// marks which way it runs.
-class _PathPreview extends StatelessWidget {
+/// The path as the heads will draw it, live: one dot per head (up to six)
+/// running round at the effect's own speed, with the wave, fan, mirror,
+/// direction and rotation applied the way the player applies them. Beat-locked
+/// effects are shown at 120 BPM.
+class _PathPreview extends StatefulWidget {
   final MovementFx fx;
+  final int heads;
 
-  const _PathPreview({required this.fx});
+  const _PathPreview({required this.fx, required this.heads});
 
   @override
-  Widget build(BuildContext context) =>
-      CustomPaint(painter: _PathPainter(fx), size: Size.infinite);
+  State<_PathPreview> createState() => _PathPreviewState();
 }
 
-class _PathPainter extends CustomPainter {
-  final MovementFx fx;
-
-  _PathPainter(this.fx);
+class _PathPreviewState extends State<_PathPreview> with SingleTickerProviderStateMixin {
+  late final Ticker _ticker;
+  final _seconds = ValueNotifier<double>(0);
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final frame = Paint()
-      ..color = AppColors.textFaint.withValues(alpha: 0.25)
-      ..style = PaintingStyle.stroke;
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-      frame,
-    );
-
-    // Scale the drawing so the path fills the box whatever its size.
-    final sx = fx.space == MovementSpace.stage ? fx.sizeXM : fx.sizePanDeg;
-    final sy = fx.space == MovementSpace.stage ? fx.sizeYM : fx.sizeTiltDeg;
-    final r = fx.rotationDeg * math.pi / 180;
-    Offset point(double phase) {
-      final (x, y) = shapeAt(fx.shape, fx.reverse ? -phase : phase);
-      final dx = x * sx;
-      final dy = y * sy;
-      return Offset(
-        dx * math.cos(r) - dy * math.sin(r),
-        dx * math.sin(r) + dy * math.cos(r),
-      );
-    }
-
-    const steps = 120;
-    final points = [for (var i = 0; i <= steps; i++) point(i / steps)];
-    final extent = points.fold<double>(
-      1e-6,
-      (m, p) => math.max(m, math.max(p.dx.abs(), p.dy.abs())),
-    );
-    final scale = (math.min(size.width, size.height) / 2 - 10) / extent;
-    final centre = size.center(Offset.zero);
-    Offset toCanvas(Offset p) => centre + Offset(p.dx * scale, p.dy * scale);
-
-    final path = Path()
-      ..moveTo(toCanvas(points.first).dx, toCanvas(points.first).dy);
-    for (final p in points.skip(1)) {
-      final c = toCanvas(p);
-      path.lineTo(c.dx, c.dy);
-    }
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = AppColors.accent2
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
-    );
-    canvas.drawCircle(
-      toCanvas(points.first),
-      4,
-      Paint()..color = AppColors.accent,
-    );
+  void initState() {
+    super.initState();
+    _ticker = createTicker((elapsed) => _seconds.value = elapsed.inMicroseconds / 1e6)..start();
   }
 
   @override
-  bool shouldRepaint(_PathPainter old) => old.fx != fx;
+  void dispose() {
+    _ticker.dispose();
+    _seconds.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => CustomPaint(
+    painter: _PathPainter(widget.fx, widget.heads, _seconds),
+    size: Size.infinite,
+  );
+}
+
+const _headColors = [
+  AppColors.accent,
+  AppColors.accent2,
+  Color(0xFF22C55E),
+  Color(0xFFA78BFA),
+  Color(0xFFF472B6),
+  Color(0xFF60A5FA),
+];
+
+class _PathPainter extends CustomPainter {
+  final MovementFx fx;
+  final int heads;
+  final ValueNotifier<double> seconds;
+
+  _PathPainter(this.fx, this.heads, this.seconds) : super(repaint: seconds);
+
+  /// Where the effect is in its lap [t] seconds in.
+  double _phase(double t) {
+    final lap = fx.beatLocked ? fx.beats * 0.5 : fx.periodSec;
+    return lap <= 0 ? 0 : (t / lap) % 1.0;
+  }
+
+  Offset _at(int head, double phase) {
+    final (x, y) = movementOffset(fx, head, heads, phase, rightOfCentre: head >= heads / 2);
+    return Offset(x, y);
+  }
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+      Paint()
+        ..color = AppColors.textFaint.withValues(alpha: 0.25)
+        ..style = PaintingStyle.stroke,
+    );
+
+    // Each head's whole lap, for the scale and the faint track.
+    const steps = 120;
+    final tracks = [
+      for (var h = 0; h < heads; h++) [for (var i = 0; i <= steps; i++) _at(h, i / steps)],
+    ];
+    final points = tracks.expand((t) => t);
+    final extentX = points.fold<double>(1e-6, (m, p) => math.max(m, p.dx.abs()));
+    final extentY = points.fold<double>(1e-6, (m, p) => math.max(m, p.dy.abs()));
+    // One scale for both axes, so a circle stays round, as large as the box allows.
+    final scale = math.min((size.width / 2 - 12) / extentX, (size.height / 2 - 12) / extentY);
+    final centre = size.center(Offset.zero);
+    Offset toCanvas(Offset p) => centre + Offset(p.dx * scale, p.dy * scale);
+
+    // A fan or a wide path is wider than tall; use the whole box.
+    for (var h = 0; h < heads; h++) {
+      final color = _headColors[h % _headColors.length];
+      final path = Path();
+      for (var i = 0; i < tracks[h].length; i++) {
+        final c = toCanvas(tracks[h][i]);
+        i == 0 ? path.moveTo(c.dx, c.dy) : path.lineTo(c.dx, c.dy);
+      }
+      canvas.drawPath(
+        path,
+        Paint()
+          ..color = color.withValues(alpha: 0.28)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.5,
+      );
+    }
+
+    final phase = _phase(seconds.value);
+    final lapSeconds = fx.beatLocked ? fx.beats * 0.5 : fx.periodSec;
+    for (var h = 0; h < heads; h++) {
+      final color = _headColors[h % _headColors.length];
+      // A short tail, so the direction and speed read at a glance.
+      for (var k = 6; k >= 0; k--) {
+        final back = lapSeconds <= 0 ? 0.0 : k * 0.04 / lapSeconds;
+        final p = toCanvas(_at(h, (phase - (fx.reverse ? -back : back)) % 1.0));
+        canvas.drawCircle(p, k == 0 ? 5 : 4.0 - k * 0.45, Paint()..color = color.withValues(alpha: k == 0 ? 1 : 0.5 - k * 0.06));
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_PathPainter old) => old.fx != fx || old.heads != heads;
 }
 
 /// The scenes (colours, gobo, dimmer…) that play alongside the path, picked

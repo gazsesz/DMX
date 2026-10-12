@@ -28,7 +28,17 @@ enum MovementShape {
   square,
 
   /// Round the four corners of a diamond.
-  diamond;
+  diamond,
+
+  /// Wanders smoothly between random spots, a new set for every head that
+  /// has its own place in the wave.
+  random,
+
+  /// Jumps from random spot to random spot, holding each for a while.
+  randomJump,
+
+  /// Stays put at the centre of the path (size does nothing).
+  hold;
 
   String get label => switch (this) {
     MovementShape.circle => 'Circle',
@@ -40,6 +50,9 @@ enum MovementShape {
     MovementShape.lightRider => 'Light rider',
     MovementShape.square => 'Square',
     MovementShape.diamond => 'Diamond',
+    MovementShape.random => 'Random',
+    MovementShape.randomJump => 'Random jumps',
+    MovementShape.hold => 'Hold',
   };
 
   static MovementShape parse(dynamic name) =>
@@ -107,6 +120,12 @@ class MovementFx {
   /// Heads right of the stage centre swing the opposite way in pan.
   final bool mirror;
 
+  /// Spreads the heads out round the path: each head is this much further
+  /// along than the one before, centred on the group — degrees of pan in
+  /// pan/tilt space, metres across the stage in stage space.
+  final double fanPanDeg;
+  final double fanXM;
+
   /// Who moves. Both empty means every head with pan and tilt.
   final Set<String> groupIds;
   final Set<String> fixtureIds;
@@ -142,6 +161,8 @@ class MovementFx {
     this.reverse = false,
     this.phaseSpread = 0,
     this.mirror = false,
+    this.fanPanDeg = 0,
+    this.fanXM = 0,
     this.groupIds = const {},
     this.fixtureIds = const {},
     this.lookBankId,
@@ -155,6 +176,9 @@ class MovementFx {
     MovementShape.circle => const MovementFx(shape: MovementShape.circle, sizePanDeg: 35, sizeTiltDeg: 35),
     MovementShape.swim => const MovementFx(shape: MovementShape.swim, periodSec: 6, phaseSpread: 0.5),
     MovementShape.float => const MovementFx(shape: MovementShape.float, periodSec: 12, phaseSpread: 1),
+    MovementShape.random => const MovementFx(shape: MovementShape.random, periodSec: 16, phaseSpread: 1),
+    MovementShape.randomJump => const MovementFx(shape: MovementShape.randomJump, beatLocked: true, beats: 4, phaseSpread: 1),
+    MovementShape.hold => const MovementFx(shape: MovementShape.hold, sizePanDeg: 0, sizeTiltDeg: 0),
     MovementShape.lightRider => const MovementFx(
       shape: MovementShape.lightRider,
       sizePanDeg: 60,
@@ -182,6 +206,8 @@ class MovementFx {
     bool? reverse,
     double? phaseSpread,
     bool? mirror,
+    double? fanPanDeg,
+    double? fanXM,
     Set<String>? groupIds,
     Set<String>? fixtureIds,
     String? lookBankId,
@@ -207,6 +233,8 @@ class MovementFx {
       reverse: reverse ?? this.reverse,
       phaseSpread: phaseSpread ?? this.phaseSpread,
       mirror: mirror ?? this.mirror,
+      fanPanDeg: fanPanDeg ?? this.fanPanDeg,
+      fanXM: fanXM ?? this.fanXM,
       groupIds: groupIds ?? this.groupIds,
       fixtureIds: fixtureIds ?? this.fixtureIds,
       lookBankId: clearLook ? null : (lookBankId ?? this.lookBankId),
@@ -233,6 +261,8 @@ class MovementFx {
     'reverse': reverse,
     'phaseSpread': phaseSpread,
     'mirror': mirror,
+    if (fanPanDeg != 0) 'fanPanDeg': fanPanDeg,
+    if (fanXM != 0) 'fanXM': fanXM,
     if (groupIds.isNotEmpty) 'groupIds': groupIds.toList(),
     if (fixtureIds.isNotEmpty) 'fixtureIds': fixtureIds.toList(),
     if (lookBankId != null) 'lookBankId': lookBankId,
@@ -263,6 +293,8 @@ class MovementFx {
       reverse: json['reverse'] == true,
       phaseSpread: number('phaseSpread', 0, 0, 1),
       mirror: json['mirror'] == true,
+      fanPanDeg: number('fanPanDeg', 0, 0, 90),
+      fanXM: number('fanXM', 0, 0, 5),
       groupIds: ids('groupIds'),
       fixtureIds: ids('fixtureIds'),
       lookBankId: json['lookBankId'] as String?,

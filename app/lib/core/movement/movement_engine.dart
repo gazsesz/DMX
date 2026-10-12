@@ -10,8 +10,9 @@ import '../positions/aim.dart';
 import '../positions/group_positions.dart';
 
 /// The raw path at [phase] (0..1 of one lap), each axis in -1..1 — before
-/// size, rotation and fan are applied.
-(double, double) shapeAt(MovementShape shape, double phase) {
+/// size, rotation and fan are applied. [seed] picks the spots the random
+/// shapes wander between; the other shapes ignore it.
+(double, double) shapeAt(MovementShape shape, double phase, {int seed = 0}) {
   final t = 2 * math.pi * phase;
   switch (shape) {
     case MovementShape.circle:
@@ -34,7 +35,45 @@ import '../positions/group_positions.dart';
       return _polygon(const [(-1, -1), (1, -1), (1, 1), (-1, 1)], phase);
     case MovementShape.diamond:
       return _polygon(const [(0, -1), (1, 0), (0, 1), (-1, 0)], phase);
+    case MovementShape.random:
+      return _randomWander(phase, seed, jump: false);
+    case MovementShape.randomJump:
+      return _randomWander(phase, seed, jump: true);
+    case MovementShape.hold:
+      return (0, 0);
   }
+}
+
+/// Spots a lap visits in the random shapes. The last one is the first again,
+/// so the lap closes.
+const _randomSpots = 8;
+
+/// A fixed "random" spot in -0.9..0.9 on each axis for spot [index] of the
+/// head with [seed] — the same every lap, so the path is repeatable.
+(double, double) _spot(int index, int seed) {
+  int mix(int v) {
+    var h = (v * 0x45D9F3B) & 0x7FFFFFFF;
+    h = ((h >> 16) ^ h) * 0x45D9F3B & 0x7FFFFFFF;
+    return ((h >> 16) ^ h) & 0xFFFF;
+  }
+
+  final i = index % _randomSpots;
+  final x = mix(i * 2 + 1 + seed * 977) / 0xFFFF * 2 - 1;
+  final y = mix(i * 2 + 2 + seed * 977) / 0xFFFF * 2 - 1;
+  return (x * 0.9, y * 0.9);
+}
+
+(double, double) _randomWander(double phase, int seed, {required bool jump}) {
+  final p = (phase - phase.floorToDouble()) * _randomSpots;
+  final index = p.floor();
+  var f = p - index;
+  final a = _spot(index, seed);
+  final b = _spot(index + 1, seed);
+  // Smooth: ease between spots the whole way. Jump: make the move in the
+  // first fifth of the step and sit still for the rest.
+  f = jump ? ((f / 0.2).clamp(0.0, 1.0)) : f;
+  final e = f * f * (3 - 2 * f);
+  return (a.$1 + (b.$1 - a.$1) * e, a.$2 + (b.$2 - a.$2) * e);
 }
 
 /// -1 → 1 → -1 at a constant rate, starting at 0 going up.
@@ -140,6 +179,36 @@ List<MovementHead> movementHeads(MovementFx fx, Iterable<PatchedFixture> fixture
   return heads;
 }
 
+/// Where head [index] of [count] is [phase] of the way round, as an offset
+/// from the middle of the path: degrees of pan/tilt in pan/tilt space,
+/// metres across and along the stage in stage space. Size, rotation, wave,
+/// mirror, direction and fan are all in it.
+///
+/// This is the one place those are worked out, so what the editor's preview
+/// draws is what the heads do. [rightOfCentre] is for the mirror option.
+(double, double) movementOffset(
+  MovementFx fx,
+  int index,
+  int count,
+  double phase, {
+  bool rightOfCentre = false,
+}) {
+  var headPhase = phase + (count > 1 ? index / count * fx.phaseSpread : 0);
+  if (fx.reverse) headPhase = -headPhase;
+  // Heads on a wave each get their own spots when the shape is random.
+  final (rawX, rawY) = shapeAt(fx.shape, headPhase, seed: fx.phaseSpread > 0 ? index : 0);
+  final x = fx.mirror && rightOfCentre ? -rawX : rawX;
+  final stage = fx.space == MovementSpace.stage;
+  final dx = x * (stage ? fx.sizeXM : fx.sizePanDeg);
+  final dy = rawY * (stage ? fx.sizeYM : fx.sizeTiltDeg);
+  final rotation = fx.rotationDeg * math.pi / 180;
+  final fan = (index - (count - 1) / 2) * (stage ? fx.fanXM : fx.fanPanDeg);
+  return (
+    dx * math.cos(rotation) - dy * math.sin(rotation) + fan,
+    dx * math.sin(rotation) + dy * math.cos(rotation),
+  );
+}
+
 /// Every head's pan/tilt at the lap position [phase].
 ///
 /// [previous] is where each head is now (by fixture id), which stage-space
@@ -153,38 +222,26 @@ Map<String, PanTilt> movementFrame(
 }) {
   final result = <String, PanTilt>{};
   final n = heads.length;
-  final rotation = fx.rotationDeg * math.pi / 180;
-  final cosR = math.cos(rotation);
-  final sinR = math.sin(rotation);
   for (var i = 0; i < n; i++) {
     final fixture = heads[i].fixture;
-    var headPhase = phase + (n > 1 ? i / n * fx.phaseSpread : 0);
-    if (fx.reverse) headPhase = -headPhase;
-    final (rawX, rawY) = shapeAt(fx.shape, headPhase);
-    var x = rawX;
-    final y = rawY;
-    if (fx.mirror && fixture.layoutX > 0.5) x = -x;
+    final (dx, dy) = movementOffset(fx, i, n, phase, rightOfCentre: fixture.layoutX > 0.5);
 
     if (fx.space == MovementSpace.stage) {
-      final dx = x * fx.sizeXM;
-      final dy = y * fx.sizeYM;
       final aimed = aimAt(
         aimRigFor(fixture, stage),
-        tx: fx.stageCenter.x * stage.widthM + dx * cosR - dy * sinR,
-        ty: fx.stageCenter.y * stage.depthM + dx * sinR + dy * cosR,
+        tx: fx.stageCenter.x * stage.widthM + dx,
+        ty: fx.stageCenter.y * stage.depthM + dy,
         tz: fx.aimHeightM,
         previous: previous[fixture.id] ?? fx.center,
       );
       result[fixture.id] = aimed.position;
     } else {
-      final dx = x * fx.sizePanDeg;
-      final dy = y * fx.sizeTiltDeg;
       final panRange = fixture.profile.panRangeDeg;
       final tiltRange = fixture.profile.tiltRangeDeg;
       final (centerPan, centerTilt) = panTiltToDegrees(fx.center, panRangeDeg: panRange, tiltRangeDeg: tiltRange);
       result[fixture.id] = degreesToPanTilt(
-        centerPan + dx * cosR - dy * sinR,
-        centerTilt + dx * sinR + dy * cosR,
+        centerPan + dx,
+        centerTilt + dy,
         panRangeDeg: panRange,
         tiltRangeDeg: tiltRange,
       );

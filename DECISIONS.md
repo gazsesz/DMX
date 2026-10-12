@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-12 · app verzió: v1.35.0 (branch claude/movement-fx, az 1.32.x-et is tartalmazza)_
+_Utolsó frissítés: 2026-10-12 · app verzió: v1.36.0 (branch claude/movement-fx, az 1.32.x-et is tartalmazza)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -48,3 +48,4 @@ _Utolsó frissítés: 2026-10-12 · app verzió: v1.35.0 (branch claude/movement
 - Nyitott: a régi Generate Program mozgás-effektjeinek kivezetése/átkötése; blackout-kori speed csatorna; valós fejeken tesztelni (Tab S6 Lite, P20 Pro) — a gépen csak unit/widget teszt futott.
 - **Look (v1.34.0):** egy FX-bankhoz opcionálisan jelenet-bank rendelhető (`MovementFx.lookBankId`): szín/gobo/dimmer stb. fut a pálya mellett ugyanazon a rétegen, a pan/tilt-jét a pálya által mozgatott fejeknél eldobjuk. Időzítés: alapból a dock Hold/Fade + Beat Sync (½× kivételével 1 beat = 1 lépés; 2×/Flash itt 1×-ként viselkedik), vagy „Own timing” (saját hold/fade). Külön rétegen futó, csak színes bank továbbra is megy (rétegek függetlenek).
 - **DMX channel map (v1.35.0):** Settings → „DMX channel map”: univerzumonként 32×16-os rács a patch csatornakiosztásával (fixture-ök összefüggő blokkként, átfedés pirosan, első szabad cím, koppintásra a fixture csatornalistája). Csak olvasható nézet, nem szerkeszt patch-et.
+- **Movement FX bővítés (v1.36.0):** új alakok: Random (sima kóborlás), Random jumps (ugrálás, 1/8 lap), Hold (középen marad); új „Fan” paraméter (fok/fej pan/tilt térben, méter/fej stage térben). A fejenkénti eltolás egyetlen függvényben számolódik (`movementOffset`), ezt használja a lejátszó és az **élő előnézet** is (mozgó pontok farokkal, fejenként egy szín, max 6 fej, beat-lock 120 BPM-en mutatva). Light Rider kereke (ikonok alapján, nem megerősítve): hiányzott a dobókocka=Random, célkereszt=Center/Hold, FAN gomb; a belső kerék jelentése ismeretlen.

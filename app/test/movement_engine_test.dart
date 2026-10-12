@@ -255,4 +255,56 @@ void main() {
       expect(fx.sizePanDeg, 270);
     });
   });
+
+  group('random, hold and fan', () {
+    test('random wanders but repeats the same path every lap', () {
+      final a = shapeAt(MovementShape.random, 0.37);
+      final again = shapeAt(MovementShape.random, 1.37);
+      expect(again.$1, closeTo(a.$1, 1e-9));
+      expect(again.$2, closeTo(a.$2, 1e-9));
+      final xs = {for (var i = 0; i < 40; i++) shapeAt(MovementShape.random, i / 40).$1.toStringAsFixed(2)};
+      expect(xs.length, greaterThan(10));
+    });
+
+    test('different seeds visit different spots', () {
+      expect(shapeAt(MovementShape.random, 0.3, seed: 1), isNot(shapeAt(MovementShape.random, 0.3, seed: 2)));
+    });
+
+    test('random jumps sit still for most of each step', () {
+      // Spots change every 1/8 lap; the last 80% of a step is a hold.
+      final held = shapeAt(MovementShape.randomJump, 0.125 * 3 + 0.125 * 0.5);
+      final later = shapeAt(MovementShape.randomJump, 0.125 * 3 + 0.125 * 0.9);
+      expect(later, held);
+    });
+
+    test('hold stays at the centre', () {
+      expect(shapeAt(MovementShape.hold, 0.4), (0.0, 0.0));
+    });
+
+    test('fan spreads the heads round the middle without touching the path', () {
+      const fx = MovementFx(shape: MovementShape.hold, fanPanDeg: 10);
+      expect(movementOffset(fx, 0, 3, 0).$1, closeTo(-10, 1e-9));
+      expect(movementOffset(fx, 1, 3, 0).$1, closeTo(0, 1e-9));
+      expect(movementOffset(fx, 2, 3, 0).$1, closeTo(10, 1e-9));
+      const stage = MovementFx(shape: MovementShape.hold, space: MovementSpace.stage, fanXM: 1.5);
+      expect(movementOffset(stage, 0, 2, 0).$1, closeTo(-0.75, 1e-9));
+    });
+
+    test('a fan on a hold puts real heads that many degrees apart', () {
+      final fixtures = [_fixture('a', _mover, x: 0.2), _fixture('b', _mover, x: 0.8)];
+      final heads = movementHeads(const MovementFx(), fixtures, const []);
+      const fx = MovementFx(shape: MovementShape.hold, fanPanDeg: 20);
+      final frame = movementFrame(fx, heads, 0, const StagePlan());
+      final (panA, _) = panTiltToDegrees(frame['a']!, panRangeDeg: 540, tiltRangeDeg: 270);
+      final (panB, _) = panTiltToDegrees(frame['b']!, panRangeDeg: 540, tiltRangeDeg: 270);
+      expect(panB - panA, closeTo(20, 0.1));
+    });
+
+    test('the new settings survive JSON', () {
+      const fx = MovementFx(shape: MovementShape.randomJump, fanPanDeg: 12, fanXM: 0.5);
+      final back = MovementFx.fromJson(fx.toJson())!;
+      expect(back, fx);
+      expect(back.fanPanDeg, 12);
+    });
+  });
 }
