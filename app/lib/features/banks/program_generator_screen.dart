@@ -34,8 +34,6 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
   // chase wrapping that one bank is something you ask for, not something
   // that should quietly pile up in the Chase list on every generate.
   bool _alsoCreateChase = false;
-  double _size = 1.0;
-  double _fan = 0.0;
   double _shift = 0.0;
   int _strobeGroupSize = 1;
   StrobeDirection _strobeDirection = StrobeDirection.right;
@@ -79,8 +77,6 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
       idGenerator: () => _uuid.v4(),
       namePrefix: _effect.label,
       pattern: _pattern,
-      size: _size,
-      fan: _fan,
       shift: _shift,
       strobeGroupSize: _strobeGroupSize,
       strobeDirection: _strobeDirection,
@@ -217,25 +213,8 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
           ),
           const SizedBox(height: 20),
           const Text(
-            'MOVE FX',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
-          ),
-          const Text(
-            'Beam movement — needs moving heads to show its shape',
+            'Beam movement (circles, sweeps, swim…) now lives in Banks → Movement FX, where it runs live on the heads.',
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final effect in GeneratorEffect.values.where((e) => e.isMove))
-                ChoiceChip(
-                  label: Text(effect.label),
-                  selected: _effect == effect,
-                  onSelected: (_) => setState(() => _effect = effect),
-                ),
-            ],
           ),
           const SizedBox(height: 20),
           if (_isRunningStrobe) ...[
@@ -287,7 +266,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             ),
           ] else ...[
             Text(
-              _effect.isMove ? 'SHAPE' : 'SHAPE (Shift staggers the palette)',
+              'SHAPE (Shift staggers the palette)',
               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
             ),
             const SizedBox(height: 8),
@@ -296,25 +275,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                 padding: const EdgeInsets.fromLTRB(14, 10, 14, 6),
                 child: Column(
                   children: [
-                    if (_effect.isMove) ...[
-                      _shapeSlider(
-                        label: 'Size',
-                        hint: 'How far the beams travel from centre',
-                        value: _size,
-                        onChanged: (v) => setState(() => _size = v),
-                      ),
-                      _shapeSlider(
-                        label: 'Fan',
-                        hint: 'Spreads the rig outward, left to right',
-                        value: _fan,
-                        onChanged: (v) => setState(() => _fan = v),
-                      ),
-                    ],
                     _shapeSlider(
                       label: 'Shift',
-                      hint: _effect.isMove
-                          ? 'Delays each fixture so the move ripples across the rig'
-                          : _effect == GeneratorEffect.rainbowWave
+                      hint: _effect == GeneratorEffect.rainbowWave
                           ? 'How far apart the lamps sit on the colour wheel (0 = the full wheel)'
                           : 'Staggers the palette across the fixtures',
                       value: _shift,
