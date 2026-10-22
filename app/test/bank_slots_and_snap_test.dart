@@ -98,22 +98,12 @@ void main() {
       return last!;
     }
 
-    testWidgets('a snapped jump glides there through in-between values', (tester) async {
+    // A ramp of in-between values (tried in 1.38.0) made the ZQ02021 slower
+    // everywhere, so a snap goes out as the one grid point.
+    testWidgets('a snapped jump is sent in one step', (tester) async {
       final sent = <PanTilt>[];
       final v = await dragTo(tester, PadSnap.quarter, const Offset(0.3, 0.5), sent: sent);
-      expect(sent.length, greaterThan(2));
-      expect(sent.last, v);
-      // Every step heads the same way, never past the grid point.
-      for (var i = 1; i < sent.length; i++) {
-        expect(sent[i].pan, greaterThanOrEqualTo(sent[i - 1].pan));
-        expect(sent[i].pan, lessThanOrEqualTo(v.pan));
-      }
-    });
-
-    testWidgets('free mode sends the touch straight away', (tester) async {
-      final sent = <PanTilt>[];
-      await dragTo(tester, PadSnap.off, const Offset(0.3, 0.5), sent: sent);
-      expect(sent, hasLength(1));
+      expect(sent, [v]);
     });
 
     testWidgets('whole snaps to the 45° lines', (tester) async {

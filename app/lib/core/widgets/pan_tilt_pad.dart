@@ -1,6 +1,5 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 
 import '../../models/pan_tilt.dart';
 import '../theme/app_colors.dart';
@@ -61,11 +60,6 @@ class PanTiltPad extends StatefulWidget {
   /// How much of each axis the fine-mode view spans.
   static const fineFraction = 1 / 16;
 
-  /// How long a snapped jump is spread over. Some cheap heads (the UKING
-  /// ZQ02021) crawl into a lone step change but chase a stream of small ones
-  /// at full speed, so a snap is sent as a quick run of in-between values.
-  static const snapGlide = Duration(milliseconds: 120);
-
   @override
   State<PanTiltPad> createState() => _PanTiltPadState();
 }
@@ -84,56 +78,10 @@ class _PadDragRecognizer extends PanGestureRecognizer {
   String get debugDescription => 'pan/tilt pad drag';
 }
 
-class _PanTiltPadState extends State<PanTiltPad> with SingleTickerProviderStateMixin {
+class _PanTiltPadState extends State<PanTiltPad> {
   Size _size = Size.zero;
   PanTilt? _fineStart;
   Offset _fineAccum = Offset.zero;
-
-  // The snapped jump in flight: from where it started to the grid point.
-  late final Ticker _glide = createTicker(_onGlideTick);
-  PanTilt _glideFrom = const PanTilt(0, 0);
-  PanTilt? _glideTo;
-  PanTilt? _glideAt;
-
-  @override
-  void dispose() {
-    _glide.dispose();
-    super.dispose();
-  }
-
-  /// Sends [target] straight away, or as a glide when snapping.
-  void _emit(PanTilt target) {
-    if (widget.snap == PadSnap.off) {
-      widget.onChanged(target);
-      return;
-    }
-    if (target == _glideTo) return;
-    // A new grid point mid-glide carries on from where the head is now.
-    _glideFrom = _glide.isActive ? (_glideAt ?? widget.value) : widget.value;
-    _glideTo = target;
-    _glide
-      ..stop()
-      ..start();
-  }
-
-  void _onGlideTick(Duration elapsed) {
-    final to = _glideTo;
-    if (to == null) return;
-    final t = elapsed.inMicroseconds / PanTiltPad.snapGlide.inMicroseconds;
-    if (t >= 1) {
-      _glide.stop();
-      _glideAt = null;
-      widget.onChanged(to);
-      return;
-    }
-    final at = PanTilt(
-      (_glideFrom.pan + (to.pan - _glideFrom.pan) * t).round(),
-      (_glideFrom.tilt + (to.tilt - _glideFrom.tilt) * t).round(),
-    );
-    if (at == _glideAt) return;
-    _glideAt = at;
-    widget.onChanged(at);
-  }
 
   /// [v] pulled to the nearest grid line when snapping is on. The grid is
   /// anchored on the centre of travel, the same as the lines the painter draws.
@@ -157,15 +105,13 @@ class _PanTiltPadState extends State<PanTiltPad> with SingleTickerProviderStateM
       _fineStart = widget.value;
       _fineAccum = Offset.zero;
     } else {
-      // A fresh touch always moves, even back to the last grid point.
-      _glideTo = null;
-      _emit(_absoluteAt(details.localPosition));
+      widget.onChanged(_absoluteAt(details.localPosition));
     }
   }
 
   void _onUpdate(DragUpdateDetails details) {
     if (!widget.fine) {
-      _emit(_absoluteAt(details.localPosition));
+      widget.onChanged(_absoluteAt(details.localPosition));
       return;
     }
     final start = _fineStart;
