@@ -89,6 +89,10 @@ class GroupPosition {
   /// Stage mode: beams dragged to a spot of their own.
   final Map<String, StagePoint> aimOverrides;
 
+  /// The XY pad's grid snap as a fraction of a 45° cell (1, 0.5, 0.25),
+  /// or 0 for none — only so reopening the scene snaps the same way.
+  final double snapCell;
+
   static const defaultSpreadM = 1.5;
   static const defaultHandle = StagePoint(0.5, 0.75);
 
@@ -104,11 +108,12 @@ class GroupPosition {
     this.spreadM = defaultSpreadM,
     this.aimHeightM = 0,
     this.aimOverrides = const {},
+    this.snapCell = 0,
   });
 
   /// Nothing beyond a single shared pan/tilt. Such a group needs nothing
   /// saved, and older scenes reopen exactly as before.
-  bool get isPlain => mode == PositionMode.pad && fanPanDeg == 0 && fanTiltDeg == 0 && !mirror && manual.isEmpty;
+  bool get isPlain => mode == PositionMode.pad && fanPanDeg == 0 && fanTiltDeg == 0 && !mirror && manual.isEmpty && snapCell == 0;
 
   GroupPosition copyWith({
     PositionMode? mode,
@@ -122,6 +127,7 @@ class GroupPosition {
     double? spreadM,
     double? aimHeightM,
     Map<String, StagePoint>? aimOverrides,
+    double? snapCell,
   }) {
     return GroupPosition(
       mode: mode ?? this.mode,
@@ -135,6 +141,7 @@ class GroupPosition {
       spreadM: spreadM ?? this.spreadM,
       aimHeightM: aimHeightM ?? this.aimHeightM,
       aimOverrides: aimOverrides ?? this.aimOverrides,
+      snapCell: snapCell ?? this.snapCell,
     );
   }
 
@@ -144,6 +151,7 @@ class GroupPosition {
     if (fanPanDeg != 0) 'fanPanDeg': fanPanDeg,
     if (fanTiltDeg != 0) 'fanTiltDeg': fanTiltDeg,
     if (mirror) 'mirror': true,
+    if (snapCell != 0) 'snapCell': snapCell,
     if (manual.isNotEmpty) 'manual': manual.map((id, p) => MapEntry(id, p.toJson())),
     if (mode == PositionMode.stage) ...{
       'handle': handle.toJson(),
@@ -173,6 +181,7 @@ class GroupPosition {
         (f) => f.name == json['formation'],
         orElse: () => StageFormation.line,
       ),
+      snapCell: number('snapCell', 0).clamp(0.0, 1.0),
       spreadM: number('spreadM', defaultSpreadM).clamp(0.0, 50.0),
       aimHeightM: number('aimHeightM', 0).clamp(0.0, 50.0),
       aimOverrides: {

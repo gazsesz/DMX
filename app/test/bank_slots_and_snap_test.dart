@@ -1,5 +1,6 @@
 import 'package:dmx_controller/core/widgets/pan_tilt_pad.dart';
 import 'package:dmx_controller/models/bank.dart';
+import 'package:dmx_controller/models/group_position.dart';
 import 'package:dmx_controller/models/pan_tilt.dart';
 import 'package:dmx_controller/state/bank_providers.dart';
 import 'package:flutter/material.dart';
@@ -54,8 +55,21 @@ void main() {
     });
   });
 
+  group('GroupPosition snap', () {
+    test('is saved with the scene and read back', () {
+      const position = GroupPosition(snapCell: 0.25);
+      expect(position.isPlain, isFalse);
+      expect(GroupPosition.fromJson(position.toJson()).snapCell, 0.25);
+    });
+
+    test('older scenes without it open with no grid', () {
+      expect(GroupPosition.fromJson(const {'mode': 'pad'}).snapCell, 0);
+      expect(const GroupPosition().isPlain, isTrue);
+    });
+  });
+
   group('PanTiltPad snap', () {
-    Future<PanTilt> dragTo(WidgetTester tester, PadSnap snap, Offset fractionOfPad) async {
+    Future<PanTilt> dragTo(WidgetTester tester, PadSnap snap, Offset fractionOfPad, {List<PanTilt>? sent}) async {
       PanTilt? last;
       await tester.pumpWidget(
         MaterialApp(
@@ -67,7 +81,10 @@ void main() {
                 panRangeDeg: 540,
                 tiltRangeDeg: 270,
                 snap: snap,
-                onChanged: (v) => last = v,
+                onChanged: (v) {
+                  last = v;
+                  sent?.add(v);
+                },
               ),
             ),
           ),
@@ -77,10 +94,27 @@ void main() {
       final at = box.topLeft + Offset(box.width * fractionOfPad.dx, box.height * fractionOfPad.dy);
       final gesture = await tester.startGesture(at);
       await gesture.up();
-      await tester.pump();
+      await tester.pumpAndSettle();
       return last!;
     }
 
+    testWidgets('a snapped jump glides there through in-between values', (tester) async {
+      final sent = <PanTilt>[];
+      final v = await dragTo(tester, PadSnap.quarter, const Offset(0.3, 0.5), sent: sent);
+      expect(sent.length, greaterThan(2));
+      expect(sent.last, v);
+      // Every step heads the same way, never past the grid point.
+      for (var i = 1; i < sent.length; i++) {
+        expect(sent[i].pan, greaterThanOrEqualTo(sent[i - 1].pan));
+        expect(sent[i].pan, lessThanOrEqualTo(v.pan));
+      }
+    });
+
+    testWidgets('free mode sends the touch straight away', (tester) async {
+      final sent = <PanTilt>[];
+      await dragTo(tester, PadSnap.off, const Offset(0.3, 0.5), sent: sent);
+      expect(sent, hasLength(1));
+    });
 
     testWidgets('whole snaps to the 45° lines', (tester) async {
       final v = await dragTo(tester, PadSnap.whole, const Offset(0.30, 0.5));

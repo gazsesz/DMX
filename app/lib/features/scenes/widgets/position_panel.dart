@@ -68,7 +68,11 @@ class PositionPanel extends ConsumerStatefulWidget {
 
 class _PositionPanelState extends ConsumerState<PositionPanel> {
   bool _fine = false;
-  PadSnap _snap = PadSnap.off;
+  /// The pad's grid snap, kept with the group in the scene so it reopens
+  /// the same way.
+  PadSnap get _snap => PadSnap.values.firstWhere((s) => s.cell == widget.position.snapCell, orElse: () => PadSnap.off);
+
+  void _setSnap(PadSnap snap) => widget.onReplace(widget.base, widget.position.copyWith(snapCell: snap.cell));
 
   int get _panRange => widget.fixtures.isEmpty ? 540 : widget.fixtures.first.profile.panRangeDeg;
   int get _tiltRange => widget.fixtures.isEmpty ? 270 : widget.fixtures.first.profile.tiltRangeDeg;
@@ -305,7 +309,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                           snap: snap,
                           onChanged: (v) => setDialogState(() {
                             snap = v;
-                            _snap = v;
+                            _setSnap(v);
                           }),
                         ),
                       ],
@@ -381,7 +385,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                 ),
                 if (!isStage) ...[
                   _CoarseFineToggle(fine: _fine, onChanged: (v) => setState(() => _fine = v)),
-                  if (!_fine) _SnapToggle(snap: _snap, onChanged: (v) => setState(() => _snap = v)),
+                  if (!_fine) _SnapToggle(snap: _snap, onChanged: _setSnap),
                   IconButton(
                     tooltip: 'Full screen',
                     visualDensity: VisualDensity.compact,
