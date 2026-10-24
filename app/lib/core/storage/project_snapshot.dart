@@ -13,6 +13,7 @@ import '../../state/layer_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/smart_program_providers.dart';
+import '../../state/song_show_providers.dart';
 import '../../state/stage_providers.dart';
 
 /// Gathers the whole show's current state into one [ProjectData] snapshot —
@@ -32,6 +33,7 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     chases: ref.read(chasesProvider),
     dashboardTriggers: ref.read(dashboardTriggersProvider),
     smartPrograms: ref.read(smartProgramsProvider),
+    songShows: ref.read(songShowsProvider),
     layers: ref.read(layersProvider),
     stagePlan: ref.read(stagePlanProvider),
     positionPresets: ref.read(positionPresetsProvider),
@@ -97,6 +99,7 @@ void startProject(
       chases: source.chases,
       dashboardTriggers: source.dashboardTriggers,
       smartPrograms: source.smartPrograms,
+      songShows: source.songShows,
       layers: source.layers,
       stagePlan: source.stagePlan,
       positionPresets: source.positionPresets,
@@ -129,6 +132,7 @@ void startProject(
   ref.read(chasesProvider.notifier).loadAll(const []);
   ref.read(dashboardTriggersProvider.notifier).loadAll(const []);
   ref.read(smartProgramsProvider.notifier).loadAll(const []);
+  ref.read(songShowsProvider.notifier).loadAll(const []);
   ref.read(layersProvider.notifier).reset();
   ref.read(dimmerDropoutProvider.notifier).update(const DropoutSettings());
   ref.read(selectedBankIdProvider.notifier).state = null;
@@ -152,6 +156,7 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(chasesProvider.notifier).loadAll(data.chases);
   ref.read(dashboardTriggersProvider.notifier).loadAll(data.dashboardTriggers);
   ref.read(smartProgramsProvider.notifier).loadAll(data.smartPrograms);
+  ref.read(songShowsProvider.notifier).loadAll(data.songShows);
   ref.read(layersProvider.notifier).loadAll(data.layers);
   ref.read(dimmerDropoutProvider.notifier).update(data.dimmerDropout);
   ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;

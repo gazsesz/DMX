@@ -10,6 +10,7 @@ import 'patched_fixture.dart';
 import 'position_preset.dart';
 import 'scene.dart';
 import 'smart_program.dart';
+import 'song_show.dart';
 import 'stage_plan.dart';
 import 'universe_config.dart';
 
@@ -26,6 +27,7 @@ class ProjectData {
   final List<Chase> chases;
   final List<DashboardTriggerRef> dashboardTriggers;
   final List<SmartProgram> smartPrograms;
+  final List<SongShow> songShows;
   final List<Layer> layers;
 
   /// The stage's real size and named aim targets, and the saved mover
@@ -53,6 +55,7 @@ class ProjectData {
     required this.chases,
     this.dashboardTriggers = const [],
     this.smartPrograms = const [],
+    this.songShows = const [],
     this.layers = const [],
     this.stagePlan = const StagePlan(),
     this.positionPresets = const [],
@@ -73,6 +76,7 @@ class ProjectData {
     'chases': chases.map((c) => c.toJson()).toList(),
     'dashboardTriggers': dashboardTriggers.map((t) => t.toJson()).toList(),
     'smartPrograms': smartPrograms.map((p) => p.toJson()).toList(),
+    if (songShows.isNotEmpty) 'songShows': songShows.map((s) => s.toJson()).toList(),
     'layers': layers.map((l) => l.toJson()).toList(),
     'stagePlan': stagePlan.toJson(),
     'positionPresets': positionPresets.map((p) => p.toJson()).toList(),
@@ -107,6 +111,7 @@ class ProjectData {
       smartPrograms: (json['smartPrograms'] as List? ?? [])
           .map((p) => SmartProgram.fromJson(p as Map<String, dynamic>))
           .toList(),
+      songShows: (json['songShows'] as List? ?? []).map((s) => SongShow.fromJson(s as Map<String, dynamic>)).toList(),
       layers: (json['layers'] as List? ?? []).map((l) => Layer.fromJson(l as Map<String, dynamic>)).toList(),
       stagePlan: StagePlan.fromJson(json['stagePlan'] as Map<String, dynamic>?),
       positionPresets: (json['positionPresets'] as List? ?? [])
