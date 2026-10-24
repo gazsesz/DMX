@@ -46,7 +46,8 @@ class RecordingSink implements SongCueSink {
   @override
   void start(SongCue cue) => events.add('start ${cue.target!.id}@${cue.layerId}');
   @override
-  void stopLayer(String layerId) => events.add('stop $layerId');
+  void stopLayer(String layerId, {Duration? blackoutFade}) =>
+      events.add(blackoutFade == null ? 'stop $layerId' : 'blackout $layerId ${blackoutFade.inMilliseconds}');
 }
 
 void main() {

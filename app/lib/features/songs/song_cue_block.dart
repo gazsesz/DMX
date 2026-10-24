@@ -25,6 +25,7 @@ class SongCueBlock extends StatefulWidget {
     required this.muted,
     required this.onTap,
     required this.onMove,
+    required this.isLocked,
     required this.onLongPressStart,
     required this.onLongPressMove,
     required this.onLongPressEnd,
@@ -41,6 +42,9 @@ class SongCueBlock extends StatefulWidget {
   final VoidCallback onTap;
   final void Function(double beat) onMove;
 
+  /// True while two fingers pinch the timeline: a drag then is the pinch.
+  final bool Function() isLocked;
+
   /// A long press on the head, with the finger's position on screen.
   final void Function(Offset global) onLongPressStart;
   final void Function(Offset global) onLongPressMove;
@@ -53,6 +57,7 @@ class SongCueBlock extends StatefulWidget {
 
 class _SongCueBlockState extends State<SongCueBlock> {
   double _dx = 0;
+  bool _pinchedDuringDrag = false;
 
   @override
   Widget build(BuildContext context) {
@@ -88,8 +93,19 @@ class _SongCueBlockState extends State<SongCueBlock> {
               child: GestureDetector(
                 key: ValueKey('cue-head-${cue.id}'),
                 onTap: widget.onTap,
-                onHorizontalDragUpdate: (d) => setState(() => _dx += d.delta.dx),
+                onHorizontalDragUpdate: (d) {
+                  if (widget.isLocked()) {
+                    _pinchedDuringDrag = true;
+                    return;
+                  }
+                  setState(() => _dx += d.delta.dx);
+                },
                 onHorizontalDragEnd: (_) {
+                  if (_pinchedDuringDrag) {
+                    _pinchedDuringDrag = false;
+                    setState(() => _dx = 0);
+                    return;
+                  }
                   final moved = widget.snap.apply(widget.scale.beatAt(widget.scale.x(cue.atBeat) + _dx));
                   setState(() => _dx = 0);
                   if (moved != cue.atBeat) widget.onMove(moved);
@@ -103,15 +119,15 @@ class _SongCueBlockState extends State<SongCueBlock> {
                   alignment: Alignment.centerLeft,
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   decoration: BoxDecoration(
-                    color: isStop ? AppColors.panel2 : widget.color,
+                    color: isStop ? (cue.stopBlackout ? Colors.black : AppColors.panel2) : widget.color,
                     borderRadius: radius,
                     border: Border.all(
-                      color: widget.selected ? Colors.white : (isStop ? AppColors.textFaint : Colors.transparent),
+                      color: widget.selected ? Colors.white : (isStop ? (cue.stopBlackout ? Colors.white54 : AppColors.textFaint) : Colors.transparent),
                       width: widget.selected ? 2 : 1,
                     ),
                   ),
                   child: Text(
-                    isStop ? 'Stop' : widget.label,
+                    widget.label,
                     maxLines: 1,
                     overflow: TextOverflow.clip,
                     style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),

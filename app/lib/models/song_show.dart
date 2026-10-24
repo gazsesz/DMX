@@ -101,6 +101,12 @@ class SongCue {
   /// Set instead of [target] when the cue plays one scene, held as it is.
   final String? sceneId;
 
+  /// For a [SongCueAction.stop]: false keeps the last look on stage as it was
+  /// (the bank's last scene, or the scene), true fades the lights out over
+  /// [stopFadeMs] instead — a blackout ending.
+  final bool stopBlackout;
+  final int stopFadeMs;
+
   const SongCue({
     required this.id,
     required this.atBeat,
@@ -108,7 +114,12 @@ class SongCue {
     this.action = SongCueAction.start,
     this.target,
     this.sceneId,
+    this.stopBlackout = false,
+    this.stopFadeMs = defaultStopFadeMs,
   });
+
+  /// How long a blackout takes unless told otherwise.
+  static const defaultStopFadeMs = 1000;
 
   /// Whether a start cue has anything to start.
   bool get hasTarget => target != null || sceneId != null;
@@ -121,6 +132,8 @@ class SongCue {
     action: action,
     target: target,
     sceneId: sceneId,
+    stopBlackout: stopBlackout,
+    stopFadeMs: stopFadeMs,
   );
 
   /// The same cue starting a bank or chase instead of whatever it started.
@@ -130,8 +143,16 @@ class SongCue {
   /// The same cue starting one scene.
   SongCue startingScene(String scene) => SongCue(id: id, atBeat: atBeat, layerId: layerId, sceneId: scene);
 
-  /// A stop in the place of whatever it was.
-  SongCue asStop() => SongCue(id: id, atBeat: atBeat, layerId: layerId, action: SongCueAction.stop);
+  /// A stop in the place of whatever it was — keeping the last look, or with
+  /// a blackout over [fadeMs].
+  SongCue asStop({bool blackout = false, int fadeMs = defaultStopFadeMs}) => SongCue(
+    id: id,
+    atBeat: atBeat,
+    layerId: layerId,
+    action: SongCueAction.stop,
+    stopBlackout: blackout,
+    stopFadeMs: fadeMs,
+  );
 
   /// A copy under a new [newId], for pasting.
   SongCue duplicatedAs(String newId, {double? atBeat, String? layerId}) => SongCue(
@@ -141,6 +162,8 @@ class SongCue {
     action: action,
     target: target,
     sceneId: sceneId,
+    stopBlackout: stopBlackout,
+    stopFadeMs: stopFadeMs,
   );
 
   Map<String, dynamic> toJson() => {
@@ -152,6 +175,7 @@ class SongCue {
     if (target?.bankId != null) 'bankId': target!.bankId,
     if (target?.chaseLane != null) 'chaseLane': target!.chaseLane,
     if (sceneId != null) 'sceneId': sceneId,
+    if (action == SongCueAction.stop && stopBlackout) ...{'blackout': true, 'fadeMs': stopFadeMs},
   };
 
   factory SongCue.fromJson(Map<String, dynamic> json) => SongCue(
@@ -165,6 +189,8 @@ class SongCue {
       chaseLane: json['chaseLane'] as String?,
     ),
     sceneId: json['sceneId'] as String?,
+    stopBlackout: json['blackout'] == true,
+    stopFadeMs: (json['fadeMs'] as num?)?.toInt() ?? defaultStopFadeMs,
   );
 }
 

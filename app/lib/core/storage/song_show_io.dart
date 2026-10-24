@@ -237,6 +237,8 @@ SongShowImport importSongShow(
       action: cue.action,
       target: mapped,
       sceneId: mappedScene,
+      stopBlackout: cue.stopBlackout,
+      stopFadeMs: cue.stopFadeMs,
     ));
   }
   if (dropped > 0) warnings.add('$dropped cue${dropped == 1 ? '' : 's'} pointed at something missing from the file and were left out.');

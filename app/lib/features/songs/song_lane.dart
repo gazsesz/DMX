@@ -26,6 +26,7 @@ class SongLane extends StatefulWidget {
     this.onTapCue,
     this.onMoveCue,
     this.onResizeCue,
+    this.isPinching,
   });
 
   final SongShow show;
@@ -42,6 +43,9 @@ class SongLane extends StatefulWidget {
 
   /// A cue's end was dragged to a new beat (after a long press on it).
   final void Function(SongCue cue, double endBeat)? onResizeCue;
+
+  /// True while two fingers pinch the timeline: cues ignore the touches.
+  final bool Function()? isPinching;
 
   @override
   State<SongLane> createState() => _SongLaneState();
@@ -60,7 +64,10 @@ class _SongLaneState extends State<SongLane> {
     return _snapped(box.globalToLocal(global).dx);
   }
 
+  bool get _pinching => widget.isPinching?.call() ?? false;
+
   void _startResize(SongCue cue, double beat) {
+    if (_pinching) return;
     if (cue.action == SongCueAction.stop) return;
     HapticFeedback.selectionClick();
     setState(() {
@@ -131,6 +138,7 @@ class _SongLaneState extends State<SongLane> {
             muted: !(widget.show.sectionAt(span.cue.atBeat)?.enabled ?? true),
             onTap: () => widget.onTapCue?.call(span.cue),
             onMove: (beat) => widget.onMoveCue?.call(span.cue, beat),
+            isLocked: () => _pinching,
             onLongPressStart: (global) => _startResize(span.cue, _beatAtGlobal(global)),
             onLongPressMove: (global) => _moveResize(_beatAtGlobal(global)),
             onLongPressEnd: _endResize,

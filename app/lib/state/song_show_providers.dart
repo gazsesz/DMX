@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -81,7 +83,13 @@ class LayerCueSink implements SongCueSink {
     }
   }
   @override
-  void stopLayer(String layerId) => pb.stopLayer(_read, layerId);
+  void stopLayer(String layerId, {Duration? blackoutFade}) {
+    if (blackoutFade == null) {
+      pb.stopLayer(_read, layerId);
+    } else {
+      unawaited(pb.blackoutLayer(_read, layerId, blackoutFade));
+    }
+  }
 }
 
 /// The id of the song show that is playing, if any — for the list and the

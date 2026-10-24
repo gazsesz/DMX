@@ -90,6 +90,8 @@ void main() {
     await tapAtLane(tester, 'lane-tap-$layer1Id', 100); // 100 px / 32 = beat 3.1 -> 3
     await tester.tap(find.byKey(const ValueKey('add-stop-cue')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('stop-mode-ok')));
+    await tester.pumpAndSettle();
     final cue = container.read(songShowsProvider).single.cues.single;
     expect(cue.action, SongCueAction.stop);
     expect(cue.atBeat, 3);
@@ -204,6 +206,8 @@ void cueBlockTests() {
     // A tap well to the right, over the faded tail, still adds a cue.
     await tapAtLane(tester, 'lane-tap-$layer1Id', 330); // beat 10
     await tester.tap(find.byKey(const ValueKey('add-stop-cue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('stop-mode-ok')));
     await tester.pumpAndSettle();
     final cues = container.read(songShowsProvider).single.cues;
     expect(cues, hasLength(2), reason: 'the bank is still there');
@@ -327,6 +331,8 @@ void transportAndPickerTests() {
     await tapAtLane(tester, 'lane-tap-$layer1Id', 100);
     await tester.tap(find.byKey(const ValueKey('add-stop-cue')));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('stop-mode-ok')));
+    await tester.pumpAndSettle();
     final cue = container.read(songShowsProvider).single.cues.single;
 
     await tester.tap(find.byKey(ValueKey('cue-head-${cue.id}')));
@@ -402,6 +408,8 @@ void resizeByFingerTests() {
     // A Stop at beat 10, added the way a person would.
     await tapAtLane(tester, 'lane-tap-$layer1Id', 330);
     await tester.tap(find.byKey(const ValueKey('add-stop-cue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('stop-mode-ok')));
     await tester.pumpAndSettle();
     expect(container.read(songShowsProvider).single.cues, hasLength(2));
 

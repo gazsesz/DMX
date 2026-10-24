@@ -21,8 +21,10 @@ import '../../state/control_dock_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/song_show_providers.dart';
+import 'pinch_zoom.dart';
 import 'song_auto_screen.dart';
 import 'song_section_dialog.dart';
+import 'song_stop_dialog.dart';
 import 'song_target_picker.dart';
 import 'song_timeline.dart';
 
@@ -43,6 +45,7 @@ class SongShowEditorScreen extends ConsumerStatefulWidget {
 class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
   final _scroll = ScrollController();
   final _playhead = ValueNotifier<double?>(null);
+  final _pinch = PinchState();
   TimelineScale _scale = const TimelineScale(32);
   SongSnap _snap = SongSnap.beat;
   double _cursorBeat = 0;
@@ -76,6 +79,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     _ticker?.cancel();
     _scroll.dispose();
     _playhead.dispose();
+    _pinch.dispose();
     super.dispose();
   }
 
@@ -301,7 +305,20 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     );
     if (!mounted || choice == null) return;
     if (choice == 'stop') {
-      _addCue(show, SongCue(id: _uuid.v4(), atBeat: beat, layerId: layerId, action: SongCueAction.stop));
+      final how = await showStopDialog(context);
+      final latest = _show;
+      if (how == null || latest == null || !mounted) return;
+      _addCue(
+        latest,
+        SongCue(
+          id: _uuid.v4(),
+          atBeat: beat,
+          layerId: layerId,
+          action: SongCueAction.stop,
+          stopBlackout: how.blackout,
+          stopFadeMs: how.fadeMs,
+        ),
+      );
       return;
     }
     if (choice == 'paste' && clip != null) {
@@ -334,6 +351,14 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 title: const Text('Try it now'),
                 subtitle: const Text('Plays this look on its layer, outside the song'),
                 onTap: () => Navigator.pop(context, 'try'),
+              ),
+            if (!isStart)
+              ListTile(
+                key: const ValueKey('cue-stop-mode'),
+                leading: const Icon(Icons.nights_stay_outlined),
+                title: const Text('How it ends…'),
+                subtitle: Text(cue.stopBlackout ? 'Blackout, ${stopFadeLabel(cue.stopFadeMs)}' : 'Keeps the last look'),
+                onTap: () => Navigator.pop(context, 'stop-mode'),
               ),
             ListTile(
               key: const ValueKey('cue-stop-layer'),
@@ -375,6 +400,14 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
         _snackText('Copied "${songCueName(ref, cue)}" — tap a lane to paste it');
       case 'try':
         previewSongCue(ref.read, cue);
+      case 'stop-mode':
+        final how = await showStopDialog(
+          context,
+          initial: StopChoice(blackout: cue.stopBlackout, fadeMs: cue.stopFadeMs),
+        );
+        final latest = _show;
+        if (how == null || latest == null || !mounted) return;
+        _replaceCue(latest, cue.asStop(blackout: how.blackout, fadeMs: how.fadeMs));
       case 'stop-layer':
         stopSongLayer(ref.read, cue.layerId);
       case 'change':
@@ -598,6 +631,8 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 onTapCue: _tapCue,
                 onMoveCue: _moveCue,
                 onResizeCue: _resizeCue,
+                pinch: _pinch,
+                onScaleChanged: (s) => setState(() => _scale = s),
                 onTapSection: _editSection,
                 onTapSectionRow: _addSection,
               ),

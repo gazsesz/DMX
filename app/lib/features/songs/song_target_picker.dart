@@ -210,7 +210,7 @@ class _Header extends StatelessWidget {
 /// What a cue shows on its block: the bank, scene or chase it starts, "Stop",
 /// or a marker when what it pointed at was deleted.
 String songCueName(WidgetRef ref, SongCue cue) {
-  if (cue.action == SongCueAction.stop) return 'Stop';
+  if (cue.action == SongCueAction.stop) return cue.stopBlackout ? 'Dark' : 'Stop';
   final sceneId = cue.sceneId;
   if (sceneId != null) {
     for (final s in ref.read(scenesProvider)) {

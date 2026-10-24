@@ -9,6 +9,7 @@ import '../../core/song/song_timeline_math.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/layer.dart';
 import '../../models/song_show.dart';
+import 'pinch_zoom.dart';
 import 'song_lane.dart';
 
 const timelineLabelWidth = 88.0;
@@ -61,6 +62,8 @@ class SongTimeline extends StatelessWidget {
     this.onTapCue,
     this.onMoveCue,
     this.onResizeCue,
+    this.pinch,
+    this.onScaleChanged,
     this.onTapSection,
     this.onTapSectionRow,
   });
@@ -88,8 +91,30 @@ class SongTimeline extends StatelessWidget {
 
   /// A cue's end was dragged (after a long press) to this beat.
   final void Function(SongCue cue, double endBeat)? onResizeCue;
+
+  /// Two-finger zoom: set both to let a pinch change the scale.
+  final PinchState? pinch;
+  final ValueChanged<TimelineScale>? onScaleChanged;
   final void Function(SongSection section)? onTapSection;
   final void Function(double beat)? onTapSectionRow;
+
+  /// The scrolling timeline, wrapped to zoom on a two-finger pinch when the
+  /// editor asked for that. While pinching the scroll view stands still.
+  Widget _withPinch(Widget Function(ScrollPhysics? physics) build) {
+    final pinch = this.pinch;
+    final onScale = onScaleChanged;
+    if (pinch == null || onScale == null) return build(null);
+    return PinchZoom(
+      scale: scale,
+      controller: scrollController,
+      onScale: onScale,
+      pinch: pinch,
+      child: ValueListenableBuilder<bool>(
+        valueListenable: pinch,
+        builder: (context, locked, _) => build(locked ? const NeverScrollableScrollPhysics() : null),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -112,7 +137,8 @@ class SongTimeline extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: SingleChildScrollView(
+          child: _withPinch((physics) => SingleChildScrollView(
+            physics: physics,
             controller: scrollController,
             scrollDirection: Axis.horizontal,
             child: SizedBox(
@@ -186,6 +212,7 @@ class SongTimeline extends StatelessWidget {
                         onTapCue: onTapCue,
                         onMoveCue: onMoveCue,
                         onResizeCue: onResizeCue,
+                        isPinching: () => pinch?.value ?? false,
                       ),
                     ),
                   Positioned(
@@ -219,7 +246,7 @@ class SongTimeline extends StatelessWidget {
                 ],
               ),
             ),
-          ),
+          )),
         ),
       ],
     );

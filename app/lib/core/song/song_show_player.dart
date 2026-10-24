@@ -18,7 +18,9 @@ abstract class SongAudio {
 /// Where a firing cue goes — in the app, the layer players.
 abstract class SongCueSink {
   void start(SongCue cue);
-  void stopLayer(String layerId);
+  /// Ends what the layer is playing. Without [blackoutFade] the last look stays
+  /// on stage as it was; with it, the lights fade out over that time.
+  void stopLayer(String layerId, {Duration? blackoutFade});
 }
 
 /// Plays a [SongShow]: the audio runs, a smoothed clock follows it, and every
@@ -144,7 +146,10 @@ class SongShowPlayer {
       case SongCueAction.start:
         if (cue.hasTarget) sink.start(cue);
       case SongCueAction.stop:
-        sink.stopLayer(cue.layerId);
+        sink.stopLayer(
+          cue.layerId,
+          blackoutFade: cue.stopBlackout ? Duration(milliseconds: cue.stopFadeMs) : null,
+        );
     }
   }
 

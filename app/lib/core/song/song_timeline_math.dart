@@ -85,3 +85,19 @@ double? tapTempo(List<int> tapsMs, {int window = 8}) {
   final bpm = (recent.length - 1) * 60000 / span;
   return bpm < 40 || bpm > 250 ? null : bpm;
 }
+
+/// The zoom a two-finger pinch gives: [base] pixels per beat when the fingers
+/// were [startDistance] apart, scaled by how far apart they are now, within
+/// the zoom limits.
+double pinchPixelsPerBeat(double base, double startDistance, double distance) {
+  if (startDistance <= 0) return base;
+  return (base * distance / startDistance).clamp(TimelineScale.minPixelsPerBeat, TimelineScale.maxPixelsPerBeat);
+}
+
+/// The horizontal scroll offset that keeps [focalBeat] under the point
+/// [focalX] pixels from the left of the view at [pixelsPerBeat] — so a pinch
+/// zooms around the fingers, not around the start of the song.
+double scrollOffsetForFocal(double focalBeat, double focalX, double pixelsPerBeat) {
+  final offset = focalBeat * pixelsPerBeat - focalX;
+  return offset < 0 ? 0 : offset;
+}

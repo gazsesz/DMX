@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/playback/chase_player.dart';
 import '../core/playback/smart_program_player.dart';
 import '../models/bank.dart';
+import '../core/playback/master_channels.dart';
 import '../models/chase.dart';
 import '../models/scene.dart';
 import '../models/layer.dart';
@@ -208,6 +209,31 @@ void stopLayer(ReadProvider read, String layerId) {
     read(lastPlayedForLayerProvider(layerId).notifier).state = current;
   }
   read(nowPlayingForLayerProvider(layerId).notifier).state = null;
+}
+
+/// Fades [layerId]'s lights out over [over] and ends what it was playing: the
+/// intensity channels (dimmers, or the colour emitters on a fixture without
+/// one) ramp to dark while pan, tilt, gobo and colour wheels stay where they
+/// are, so a moving head goes dark without swinging home. Bookkeeping as for
+/// [stopLayer]. The layer keeps holding the dark channels afterwards — handing
+/// them back would bring an older layer's look straight back up.
+Future<void> blackoutLayer(ReadProvider read, String layerId, Duration over) async {
+  read = stableRead(read);
+  final smart = read(smartProgramPlayerProvider);
+  if (smart.drives(layerId)) smart.releaseLayer(layerId);
+  final current = read(nowPlayingForLayerProvider(layerId));
+  if (current != null) {
+    read(lastPlayedForLayerProvider(layerId).notifier).state = current;
+  }
+  read(nowPlayingForLayerProvider(layerId).notifier).state = null;
+  final universes = read(universesProvider);
+  final intensity = masterChannelsFor(read(patchedFixturesProvider), universes);
+  await read(chasePlayerProvider(layerId)).fadeToBlack(
+    over: over,
+    service: read(artNetServiceProvider),
+    universes: universes,
+    keep: (universe, channel) => !(intensity[universe.id]?.contains(channel) ?? false),
+  );
 }
 
 /// Takes [layerIds] back from the Smart Program before something else is
