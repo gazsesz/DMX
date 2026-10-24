@@ -26,6 +26,7 @@ import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../../state/tempo_providers.dart';
 import 'chase_editor_screen.dart';
+import '../songs/song_shows_section.dart';
 import 'smart_program_editor_screen.dart';
 
 class ChasesScreen extends ConsumerStatefulWidget {
@@ -340,6 +341,8 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                 },
               ),
             ],
+          const SizedBox(height: 20),
+          const SongShowsSection(),
           const SizedBox(height: 20),
           const Text(
             'CHASES',

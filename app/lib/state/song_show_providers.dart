@@ -71,10 +71,16 @@ class _LayerCueSink implements SongCueSink {
   void stopLayer(String layerId) => pb.stopLayer(_read, layerId);
 }
 
+/// The id of the song show that is playing, if any — for the list and the
+/// editor to show a Stop button.
+final playingSongShowIdProvider = StateProvider<String?>((ref) => null);
+
 final songShowPlayerProvider = Provider<SongShowPlayer>((ref) {
   final audio = SoloudSongAudio();
   final player = SongShowPlayer(audio: audio, sink: _LayerCueSink(ref.read));
+  final finished = player.finished.listen((_) => ref.read(playingSongShowIdProvider.notifier).state = null);
   ref.onDispose(() {
+    finished.cancel();
     player.dispose();
     audio.dispose();
   });
@@ -90,7 +96,14 @@ Future<String?> startSongShow(ReadProvider read, SongShow show, {Duration from =
   } catch (e) {
     return 'Could not play ${show.name}: $e';
   }
+  read(playingSongShowIdProvider.notifier).state = show.id;
   return null;
 }
 
-void stopSongShow(ReadProvider read) => read(songShowPlayerProvider).stop();
+void stopSongShow(ReadProvider read) {
+  read(songShowPlayerProvider).stop();
+  read(playingSongShowIdProvider.notifier).state = null;
+}
+
+/// Pushes an edited [show] to the player if it is the one playing.
+void updateRunningSongShow(ReadProvider read, SongShow show) => read(songShowPlayerProvider).update(show);
