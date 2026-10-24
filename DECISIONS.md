@@ -37,6 +37,17 @@ _Utolsó frissítés: 2026-10-24 · app verzió: v1.39.0_
 - Vizuálisan Claude nem ellenőrizte; smoke teszt: `flutter run -d windows`.
 - A tervezési indoklás és mockupok: `DMX Piackép.html` (repo gyökér; menetközben használt mockup-fájl, nem piackutatás).
 
+## Song Show (terv, 2026-10-24 — kód még nincs)
+- Terv + mockupok + piackutatás: [SONG_SHOW_PLAN.html](SONG_SHOW_PLAN.html). Lényeg: egy adatmodell (`SongShow`: szám + beat-alapú idővonal + szakaszok + cue-k, a cue a meglévő `ProgramTarget`/`LaneTiming`/`DropoutSettings`), négy belépési pont (kézi, tap-felvétel, auto-generálás, import). Mintája a SoundSwitch autoscript (szakaszok → szerkeszthető).
+- Fázisok: 0 spike (dekódolás/lejátszás Android 8.1-en) → 1 modell+lejátszó → 2 szerkesztő → 4 auto → 3 export/scope → 5 élő/DJ.
+- Nyitott: kell-e beépített lejátszó az első körben; opcionális-e a hang; az rkbx_link ad-e számpozíciót/track-azonosítót (nem ellenőrzött); a csoportszűrő általánosítható-e bank/chase lejátszásra.
+
+- **Spike 0 (2026-10-24, ág: `claude/song-show-spike`, `app/lib/spike_song_main.dart`, nincs mergelve):** `flutter_soloud` 5.x Windowson, 172 s-es mp3: betöltés 70 ms, 1000 bin hullámforma 161 ms, ~11 kHz mono analízis-minta (7,3 MB) 245 ms, seek ~70 ms (blokkol). A `getPosition` lépcsős: ~47 ms-onként frissül (p50 47, p95 62, max 128 ms), ezért a lejátszó óráját wall-clock interpolációval kell simítani. Pontosított mérés (20 s seek előtt, 10 s utána): az interpolációs hiba p50 ~1 ms, p95 ~16 ms, max 30 ms; a nyers drift a falióra ellen −39…+39 ms, tartós elcsúszás nélkül (20 s alatt). Seek 70–153 ms (blokkol). Nem mért: hangkimenet-latencia, hosszú (több perces) óra-drift. **Android (P20 Pro, Tab S6 Lite) még nem mérve.**
+
+- **rkbx_link OSC (README alapján, 2026-10-24; kódból/élőben nem próbálva):** a beat/bpm mellett küld `/master/time` (pozíció mp), `/master/track/title|artist|album` (azonosító nincs), `/master/phrase/current|next|countin`; mind külön bekapcsolandó (`osc.msg.master/time`, `…/phrase`). Következmény a Song Show B módra: számpozíció és számváltás adott → szám-felismerés cím+előadó alapján, nincs tap-sync; a phrase-adat hang nélkül is adhat élő szakaszokat. Nyitott: van-e phrase-adat Tidal streaming számokra; a mostani `OscBeatSource` ezeket még nem dolgozza fel; a README két címformát említ a `time`-ra (`/[deck]/time` és `/time/[deck]`) — élőben ellenőrizni.
+
+- **rkbx/Tidal út parkolva (2026-10-24):** a felhasználónak még nincs Tidal DJ előfizetése és rkbx_link licence-e (a jövő héten várhatóan lesz). Addig a Song Show a helyi fájlokra (offline elemzés, beépített lejátszó) épül. A felhasználó feltevése: rkbx_link-kel mindegy a streaming szolgáltatás, mert ugyanazt adja — ez nem ellenőrzött (streaming számok phrase-adata, Spotify-támogatás).
+
 ## Verifikáció (utolsó ismert)
 - `flutter analyze` tiszta, `flutter test` 176/176 (a csoport/szín munka idején; azóta új teszt: `osc_beat_source_test.dart`).
 
