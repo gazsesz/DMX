@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/song_show.dart';
 import '../../state/song_show_providers.dart';
+import 'song_show_actions.dart';
 import 'song_show_editor_screen.dart';
 
 /// The Song Shows block on the Chases screen: one row per timed program, a
@@ -62,14 +63,25 @@ class SongShowsSection extends ConsumerWidget {
               'SONG SHOWS',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint, letterSpacing: 1),
             ),
-            IconButton(
-              key: const ValueKey('new-song-show'),
-              icon: const Icon(Icons.add, size: 20),
-              tooltip: 'New song show',
-              onPressed: () {
-                final show = ref.read(songShowsProvider.notifier).create('New song show');
-                _open(context, show.id);
-              },
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  key: const ValueKey('import-song-show'),
+                  icon: const Icon(Icons.file_open_outlined, size: 20),
+                  tooltip: 'Import a song show',
+                  onPressed: () => importSongShowFromFile(context, ref),
+                ),
+                IconButton(
+                  key: const ValueKey('new-song-show'),
+                  icon: const Icon(Icons.add, size: 20),
+                  tooltip: 'New song show',
+                  onPressed: () {
+                    final show = ref.read(songShowsProvider.notifier).create('New song show');
+                    _open(context, show.id);
+                  },
+                ),
+              ],
             ),
           ],
         ),
@@ -127,6 +139,12 @@ class SongShowsSection extends ConsumerWidget {
                             Text(_subtitle(show), style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        key: ValueKey('export-song-${show.id}'),
+                        icon: const Icon(Icons.ios_share, size: 18),
+                        tooltip: 'Export',
+                        onPressed: () => exportSongShowToFile(context, ref, show),
                       ),
                       IconButton(
                         icon: const Icon(Icons.copy_outlined, size: 18),

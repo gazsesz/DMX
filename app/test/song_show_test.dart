@@ -51,6 +51,7 @@ class RecordingSink implements SongCueSink {
 
 void main() {
   projectRoundTripTests();
+  audioMatchTests();
   group('SongShow', () {
     test('JSON round trip keeps everything', () {
       final s = SongShow(
@@ -229,5 +230,15 @@ void projectRoundTripTests() {
     final again = ProjectData.fromJson(data.toJson(), builtIns: const []);
     expect(again.songShows.single.cues.single.target!.id, 'A');
     expect(ProjectData.fromJson({}, builtIns: const []).songShows, isEmpty);
+  });
+}
+
+void audioMatchTests() {
+  test('a file of nearly the same length could be the same song, a different length could not', () {
+    const ref = SongAudioRef(fileName: 'a.mp3', durationMs: 200000);
+    expect(ref.couldBeSameSong(200800), isTrue);
+    expect(ref.couldBeSameSong(198600), isTrue);
+    expect(ref.couldBeSameSong(215000), isFalse);
+    expect(const SongAudioRef(fileName: 'a', durationMs: 0).couldBeSameSong(1), isTrue);
   });
 }

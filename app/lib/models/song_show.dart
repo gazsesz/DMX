@@ -30,6 +30,11 @@ class SongAudioRef {
 
   const SongAudioRef({required this.fileName, required this.durationMs, this.sha1, this.path});
 
+  /// Whether a file of [durationMs] could be the song this refers to: the
+  /// length has to agree to within a second and a half (names get changed,
+  /// lengths don't). An unknown length matches anything.
+  bool couldBeSameSong(int durationMs) => this.durationMs <= 0 || (this.durationMs - durationMs).abs() <= 1500;
+
   Map<String, dynamic> toJson({bool withPath = true}) => {
     'fileName': fileName,
     'durationMs': durationMs,

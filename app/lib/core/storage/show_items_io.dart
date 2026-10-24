@@ -148,7 +148,21 @@ class ShowItemsImport {
   final List<Chase> chases;
   final List<String> warnings;
 
-  const ShowItemsImport({required this.scenes, required this.banks, required this.chases, required this.warnings});
+  /// Old id → new id for what was imported, and where each layer landed
+  /// (null: not found here), for a caller that has to re-point references.
+  final Map<String, String> bankIdMap;
+  final Map<String, String> chaseIdMap;
+  final Map<String, String?> layerMap;
+
+  const ShowItemsImport({
+    required this.scenes,
+    required this.banks,
+    required this.chases,
+    required this.warnings,
+    this.bankIdMap = const {},
+    this.chaseIdMap = const {},
+    this.layerMap = const {},
+  });
 
   String get summary {
     final parts = [
@@ -174,6 +188,7 @@ ShowItemsImport importShowItems(
   required Set<String> chaseNames,
   required Set<String> sceneNames,
   required String Function() newId,
+  String format = showItemsFormat,
 }) {
   final Object? decoded;
   try {
@@ -181,7 +196,7 @@ ShowItemsImport importShowItems(
   } on FormatException {
     throw const FormatException('This file isn\'t valid JSON.');
   }
-  if (decoded is! Map<String, dynamic> || decoded['format'] != showItemsFormat) {
+  if (decoded is! Map<String, dynamic> || decoded['format'] != format) {
     throw const FormatException('This isn\'t a bank/chase export. Whole projects are opened from the Files tab.');
   }
   final version = (decoded['formatVersion'] as num?)?.toInt() ?? 0;
@@ -197,21 +212,9 @@ ShowItemsImport importShowItems(
   final warnings = <String>[];
 
   // Fixtures: same id, else same name, else same address — same size always.
-  final fixtureMap = <String, String>{};
-  final unmatched = <String>[];
-  for (final exported in list('fixtures').map(ExportedFixture.fromJson)) {
-    bool fits(PatchedFixture f) => f.profile.channelCount == exported.channelCount;
-    final match = fixtures.where((f) => f.id == exported.id && fits(f)).firstOrNull ??
-        fixtures.where((f) => f.label.trim().toLowerCase() == exported.label.trim().toLowerCase() && fits(f)).firstOrNull ??
-        fixtures
-            .where((f) => f.universeId == exported.universeId && f.startChannel == exported.startChannel && fits(f))
-            .firstOrNull;
-    if (match == null) {
-      unmatched.add(exported.label);
-    } else {
-      fixtureMap[exported.id] = match.id;
-    }
-  }
+  final matched = matchExportedFixtures(list('fixtures').map(ExportedFixture.fromJson), fixtures);
+  final fixtureMap = matched.map;
+  final unmatched = matched.unmatchedLabels;
   if (unmatched.isNotEmpty) {
     warnings.add(
       'Not in this rig, so left out of the scenes: ${unmatched.join(', ')}. '
@@ -294,9 +297,12 @@ ShowItemsImport importShowItems(
   }
 
   final chases = <Chase>[];
+  final chaseMap = <String, String>{};
   for (final source in list('chases').map(Chase.fromJson)) {
+    final chaseId = newId();
+    chaseMap[source.id] = chaseId;
     chases.add(Chase(
-      id: newId(),
+      id: chaseId,
       name: uniqueName(source.name, chaseNames),
       stepSeconds: source.stepSeconds,
       beatSync: source.beatSync,
@@ -320,7 +326,15 @@ ShowItemsImport importShowItems(
   if (scenes.isEmpty && banks.isEmpty && chases.isEmpty) {
     throw const FormatException('The file holds no banks, chases or scenes.');
   }
-  return ShowItemsImport(scenes: scenes, banks: banks, chases: chases, warnings: warnings);
+  return ShowItemsImport(
+    scenes: scenes,
+    banks: banks,
+    chases: chases,
+    warnings: warnings,
+    bankIdMap: bankMap,
+    chaseIdMap: chaseMap,
+    layerMap: layerMap,
+  );
 }
 
 GroupPosition _remapPosition(GroupPosition position, Map<String, String> fixtureMap) {
@@ -334,4 +348,26 @@ GroupPosition _remapPosition(GroupPosition position, Map<String, String> fixture
         ?fixtureMap[e.key]: e.value,
     },
   );
+}
+
+/// Finds each exported fixture in [fixtures]: same id, else same name, else
+/// same universe and start address — always with the same channel count.
+({Map<String, String> map, List<String> unmatchedLabels}) matchExportedFixtures(
+  Iterable<ExportedFixture> exported,
+  List<PatchedFixture> fixtures,
+) {
+  final map = <String, String>{};
+  final unmatched = <String>[];
+  for (final e in exported) {
+    bool fits(PatchedFixture f) => f.profile.channelCount == e.channelCount;
+    final match = fixtures.where((f) => f.id == e.id && fits(f)).firstOrNull ??
+        fixtures.where((f) => f.label.trim().toLowerCase() == e.label.trim().toLowerCase() && fits(f)).firstOrNull ??
+        fixtures.where((f) => f.universeId == e.universeId && f.startChannel == e.startChannel && fits(f)).firstOrNull;
+    if (match == null) {
+      unmatched.add(e.label);
+    } else {
+      map[e.id] = match.id;
+    }
+  }
+  return (map: map, unmatchedLabels: unmatched);
 }

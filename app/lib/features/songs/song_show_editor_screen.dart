@@ -14,6 +14,7 @@ import '../../models/layer.dart';
 import '../../models/smart_program.dart';
 import '../../models/song_show.dart';
 import '../../state/bank_providers.dart';
+import '../../state/fixture_group_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/song_show_providers.dart';
 import 'song_auto_screen.dart';
@@ -128,6 +129,24 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     try {
       final probe = await probeAudio(path);
       if (!mounted) return;
+      final previous = show.audio;
+      if (previous != null && !previous.couldBeSameSong(probe.length.inMilliseconds)) {
+        final proceed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Is this the same song?'),
+            content: Text(
+              '"${file.name}" is ${_clock(probe.length.inMilliseconds)} long, but this show was made for '
+              '"${previous.fileName}" (${_clock(previous.durationMs)}). The cues would land in the wrong places.',
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Link anyway')),
+            ],
+          ),
+        );
+        if (proceed != true || !mounted) return;
+      }
       _save(show.copyWith(
         audio: SongAudioRef(fileName: file.name, durationMs: probe.length.inMilliseconds, path: path),
       ));
@@ -139,6 +158,54 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     } catch (e) {
       _snackText('Could not read ${file.name}: $e');
     }
+  }
+
+  String _clock(int ms) {
+    final s = (ms / 1000).round();
+    return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  }
+
+  Future<void> _pickGroups() async {
+    final show = _show;
+    if (show == null) return;
+    final groups = ref.read(fixtureGroupsProvider);
+    final chosen = {...show.groupIds};
+    final result = await showDialog<List<String>>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setLocal) => AlertDialog(
+          title: const Text('Play on which fixtures?'),
+          content: SizedBox(
+            width: 340,
+            child: groups.isEmpty
+                ? const Text('No fixture groups yet — make some on the Fixture tab, then limit the show to them.')
+                : ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final g in groups)
+                        CheckboxListTile(
+                          key: ValueKey('scope-${g.id}'),
+                          dense: true,
+                          title: Text(g.name),
+                          subtitle: Text('${g.fixtureIds.length} fixtures'),
+                          value: chosen.contains(g.id),
+                          onChanged: (v) => setLocal(() => v == true ? chosen.add(g.id) : chosen.remove(g.id)),
+                        ),
+                    ],
+                  ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, <String>[]), child: const Text('All fixtures')),
+            FilledButton(
+              key: const ValueKey('scope-done'),
+              onPressed: () => Navigator.pop(context, chosen.toList()),
+              child: const Text('Done'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (result != null) _save(show.copyWith(groupIds: result));
   }
 
   Future<void> _togglePlay() async {
@@ -402,6 +469,12 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                   onPressed: () => setState(() => _scale = _scale.zoomed(1 / 0.7)),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey('song-scope'),
+                  onPressed: _pickGroups,
+                  icon: const Icon(Icons.lightbulb_outline, size: 18),
+                  label: Text(show.groupIds.isEmpty ? 'All fixtures' : '${show.groupIds.length} group${show.groupIds.length == 1 ? '' : 's'}'),
+                ),
+                OutlinedButton.icon(
                   key: const ValueKey('song-auto'),
                   onPressed: audio?.path == null
                       ? null
@@ -421,12 +494,15 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
               ],
             ),
           ),
-          if (audio == null)
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 12),
+          if (audio == null || audio.path == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
-                'No audio linked — the timeline still works from the tempo, but playing needs a song file.',
-                style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                audio == null
+                    ? 'No audio linked — the timeline still works from the tempo, but playing needs a song file.'
+                    : 'The song file isn\'t linked on this device — pick "${audio.fileName}" to play it. The cues are kept.',
+                key: const ValueKey('audio-banner'),
+                style: TextStyle(fontSize: 11, color: audio == null ? AppColors.textFaint : AppColors.accent),
               ),
             ),
           Expanded(

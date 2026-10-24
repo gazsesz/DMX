@@ -3,9 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dmx_controller/features/songs/song_show_editor_screen.dart';
 import 'package:dmx_controller/features/songs/song_shows_section.dart';
+import 'package:dmx_controller/models/fixture_group.dart';
 import 'package:dmx_controller/models/layer.dart';
 import 'package:dmx_controller/models/song_show.dart';
 import 'package:dmx_controller/state/bank_providers.dart';
+import 'package:dmx_controller/state/fixture_group_providers.dart';
 import 'package:dmx_controller/state/song_show_providers.dart';
 
 Future<ProviderContainer> pumpEditor(WidgetTester tester, SongShow show) async {
@@ -30,6 +32,7 @@ Future<void> tapAtLane(WidgetTester tester, String key, double dx) async {
 }
 
 void main() {
+  scopeAndImportTests();
   testWidgets('the list shows and deletes song shows', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -131,5 +134,49 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('song-play')));
     await tester.pumpAndSettle();
     expect(find.textContaining('has no audio file linked'), findsOneWidget);
+  });
+}
+
+void scopeAndImportTests() {
+  testWidgets('limiting the show to a group is saved with it, and All fixtures clears it', (tester) async {
+    final container = await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    container.read(fixtureGroupsProvider.notifier).loadAll(const [
+      FixtureGroup(id: 'front', name: 'Front', iconKey: 'all', fixtureIds: ['f0']),
+    ]);
+    expect(find.text('All fixtures'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('song-scope')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('scope-front')));
+    await tester.tap(find.byKey(const ValueKey('scope-done')));
+    await tester.pumpAndSettle();
+    expect(container.read(songShowsProvider).single.groupIds, ['front']);
+    expect(find.text('1 group'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('song-scope')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('All fixtures').last);
+    await tester.pumpAndSettle();
+    expect(container.read(songShowsProvider).single.groupIds, isEmpty);
+  });
+
+  testWidgets('an imported show says its song file has to be linked, and keeps its cues', (tester) async {
+    await pumpEditor(
+      tester,
+      const SongShow(id: 's', name: 'Song', audio: SongAudioRef(fileName: 'opener.mp3', durationMs: 200000)),
+    );
+    expect(find.byKey(const ValueKey('audio-banner')), findsOneWidget);
+    expect(find.textContaining('opener.mp3'), findsWidgets);
+  });
+
+  testWidgets('the list offers import and export', (tester) async {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    container.read(songShowsProvider.notifier).upsert(const SongShow(id: 'a', name: 'Opener'));
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(home: Scaffold(body: SingleChildScrollView(child: SongShowsSection()))),
+    ));
+    expect(find.byKey(const ValueKey('import-song-show')), findsOneWidget);
+    expect(find.byKey(const ValueKey('export-song-a')), findsOneWidget);
   });
 }
