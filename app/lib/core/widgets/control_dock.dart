@@ -571,6 +571,14 @@ class ControlDockAction extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
+          tooltip: dock.colorBarVisible ? 'Hide the Colour strip' : 'Show the Colour strip',
+          icon: Icon(
+            Icons.palette_outlined,
+            color: dock.colorBarVisible ? AppColors.accent2 : null,
+          ),
+          onPressed: () => ref.read(controlDockProvider.notifier).toggleColorBar(),
+        ),
+        IconButton(
           tooltip: dock.movementBarVisible ? 'Hide the Movement knobs' : 'Show the Movement knobs',
           icon: Icon(
             Icons.open_with,

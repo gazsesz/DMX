@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../../state/audio_providers.dart';
+import '../../state/color_override_providers.dart';
 import '../../state/dimmer_dropout_providers.dart';
 import '../../state/movement_live_providers.dart';
 import '../../state/playback_providers.dart';
@@ -25,6 +26,7 @@ import 'trigger_actions.dart';
 ///   /autofade    — toggle auto-fade; `?on=1` / `?on=0` outright
 ///   /dropout     — toggle the dimmer dropout; `?on=1` / `?on=0` outright
 ///   /fx          — the Movement knobs: `?size=1.5&speed=2&shift=0.3&smooth=0.2` (any subset), `?reset=1`
+///   /color       — the Colour strip: `?name=blue` or `?hex=ff8800`, `&group=Moving`, `?off=1` for the scenes' own
 ///   /stop        — stop playback, leaving the rig as it is
 ///   /blackout    — stop everything and take every channel to zero
 ///   /endpoints   — the same tiles as a Wear OS client's menu (text/plain)
@@ -100,6 +102,18 @@ class RemoteControlServer {
             reset: _parseOnOff(query['reset']) ?? false,
           );
           _writeJson(request, {'ok': true, 'message': message, 'movement': _movementStatus()});
+        case '/color':
+          // The Colour strip: /color?name=blue, /color?hex=ff8800, optionally
+          // &group=Moving to limit it to a saved group; /color?off=1 gives the
+          // scenes their own colours back. With no parameters it reports.
+          final message = setLiveColor(
+            read,
+            name: query['name'],
+            hex: query['hex'],
+            group: query['group'],
+            off: _parseOnOff(query['off']) ?? false,
+          );
+          _writeJson(request, {'ok': true, 'message': message, 'color': _colorStatus()});
         case '/stop':
           stopPlayback(read);
           _writeJson(request, {'ok': true, 'message': 'Stopped'});
@@ -190,6 +204,11 @@ class RemoteControlServer {
     lines.add('--- fxbg,Size big,/fx?size=1.6');
     lines.add('--- fxsm,Size small,/fx?size=0.5');
     lines.add('--- fxsf,Smooth,/fx?smooth=0.6');
+    lines.add('-- col,Colour');
+    lines.add('--- cof,Scene colours,/color?off=1');
+    for (final color in liveColors) {
+      lines.add('--- c${color.id},${color.label},/color?name=${color.id}');
+    }
     return lines.join('\n');
   }
 
@@ -198,6 +217,8 @@ class RemoteControlServer {
     return {'size': live.size, 'speed': live.speed, 'shift': live.shift, 'smooth': live.smooth};
   }
 
+  String? _colorStatus() => read(liveColorProvider).color?.id;
+
   Map<String, dynamic> _status() {
     final nowPlaying = read(nowPlayingProvider);
     return {
@@ -205,6 +226,7 @@ class RemoteControlServer {
       'beatSync': read(beatSyncEnabledProvider),
       'dropout': read(dimmerDropoutProvider).enabled,
       'movement': _movementStatus(),
+      'color': _colorStatus(),
       'nowPlaying': nowPlaying == null
           ? null
           : {'name': nowPlaying.name, 'kind': nowPlaying.kind.name},

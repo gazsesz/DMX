@@ -68,6 +68,18 @@ class ArtNetService {
 
   OutputOverride? _override;
 
+  /// The live colour layer — see `color_override.dart`. Applied first, so the
+  /// momentary effects (a blinder, a freeze) and the dropout still act on the
+  /// recoloured look. Held outside the buffers like [outputOverride], so
+  /// clearing it puts the scenes' own colours straight back.
+  OutputOverride? get colorOverride => _colorOverride;
+  OutputOverride? _colorOverride;
+
+  set colorOverride(OutputOverride? override) {
+    _colorOverride = override;
+    _refreshAll();
+  }
+
   /// The momentary layer — strobe, blinder, freeze — applied to every frame
   /// on its way out.
   ///
@@ -397,7 +409,8 @@ class ArtNetService {
     final nextSequence = ((_sequences[universe.id] ?? 0) % 255) + 1;
     _sequences[universe.id] = nextSequence;
     final buffer = _buffers[universe.id]!;
-    final overridden = _override?.call(universe, buffer) ?? buffer;
+    final coloured = _colorOverride?.call(universe, buffer) ?? buffer;
+    final overridden = _override?.call(universe, coloured) ?? coloured;
     final dark = darkChannels?.call(universe) ?? const <int>{};
     final dim = dimChannels?.call(universe);
     final data = _withMaster(universe, applyDropout(overridden, dark, dim));

@@ -1,6 +1,5 @@
 
-import '../../models/chase.dart';
-import '../../models/dashboard_trigger.dart';
+import '../../models/chase.dart';import '../../models/dashboard_trigger.dart';
 import '../../models/layer.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
@@ -8,6 +7,8 @@ import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/dimmer_dropout_providers.dart';
+import '../../state/color_override_providers.dart';
+import '../../state/fixture_group_providers.dart';
 import '../../state/movement_live_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
@@ -277,6 +278,53 @@ String setMovementLive(
       ? 'Movement knobs neutral'
       : 'Movement size ${now.size.toStringAsFixed(2)} · speed ${now.speed.toStringAsFixed(2)} · '
             'shift ${now.shift.toStringAsFixed(2)} · smooth ${now.smooth.toStringAsFixed(2)}';
+}
+
+/// Lays a basic colour (by [name], or a custom [hex]) over the scenes, the way
+/// the Colour strip does; [off] gives the scenes their own colours back.
+/// [group] limits it to a saved fixture group by name, otherwise it goes to
+/// the whole rig. With nothing given it just reports the current state.
+String setLiveColor(ReadProvider read, {String? name, String? hex, String? group, bool off = false}) {
+  final notifier = read(liveColorProvider.notifier);
+  if (off) {
+    notifier.auto();
+    return 'Colour: scene';
+  }
+  if (name == null && hex == null) {
+    if (group != null) {
+      final groupId = _groupIdNamed(read, group);
+      if (groupId == null) throw StateError('No group called "$group"');
+      notifier.setGroup(groupId);
+    }
+    return _liveColorText(read);
+  }
+  final color = hex != null ? liveColorFromHex(hex) : liveColorNamed(name!);
+  if (color == null) {
+    throw StateError('Unknown colour "${hex ?? name}" — try ${[for (final c in liveColors) c.id].join(', ')} or hex=RRGGBB');
+  }
+  String? groupId;
+  if (group != null) {
+    groupId = _groupIdNamed(read, group);
+    if (groupId == null) throw StateError('No group called "$group"');
+  }
+  notifier.set(color, groupId: groupId);
+  return _liveColorText(read);
+}
+
+String? _groupIdNamed(ReadProvider read, String name) {
+  final wanted = name.trim().toLowerCase();
+  for (final g in read(fixtureGroupsProvider)) {
+    if (g.name.trim().toLowerCase() == wanted) return g.id;
+  }
+  return null;
+}
+
+String _liveColorText(ReadProvider read) {
+  final live = read(liveColorProvider);
+  final color = live.color;
+  if (color == null) return 'Colour: scene';
+  final groups = [for (final g in read(fixtureGroupsProvider)) if (g.id == live.groupId) g.name];
+  return 'Colour: ${color.label}${groups.isEmpty ? '' : ' on ${groups.first}'}';
 }
 
 /// Something the remote endpoint can fire, and the name it answers to.

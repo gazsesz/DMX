@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/control_dock.dart';
+import '../../core/widgets/live_color_bar.dart';
 import '../../core/widgets/movement_live_bar.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../state/control_dock_providers.dart';
@@ -75,6 +76,9 @@ class _AppShellState extends ConsumerState<AppShell> {
     // right under the thing they act on.
     if (dock.movementBarVisible) {
       body = Column(children: [Expanded(child: body), const MovementLiveBar()]);
+    }
+    if (dock.colorBarVisible) {
+      body = Column(children: [Expanded(child: body), const LiveColorBar()]);
     }
     if (dock.stageVisible) {
       body = Column(children: [Expanded(child: body), const LiveStageDock()]);

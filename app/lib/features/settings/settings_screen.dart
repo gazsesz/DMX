@@ -637,6 +637,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     value: ref.watch(controlDockProvider).movementBarVisible,
                     onChanged: (_) => ref.read(controlDockProvider.notifier).toggleMovementBar(),
                   ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Show the Colour strip'),
+                    subtitle: const Text(
+                      'Basic colours to override the scenes live, whole rig or one saved group, above the dock',
+                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    ),
+                    value: ref.watch(controlDockProvider).colorBarVisible,
+                    onChanged: (_) => ref.read(controlDockProvider.notifier).toggleColorBar(),
+                  ),
                 ],
               ),
             ),
