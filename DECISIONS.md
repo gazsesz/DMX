@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-12 · app verzió: v1.37.0 (branch claude/movement-fx, az 1.32.x-et is tartalmazza)_
+_Utolsó frissítés: 2026-10-24 · app verzió: v1.39.0_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -50,3 +50,10 @@ _Utolsó frissítés: 2026-10-12 · app verzió: v1.37.0 (branch claude/movement
 - **DMX channel map (v1.35.0):** Settings → „DMX channel map”: univerzumonként 32×16-os rács a patch csatornakiosztásával (fixture-ök összefüggő blokkként, átfedés pirosan, első szabad cím, koppintásra a fixture csatornalistája). Csak olvasható nézet, nem szerkeszt patch-et.
 - **Movement FX bővítés (v1.36.0):** új alakok: Random (sima kóborlás), Random jumps (ugrálás, 1/8 lap), Hold (középen marad); új „Fan” paraméter (fok/fej pan/tilt térben, méter/fej stage térben). A fejenkénti eltolás egyetlen függvényben számolódik (`movementOffset`), ezt használja a lejátszó és az **élő előnézet** is (mozgó pontok farokkal, fejenként egy szín, max 6 fej, beat-lock 120 BPM-en mutatva). Light Rider kereke (ikonok alapján, nem megerősítve): hiányzott a dobókocka=Random, célkereszt=Center/Hold, FAN gomb; a belső kerék jelentése ismeretlen.
 - **Movement strip (v1.37.0):** élő Size / Speed / Shift / Smooth gombok a futó Movement FX-re (`MovementLive`, `movementLiveProvider`), a shellben a tartalom alatt, a Live Stage csík fölött; Settings kapcsoló + app-bar gomb (alap: BE, `dock.movementBar`). A bankot nem módosítják: Size/Speed szorzó, Shift hozzáadódik a „wave across heads”-hez, Smooth = a fejek késleltetett követése (0–1,5 s; élesre vágott mozgást kerekít, ugrást siklássá tesz). **Nem mentődnek** (se app, se projekt), „Reset” gomb és címkén dupla koppintás állít vissza; bankváltáskor NEM nullázódnak. Beat-locked FX-nél Speed≠1 esetén a beat csak a tempót frissíti, a fázist nem húzza vissza a rácsra. Remote: `/fx?size=&speed=&shift=&smooth=` (bármely részhalmaz), `/fx?reset=1`, a `/status`-ban `movement`, a Wear menüben „Movement” csoport fix lépésekkel. A Light Rider Fade gomb jelentése bizonytalan — a „Smooth” a legvalószínűbb megfelelője.
+
+## Colour strip (v1.39.0)
+- A deck alatt (a Movement strip alatt) alap-színsor: Red/Orange/Yellow/Green/Cyan/Blue/Purple/Magenta/White + **Auto** (a scene saját színe). Ez a „fázis 2" első lépése; a külön Csoport×Szín sáv helyett a színsor mellé **csoportválasztó** került (All / mentett csoport).
+- **Output réteg**, nem módosít scene-t/bankot: `ArtNetService.colorOverride` (a pufferre elsőként, a momentary FX, dropout és master előtt). Nem mentődik (se app, se projekt), bank/scene váltáskor megmarad, amíg Auto-t nem nyomnak; újra koppintás a kiválasztott színre = Auto.
+- Csak szín-csatornákat ír: RGB(W/A/UV) és színkerék; dimmer, pan/tilt, gobo érintetlen. RGB-par dimmer nélkül: a scene fényerejét megtartja, a színt cseréli (sötét par sötét marad). Színkerék: a profil `colorHex`/címke alapján a **legközelebbi egyszínű slot** (split slotot nem választ); kerék kapacitás nélkül a fej kimarad.
+- Remote: `/color?name=blue` | `?hex=ff8800`, `&group=<csoportnév>`, `?off=1`; a `/status`-ban `color`; a Wear menüben „Colour” csoport. Settings/app-bar kapcsoló (`dock.colorBar`, alap: BE).
+- Nyitott: Freeze közben színváltás nem látszik (a fagyasztott képkockát a réteg előtt rögzítjük); valódi fejeken tesztelni (Tab S6 Lite, P20 Pro) — csak unit/widget teszt futott, `flutter analyze` új hibát nem hozott, `flutter test` 430/430.

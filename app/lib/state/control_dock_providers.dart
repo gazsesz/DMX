@@ -7,6 +7,7 @@ const prefDockExpanded = 'dock.expanded';
 const prefDockPosition = 'dock.position';
 const prefStageVisible = 'dock.stageVisible';
 const prefMovementBarVisible = 'dock.movementBar';
+const prefColorBarVisible = 'dock.colorBar';
 
 class ControlDockState {
   /// The dock's panel is open, showing the tempo and beat controls.
@@ -26,11 +27,16 @@ class ControlDockState {
   /// running Movement FX. On by default, and a switch hides it.
   final bool movementBarVisible;
 
+  /// The Colour strip: basic colours to lay over the scenes live. On by
+  /// default, and a switch hides it.
+  final bool colorBarVisible;
+
   const ControlDockState({
     this.expanded = false,
     this.position = ControlDockPosition.bottom,
     this.stageVisible = false,
     this.movementBarVisible = true,
+    this.colorBarVisible = true,
   });
 
   ControlDockState copyWith({
@@ -38,12 +44,14 @@ class ControlDockState {
     ControlDockPosition? position,
     bool? stageVisible,
     bool? movementBarVisible,
+    bool? colorBarVisible,
   }) {
     return ControlDockState(
       expanded: expanded ?? this.expanded,
       position: position ?? this.position,
       stageVisible: stageVisible ?? this.stageVisible,
       movementBarVisible: movementBarVisible ?? this.movementBarVisible,
+      colorBarVisible: colorBarVisible ?? this.colorBarVisible,
     );
   }
 }
@@ -64,6 +72,8 @@ class ControlDockNotifier extends StateNotifier<ControlDockState> {
 
   void toggleMovementBar() => _set(state.copyWith(movementBarVisible: !state.movementBarVisible));
 
+  void toggleColorBar() => _set(state.copyWith(colorBarVisible: !state.colorBarVisible));
+
   void setPosition(ControlDockPosition position) => _set(state.copyWith(position: position));
 
   void _set(ControlDockState next) {
@@ -77,6 +87,7 @@ class ControlDockNotifier extends StateNotifier<ControlDockState> {
     await sp.setString(prefDockPosition, prefs.position.name);
     await sp.setBool(prefStageVisible, prefs.stageVisible);
     await sp.setBool(prefMovementBarVisible, prefs.movementBarVisible);
+    await sp.setBool(prefColorBarVisible, prefs.colorBarVisible);
   }
 }
 
@@ -89,6 +100,7 @@ ControlDockState controlDockFromPrefs({
   String? position,
   bool? stageVisible,
   bool? movementBarVisible,
+  bool? colorBarVisible,
 }) {
   return ControlDockState(
     expanded: expanded ?? false,
@@ -98,5 +110,6 @@ ControlDockState controlDockFromPrefs({
     ),
     stageVisible: stageVisible ?? false,
     movementBarVisible: movementBarVisible ?? true,
+    colorBarVisible: colorBarVisible ?? true,
   );
 }
