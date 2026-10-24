@@ -8,13 +8,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/song/audio_probe.dart';
+import '../../core/song/cue_resize.dart';
 import '../../core/song/song_timeline_math.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/control_dock.dart' show LiveStageDock;
 import '../../core/widgets/confirm_dialog.dart';
 import '../../models/layer.dart';
 import '../../models/smart_program.dart';
 import '../../models/song_show.dart';
 import '../../state/bank_providers.dart';
+import '../../state/control_dock_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/song_show_providers.dart';
@@ -385,6 +388,19 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
   void _replaceCue(SongShow show, SongCue next) =>
       _save(show.copyWith(cues: [for (final c in show.cues) if (c.id == next.id) next else c]));
 
+  /// A long press on a cue and a drag of its end: moves the Stop that ends it,
+  /// adds one, or shifts the hand-over to the look after it.
+  void _resizeCue(SongCue cue, double endBeat) {
+    final show = _show;
+    if (show == null) return;
+    final cues = resizeCueEnd(show, cue, endBeat, newId: _uuid.v4);
+    if (cues == null) {
+      _snackText('It cannot end there — the next cue is too close');
+      return;
+    }
+    _save(show.copyWith(cues: cues));
+  }
+
   void _moveCue(SongCue cue, double beat) {
     final show = _show;
     if (show == null) return;
@@ -446,6 +462,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     final shows = ref.watch(songShowsProvider);
     final layers = ref.watch(layersProvider);
     final playing = ref.watch(playingSongShowIdProvider) == widget.showId;
+    final stageVisible = ref.watch(controlDockProvider.select((d) => d.stageVisible));
     final matches = shows.where((s) => s.id == widget.showId);
     if (matches.isEmpty) {
       return const Scaffold(body: Center(child: Text('This song show no longer exists')));
@@ -458,6 +475,15 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
         title: GestureDetector(onTap: _renameShow, child: Text(show.name)),
         actions: [
           IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Rename', onPressed: _renameShow),
+          IconButton(
+            key: const ValueKey('song-live-stage'),
+            tooltip: stageVisible ? 'Hide live stage' : 'Show live stage',
+            icon: Icon(
+              stageVisible ? Icons.lightbulb : Icons.lightbulb_outline,
+              color: stageVisible ? AppColors.accent2 : null,
+            ),
+            onPressed: () => ref.read(controlDockProvider.notifier).toggleStageVisible(),
+          ),
           IconButton(
             key: const ValueKey('song-play'),
             icon: Icon(playing ? Icons.stop_circle_outlined : Icons.play_circle_outline, size: 30),
@@ -547,7 +573,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
           const Padding(
             padding: EdgeInsets.fromLTRB(12, 2, 12, 4),
             child: Text(
-              'Tap a lane to add a cue there. A cue plays until the next cue on its layer — add a Stop to end it. '
+              'Tap a lane to add a cue there. A cue plays until the next cue on its layer — add a Stop to end it, or hold the cue and drag its end. '
               'Tap the left end of a cue to change or delete it, drag it to move it.',
               key: ValueKey('timeline-hint'),
               style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
@@ -571,6 +597,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 onTapLane: _tapLane,
                 onTapCue: _tapCue,
                 onMoveCue: _moveCue,
+                onResizeCue: _resizeCue,
                 onTapSection: _editSection,
                 onTapSectionRow: _addSection,
               ),
@@ -584,6 +611,9 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
             onToggle: _togglePlay,
           ),
           if (_recording && playing) _RecordBar(layers: layers, layerId: _recordLayerId, onLayer: _pickRecordLayer, onPress: _recordPress),
+          // The same live stage strip the main tabs have, so the lamps and
+          // moving heads can be watched while the cues are being placed.
+          if (stageVisible) const LiveStageDock(),
         ],
       ),
     );

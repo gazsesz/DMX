@@ -9,6 +9,7 @@ import '../../core/song/song_timeline_math.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/layer.dart';
 import '../../models/song_show.dart';
+import 'song_lane.dart';
 
 const timelineLabelWidth = 88.0;
 const _rulerHeight = 24.0;
@@ -16,8 +17,6 @@ const _waveHeight = 64.0;
 const _sectionHeight = 28.0;
 const _laneHeight = 44.0;
 
-/// How much of a cue block, from its left edge, is the cue itself.
-const _cueHeadWidth = 96.0;
 
 const _layerColors = [Color(0xFF3B6FD4), Color(0xFF1F8A7A), Color(0xFF9A3BD4), Color(0xFFD4803B), Color(0xFFD43B6F)];
 
@@ -61,6 +60,7 @@ class SongTimeline extends StatelessWidget {
     this.onTapLane,
     this.onTapCue,
     this.onMoveCue,
+    this.onResizeCue,
     this.onTapSection,
     this.onTapSectionRow,
   });
@@ -85,6 +85,9 @@ class SongTimeline extends StatelessWidget {
   final void Function(String layerId, double beat)? onTapLane;
   final void Function(SongCue cue)? onTapCue;
   final void Function(SongCue cue, double newBeat)? onMoveCue;
+
+  /// A cue's end was dragged (after a long press) to this beat.
+  final void Function(SongCue cue, double endBeat)? onResizeCue;
   final void Function(SongSection section)? onTapSection;
   final void Function(double beat)? onTapSectionRow;
 
@@ -169,7 +172,7 @@ class SongTimeline extends StatelessWidget {
                       right: 0,
                       top: _rulerHeight + _waveHeight + _sectionHeight + i * _laneHeight,
                       height: _laneHeight,
-                      child: _Lane(
+                      child: SongLane(
                         key: ValueKey('lane-${layers[i].id}'),
                         show: show,
                         layerId: layers[i].id,
@@ -182,6 +185,7 @@ class SongTimeline extends StatelessWidget {
                         onTapLane: onTapLane,
                         onTapCue: onTapCue,
                         onMoveCue: onMoveCue,
+                        onResizeCue: onResizeCue,
                       ),
                     ),
                   Positioned(
@@ -305,173 +309,6 @@ class _SectionRow extends StatelessWidget {
         ),
     ],
   );
-}
-
-class _Lane extends StatelessWidget {
-  const _Lane({
-    super.key,
-    required this.show,
-    required this.layerId,
-    required this.color,
-    required this.scale,
-    required this.snap,
-    required this.endBeat,
-    required this.cueName,
-    required this.selectedCueId,
-    this.onTapLane,
-    this.onTapCue,
-    this.onMoveCue,
-  });
-
-  final SongShow show;
-  final String layerId;
-  final Color color;
-  final TimelineScale scale;
-  final SongSnap snap;
-  final double endBeat;
-  final String Function(SongCue cue) cueName;
-  final String? selectedCueId;
-  final void Function(String layerId, double beat)? onTapLane;
-  final void Function(SongCue cue)? onTapCue;
-  final void Function(SongCue cue, double newBeat)? onMoveCue;
-
-  @override
-  Widget build(BuildContext context) {
-    final spans = cueSpans(show, layerId, endBeat);
-    return Stack(
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            key: ValueKey('lane-tap-$layerId'),
-            behavior: HitTestBehavior.opaque,
-            onTapUp: (d) => onTapLane?.call(layerId, snap.apply(scale.beatAt(d.localPosition.dx))),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                color: const Color(0x0DFFFFFF),
-                border: Border(bottom: BorderSide(color: AppColors.border.withValues(alpha: 0.6))),
-              ),
-            ),
-          ),
-        ),
-        for (final span in spans)
-          _CueBlock(
-            key: ValueKey('cue-${span.cue.id}'),
-            span: span,
-            color: color,
-            scale: scale,
-            snap: snap,
-            label: cueName(span.cue),
-            selected: span.cue.id == selectedCueId,
-            muted: !(show.sectionAt(span.cue.atBeat)?.enabled ?? true),
-            onTap: () => onTapCue?.call(span.cue),
-            onMove: (beat) => onMoveCue?.call(span.cue, beat),
-          ),
-      ],
-    );
-  }
-}
-
-class _CueBlock extends StatefulWidget {
-  const _CueBlock({
-    super.key,
-    required this.span,
-    required this.color,
-    required this.scale,
-    required this.snap,
-    required this.label,
-    required this.selected,
-    required this.muted,
-    required this.onTap,
-    required this.onMove,
-  });
-
-  final CueSpan span;
-  final Color color;
-  final TimelineScale scale;
-  final SongSnap snap;
-  final String label;
-  final bool selected;
-  final bool muted;
-  final VoidCallback onTap;
-  final void Function(double beat) onMove;
-
-  @override
-  State<_CueBlock> createState() => _CueBlockState();
-}
-
-class _CueBlockState extends State<_CueBlock> {
-  double _dx = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final cue = widget.span.cue;
-    final isStop = cue.action == SongCueAction.stop;
-    final left = widget.scale.x(cue.atBeat) + _dx;
-    final naturalWidth = widget.scale.x(widget.span.endBeat - cue.atBeat);
-    final width = isStop ? 34.0 : math.max(naturalWidth - 2, 30.0);
-    // Only the head of the block is the cue — it is what you tap to change or
-    // delete it, and what you drag. The faded tail just shows how long it
-    // lasts (until the next cue on the layer) and lets taps through to the
-    // lane, so a Stop or another look can still be placed anywhere along it.
-    final headWidth = math.min(width, _cueHeadWidth);
-    final radius = BorderRadius.circular(5);
-    return Positioned(
-      left: left,
-      width: width,
-      top: 4,
-      bottom: 4,
-      child: Opacity(
-        opacity: widget.muted ? 0.4 : 1,
-        child: Stack(
-          children: [
-            if (width > headWidth)
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.28), borderRadius: radius),
-                  ),
-                ),
-              ),
-            Positioned(
-              left: 0,
-              top: 0,
-              bottom: 0,
-              width: headWidth,
-              child: GestureDetector(
-                key: ValueKey('cue-head-${cue.id}'),
-                onTap: widget.onTap,
-                onHorizontalDragUpdate: (d) => setState(() => _dx += d.delta.dx),
-                onHorizontalDragEnd: (_) {
-                  final moved = widget.snap.apply(widget.scale.beatAt(widget.scale.x(cue.atBeat) + _dx));
-                  setState(() => _dx = 0);
-                  if (moved != cue.atBeat) widget.onMove(moved);
-                },
-                onHorizontalDragCancel: () => setState(() => _dx = 0),
-                child: Container(
-                  alignment: Alignment.centerLeft,
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  decoration: BoxDecoration(
-                    color: isStop ? AppColors.panel2 : widget.color,
-                    borderRadius: radius,
-                    border: Border.all(
-                      color: widget.selected ? Colors.white : (isStop ? AppColors.textFaint : Colors.transparent),
-                      width: widget.selected ? 2 : 1,
-                    ),
-                  ),
-                  child: Text(
-                    isStop ? 'Stop' : widget.label,
-                    maxLines: 1,
-                    overflow: TextOverflow.clip,
-                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 class _GridPainter extends CustomPainter {
