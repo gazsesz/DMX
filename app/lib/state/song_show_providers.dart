@@ -45,6 +45,15 @@ class SongShowsNotifier extends StateNotifier<List<SongShow>> {
 
   void remove(String id) => state = state.where((s) => s.id != id).toList();
 
+  /// Moves the show at [from] to sit at [to] — dragging one Dashboard tile
+  /// onto another. Saved with the project like everything else.
+  void move(int from, int to) {
+    if (from == to || from < 0 || from >= state.length || to < 0 || to >= state.length) return;
+    final next = [...state];
+    next.insert(to, next.removeAt(from));
+    state = next;
+  }
+
   void loadAll(List<SongShow> shows) => state = shows;
 }
 

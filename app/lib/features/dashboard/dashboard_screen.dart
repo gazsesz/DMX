@@ -24,7 +24,9 @@ import '../../state/dashboard_prefs_providers.dart';
 import '../../state/dashboard_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
+import '../../models/song_show.dart';
 import '../../state/smart_program_providers.dart';
+import '../../state/song_show_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
 import 'live_stage_view.dart';
 
@@ -460,6 +462,89 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
+  /// The Song Shows block: one tile per timed program, tapping starts or stops
+  /// it, long-press and drop reorders — laid out like the other tile groups.
+  List<Widget> _songShowsSection(TriggerLayout layout, DashboardBoxSize boxSize) {
+    final shows = ref.watch(songShowsProvider);
+    final playingId = ref.watch(playingSongShowIdProvider);
+    const color = Color(0xFFA78BFA);
+
+    Future<void> toggle(SongShow show) async {
+      if (playingId == show.id) {
+        stopSongShow(ref.read);
+        return;
+      }
+      final error = await startSongShow(ref.read, show);
+      if (error != null && mounted) _reportIfProblem(error);
+    }
+
+    String clock(int ms) {
+      final s = (ms / 1000).round();
+      return '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+    }
+
+    return [
+      const Text(
+        'SONG SHOWS',
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: AppColors.textFaint),
+      ),
+      const Text(
+        'Programs timed to one song — tap to play from the start',
+        style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+      ),
+      const SizedBox(height: 8),
+      if (shows.isEmpty)
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 4),
+          child: Text(
+            'None yet — create one from the Chase tab',
+            style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+          ),
+        )
+      else
+        _buildTileGroup(
+          layout: layout,
+          boxSize: boxSize,
+          group: 'song',
+          onReorder: (from, to) => ref.read(songShowsProvider.notifier).move(from, to),
+          tileBuilders: [
+            for (final show in shows)
+              (mosaic) {
+                final active = playingId == show.id;
+                final audio = show.audio;
+                final sub = [
+                  '${show.bpm.round()} BPM',
+                  if (audio != null && audio.durationMs > 0) clock(audio.durationMs),
+                ].join(' · ');
+                final detail = [
+                  '${show.cues.length} ${show.cues.length == 1 ? 'cue' : 'cues'}',
+                  if (audio?.path == null) 'silent',
+                ].join(' · ');
+                return mosaic
+                    ? _buildMosaicTile(
+                        boxSize: boxSize,
+                        kindLabel: 'SONG',
+                        name: show.name,
+                        sub: sub,
+                        detail: detail,
+                        color: color,
+                        active: active,
+                        onTap: () => toggle(show),
+                      )
+                    : _buildListRow(
+                        icon: Icons.music_note,
+                        name: show.name,
+                        sub: '$sub\n$detail',
+                        color: color,
+                        active: active,
+                        onTap: () => toggle(show),
+                      );
+              },
+          ],
+        ),
+    ];
+  }
+
   Widget _buildTileGroup({
     required TriggerLayout layout,
     required DashboardBoxSize boxSize,
@@ -519,36 +604,80 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
     final activeTriggerIds = {for (final t in triggers) if (layersPlaying(ref.read, t.id).isNotEmpty) t.id};
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          // Which node is configured, and how many universes — a label, not
-          // a status. It used to carry a hardcoded green dot that claimed
-          // "connected" whatever the truth was; NodeStatusAction now says
-          // that, and having both meant two indicators contradicting each
-          // other. Hidden on a phone, where the action row has no room for
-          // it and the name is one tap away in Setup anyway.
-          if (MediaQuery.sizeOf(context).width >= 600)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Chip(
-                backgroundColor: AppColors.panel2,
-                side: const BorderSide(color: AppColors.border),
-                label: Text(
-                  '${settings.deviceName} · ${universes.length}U',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textDim),
+    final smartSection = <Widget>[
+              const Text(
+                'SMART PROGRAMS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1,
+                  color: AppColors.textFaint,
                 ),
               ),
-            ),
-          const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
-        ],
-      ),
-      body: Stack(
-        children: [
-          ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            children: [
+              const Text(
+                'Switches chases automatically as the live music tempo changes',
+                style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              ),
+              const SizedBox(height: 8),
+              if (smartPrograms.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'None yet — create one from the Chase tab',
+                    style: TextStyle(color: AppColors.textFaint, fontSize: 12),
+                  ),
+                )
+              else
+                _buildTileGroup(
+                  layout: layout,
+                  boxSize: boxSize,
+                  group: 'smart',
+                  onReorder: (from, to) => ref.read(smartProgramsProvider.notifier).move(from, to),
+                  tileBuilders: [
+                    for (final program in smartPrograms)
+                      (mosaic) {
+                        final active = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
+                        final status = active ? _smartStatus : null;
+                        final zone = active ? (status?.zone ?? _smartPlayer.currentZone) : null;
+                        final zoneText = status?.isSilent == true ? 'No music' : zoneLabel(zone ?? SmartProgramZone.base);
+                        final sub = active
+                            ? '$zoneText${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM' : ''}'
+                            : '${program.baseBpm.round()} BPM base';
+                        // Layer by layer, what's playing (or what each
+                        // layer starts on, while the program is idle).
+                        final layersLine = smartLayerSummary(
+                          smartLayerLines(
+                            program,
+                            zone: zone,
+                            layers: ref.watch(layersProvider),
+                            chases: ref.watch(chasesProvider),
+                            banks: ref.watch(banksProvider),
+                          ),
+                        );
+                        return mosaic
+                            ? _buildMosaicTile(
+                                boxSize: boxSize,
+                                kindLabel: 'SMART',
+                                name: program.name,
+                                sub: sub,
+                                detail: layersLine,
+                                color: AppColors.accent2,
+                                active: active,
+                                onTap: () => _toggleSmartProgram(program),
+                              )
+                            : _buildListRow(
+                                icon: Icons.auto_graph,
+                                name: program.name,
+                                sub: layersLine.isEmpty ? sub : '$sub\n$layersLine',
+                                color: AppColors.accent2,
+                                active: active,
+                                onTap: () => _toggleSmartProgram(program),
+                              );
+                      },
+                  ],
+                ),
+    ];
+    final quickSection = <Widget>[
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -658,7 +787,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       },
                   ],
                 ),
-              const SizedBox(height: 22),
+    ];
+    final layersSection = <Widget>[
               const Text(
                 'LAYERS',
                 style: TextStyle(
@@ -674,78 +804,46 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
               const SizedBox(height: 8),
               for (final entry in ref.watch(layersProvider).indexed) _buildLayerRow(entry.$1, entry.$2),
+    ];
+    final songSection = _songShowsSection(layout, boxSize);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Dashboard'),
+        actions: [
+          // Which node is configured, and how many universes — a label, not
+          // a status. It used to carry a hardcoded green dot that claimed
+          // "connected" whatever the truth was; NodeStatusAction now says
+          // that, and having both meant two indicators contradicting each
+          // other. Hidden on a phone, where the action row has no room for
+          // it and the name is one tap away in Setup anyway.
+          if (MediaQuery.sizeOf(context).width >= 600)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Chip(
+                backgroundColor: AppColors.panel2,
+                side: const BorderSide(color: AppColors.border),
+                label: Text(
+                  '${settings.deviceName} · ${universes.length}U',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textDim),
+                ),
+              ),
+            ),
+          const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
+        ],
+      ),
+      body: Stack(
+        children: [
+          ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+            children: [
+              ...smartSection,
               const SizedBox(height: 22),
-              const Text(
-                'SMART PROGRAMS',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1,
-                  color: AppColors.textFaint,
-                ),
-              ),
-              const Text(
-                'Switches chases automatically as the live music tempo changes',
-                style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-              ),
-              const SizedBox(height: 8),
-              if (smartPrograms.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    'None yet — create one from the Chase tab',
-                    style: TextStyle(color: AppColors.textFaint, fontSize: 12),
-                  ),
-                )
-              else
-                _buildTileGroup(
-                  layout: layout,
-                  boxSize: boxSize,
-                  group: 'smart',
-                  onReorder: (from, to) => ref.read(smartProgramsProvider.notifier).move(from, to),
-                  tileBuilders: [
-                    for (final program in smartPrograms)
-                      (mosaic) {
-                        final active = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
-                        final status = active ? _smartStatus : null;
-                        final zone = active ? (status?.zone ?? _smartPlayer.currentZone) : null;
-                        final zoneText = status?.isSilent == true ? 'No music' : zoneLabel(zone ?? SmartProgramZone.base);
-                        final sub = active
-                            ? '$zoneText${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM' : ''}'
-                            : '${program.baseBpm.round()} BPM base';
-                        // Layer by layer, what's playing (or what each
-                        // layer starts on, while the program is idle).
-                        final layersLine = smartLayerSummary(
-                          smartLayerLines(
-                            program,
-                            zone: zone,
-                            layers: ref.watch(layersProvider),
-                            chases: ref.watch(chasesProvider),
-                            banks: ref.watch(banksProvider),
-                          ),
-                        );
-                        return mosaic
-                            ? _buildMosaicTile(
-                                boxSize: boxSize,
-                                kindLabel: 'SMART',
-                                name: program.name,
-                                sub: sub,
-                                detail: layersLine,
-                                color: AppColors.accent2,
-                                active: active,
-                                onTap: () => _toggleSmartProgram(program),
-                              )
-                            : _buildListRow(
-                                icon: Icons.auto_graph,
-                                name: program.name,
-                                sub: layersLine.isEmpty ? sub : '$sub\n$layersLine',
-                                color: AppColors.accent2,
-                                active: active,
-                                onTap: () => _toggleSmartProgram(program),
-                              );
-                      },
-                  ],
-                ),
+              ...quickSection,
+              const SizedBox(height: 22),
+              ...songSection,
+              const SizedBox(height: 22),
+              ...layersSection,
               // Skipped when the stage dock is up: it draws the same view
               // right underneath, and two of them stacked is just the
               // Dashboard scrolled twice as far for nothing.
