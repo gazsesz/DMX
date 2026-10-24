@@ -16,6 +16,7 @@ import 'package:dmx_controller/state/fixture_providers.dart';
 import 'package:dmx_controller/state/playback_providers.dart';
 import 'package:dmx_controller/state/scene_providers.dart';
 import 'package:dmx_controller/state/song_show_providers.dart';
+import 'package:dmx_controller/state/song_view_providers.dart' show resetSongViewCache;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,6 +68,8 @@ Future<void> tapAtLane(WidgetTester tester, String key, double dx) async {
 }
 
 void main() {
+  setUp(resetSongViewCache);
+
   group('how a Stop ends', () {
     test('keeps the last look unless told to black out, and survives JSON and copying', () {
       const hold = SongCue(id: 'a', atBeat: 4, layerId: layer1Id, action: SongCueAction.stop);

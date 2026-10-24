@@ -17,6 +17,7 @@ import 'package:dmx_controller/state/control_dock_providers.dart';
 import 'package:dmx_controller/state/scene_providers.dart';
 import 'package:dmx_controller/state/fixture_group_providers.dart';
 import 'package:dmx_controller/state/song_show_providers.dart';
+import 'package:dmx_controller/state/song_view_providers.dart' show resetSongViewCache;
 
 Future<ProviderContainer> pumpEditor(WidgetTester tester, SongShow show) async {
   final container = ProviderContainer(overrides: [activeBeatSourceProvider.overrideWithValue(SilentBeats())]);
@@ -40,7 +41,10 @@ Future<void> tapAtLane(WidgetTester tester, String key, double dx) async {
 }
 
 void main() {
-  setUp(resetSongPickFilter);
+  setUp(() {
+    resetSongPickFilter();
+    resetSongViewCache();
+  });
   scopeAndImportTests();
   cueBlockTests();
   transportAndPickerTests();

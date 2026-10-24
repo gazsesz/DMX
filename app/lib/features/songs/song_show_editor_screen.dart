@@ -21,6 +21,7 @@ import '../../state/control_dock_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/song_show_providers.dart';
+import '../../state/song_view_providers.dart';
 import 'pinch_zoom.dart';
 import 'song_auto_screen.dart';
 import 'song_section_dialog.dart';
@@ -70,12 +71,50 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(() {
+      if (_scroll.hasClients) _lastOffset = _scroll.offset;
+    });
+    // Come back to the zoom and place the timeline was left at.
+    final saved = rememberedSongView(widget.showId);
+    if (saved != null) {
+      _restoreView(saved);
+    } else {
+      unawaited(_restoreSavedView());
+    }
     _ticker = Timer.periodic(const Duration(milliseconds: 33), (_) => _tick());
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadWaveform());
   }
 
+  void _restoreView(SongView view) {
+    _scale = TimelineScale(view.pixelsPerBeat.clamp(TimelineScale.minPixelsPerBeat, TimelineScale.maxPixelsPerBeat));
+    _lastOffset = view.scrollOffset;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scroll.hasClients) return;
+      _scroll.jumpTo(view.scrollOffset.clamp(0.0, _scroll.position.maxScrollExtent));
+    });
+  }
+
+  /// A show opened for the first time this session: its view from the last one.
+  Future<void> _restoreSavedView() async {
+    final view = await loadSongView(widget.showId);
+    if (view == null || !mounted || _zoomTouched) return;
+    setState(() => _restoreView(view));
+  }
+
+  /// Whether the zoom was changed since the editor opened (then an older saved
+  /// view must not override what the user just did).
+  bool _zoomTouched = false;
+  double _lastOffset = 0;
+
+  void _setScale(TimelineScale scale) {
+    _zoomTouched = true;
+    setState(() => _scale = scale);
+  }
+
   @override
   void dispose() {
+    final view = SongView(pixelsPerBeat: _scale.pixelsPerBeat, scrollOffset: _lastOffset);
+    rememberSongView(widget.showId, view);
     _ticker?.cancel();
     _scroll.dispose();
     _playhead.dispose();
@@ -559,12 +598,12 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 IconButton(
                   tooltip: 'Zoom out',
                   icon: const Icon(Icons.zoom_out),
-                  onPressed: () => setState(() => _scale = _scale.zoomed(0.7)),
+                  onPressed: () => _setScale(_scale.zoomed(0.7)),
                 ),
                 IconButton(
                   tooltip: 'Zoom in',
                   icon: const Icon(Icons.zoom_in),
-                  onPressed: () => setState(() => _scale = _scale.zoomed(1 / 0.7)),
+                  onPressed: () => _setScale(_scale.zoomed(1 / 0.7)),
                 ),
                 OutlinedButton.icon(
                   key: const ValueKey('song-scope'),
@@ -632,7 +671,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 onMoveCue: _moveCue,
                 onResizeCue: _resizeCue,
                 pinch: _pinch,
-                onScaleChanged: (s) => setState(() => _scale = s),
+                onScaleChanged: _setScale,
                 onTapSection: _editSection,
                 onTapSectionRow: _addSection,
               ),
