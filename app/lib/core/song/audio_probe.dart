@@ -27,3 +27,25 @@ Future<AudioProbe> probeAudio(String path) async {
   final wave = await engine.readSamplesFromFile(path, bins, average: true);
   return AudioProbe(length: length, waveform: wave, binsPerSecond: waveformBinsPerSecond);
 }
+
+/// The rate analysis works at: plenty for tempo and bass, and a 5-minute song
+/// is only ~13 MB of floats.
+const analysisSampleRate = 11025;
+
+/// Real (signed) mono samples of [path] at [analysisSampleRate].
+///
+/// Read at twice the rate and averaged in pairs: asking the engine for fewer
+/// samples just drops the rest, folding high frequencies into the low band,
+/// while the pair average is a crude but real low-pass. (`average: true` on
+/// the engine is something else — an absolute-value envelope, for waveforms.)
+Future<Float32List> readAnalysisSamples(String path, Duration length) async {
+  final engine = SoLoud.instance;
+  if (!engine.isInitialized) await engine.init();
+  final wanted = (length.inMilliseconds / 1000 * analysisSampleRate * 2).round();
+  final raw = await engine.readSamplesFromFile(path, wanted);
+  final out = Float32List(raw.length ~/ 2);
+  for (var i = 0; i < out.length; i++) {
+    out[i] = (raw[2 * i] + raw[2 * i + 1]) / 2;
+  }
+  return out;
+}

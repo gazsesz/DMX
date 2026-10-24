@@ -10,6 +10,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
+import 'core/song/analyse_file.dart';
+
 void main() => runApp(const MaterialApp(home: SpikeScreen(), debugShowCheckedModeBanner: false));
 
 class SpikeScreen extends StatefulWidget {
@@ -80,6 +82,17 @@ class _SpikeScreenState extends State<SpikeScreen> {
     await SoLoud.instance.init();
     _say('SoLoud init ${sw.elapsedMilliseconds} ms');
     const auto = String.fromEnvironment('SPIKE_FILE');
+    if (auto.isNotEmpty && const bool.fromEnvironment('SPIKE_ANALYSE')) {
+      final sw2 = Stopwatch()..start();
+      final a = await analyseAudioFile(auto);
+      _say('ANALYSIS ${sw2.elapsedMilliseconds} ms: ${a.bpm} BPM, grid ${a.beatOffsetMs} ms, '
+          'confidence ${a.tempoConfidence.toStringAsFixed(2)}, ${a.barLevel.length} bars');
+      for (final s in a.sections) {
+        _say('  section bar ${s.startBeat / 4} +${s.lengthBeats / 4}: ${s.kind.name}');
+      }
+      _say('ANALYSIS DONE');
+      return;
+    }
     if (auto.isNotEmpty) {
       await _load(auto);
       await _play();
@@ -126,6 +139,20 @@ class _SpikeScreenState extends State<SpikeScreen> {
     }
     _say('analysis PCM $analysisSamples samples (${(pcm.lengthInBytes / 1048576).toStringAsFixed(1)} MB): '
         '${sw.elapsedMilliseconds} ms, peak ${peak.toStringAsFixed(2)}');
+
+    // Phase 4: what do the samples actually look like — signed audio at what rate?
+    for (final avg in [true, false]) {
+      final s5 = await SoLoud.instance.readSamplesFromFile(path, 55125, startTime: 30, endTime: 35, average: avg);
+      var mn = 0.0, mx = 0.0, neg = 0, crossings = 0;
+      for (var i = 0; i < s5.length; i++) {
+        mn = min(mn, s5[i]);
+        mx = max(mx, s5[i]);
+        if (s5[i] < 0) neg++;
+        if (i > 0 && (s5[i] < 0) != (s5[i - 1] < 0)) crossings++;
+      }
+      _say('5 s @30 s, 55125 samples, average=$avg: min ${mn.toStringAsFixed(2)} max ${mx.toStringAsFixed(2)} '
+          'negative $neg crossings $crossings (-> ~${(crossings / 2 / 5).round()} Hz dominant)');
+    }
   }
 
   Future<void> _play() async {

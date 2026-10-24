@@ -16,6 +16,7 @@ import '../../models/song_show.dart';
 import '../../state/bank_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/song_show_providers.dart';
+import 'song_auto_screen.dart';
 import 'song_section_dialog.dart';
 import 'song_target_picker.dart';
 import 'song_timeline.dart';
@@ -399,6 +400,16 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                   tooltip: 'Zoom in',
                   icon: const Icon(Icons.zoom_in),
                   onPressed: () => setState(() => _scale = _scale.zoomed(1 / 0.7)),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('song-auto'),
+                  onPressed: audio?.path == null
+                      ? null
+                      : () => Navigator.of(context).push(
+                          MaterialPageRoute(builder: (_) => SongAutoScreen(showId: show.id)),
+                        ),
+                  icon: const Icon(Icons.auto_awesome, size: 18),
+                  label: const Text('Auto'),
                 ),
                 FilterChip(
                   key: const ValueKey('song-record'),
