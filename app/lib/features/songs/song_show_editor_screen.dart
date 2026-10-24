@@ -310,13 +310,6 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
               title: Text(cue.action == SongCueAction.stop ? 'Start something instead' : 'Change what it starts'),
               onTap: () => Navigator.pop(context, 'change'),
             ),
-            if (cue.action == SongCueAction.start)
-              ListTile(
-                key: const ValueKey('cue-make-stop'),
-                leading: const Icon(Icons.stop),
-                title: const Text('Make it a stop'),
-                onTap: () => Navigator.pop(context, 'stop'),
-              ),
             ListTile(
               key: const ValueKey('cue-delete'),
               leading: const Icon(Icons.delete_outline),
@@ -333,8 +326,6 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
       case 'delete':
         _save(show.copyWith(cues: [for (final c in show.cues) if (c.id != cue.id) c]));
         setState(() => _selectedCueId = null);
-      case 'stop':
-        _replaceCue(show, SongCue(id: cue.id, atBeat: cue.atBeat, layerId: cue.layerId, action: SongCueAction.stop));
       case 'change':
         final target = await showSongTargetPicker(context);
         final latest = _show;
@@ -505,6 +496,15 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 style: TextStyle(fontSize: 11, color: audio == null ? AppColors.textFaint : AppColors.accent),
               ),
             ),
+          const Padding(
+            padding: EdgeInsets.fromLTRB(12, 2, 12, 4),
+            child: Text(
+              'Tap a lane to add a cue there. A cue plays until the next cue on its layer — add a Stop to end it. '
+              'Tap the left end of a cue to change or delete it, drag it to move it.',
+              key: ValueKey('timeline-hint'),
+              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+          ),
           Expanded(
             child: SingleChildScrollView(
               child: SongTimeline(

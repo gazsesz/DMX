@@ -17,6 +17,9 @@ const _waveHeight = 64.0;
 const _sectionHeight = 28.0;
 const _laneHeight = 44.0;
 
+/// How much of a cue block, from its left edge, is the cue itself.
+const _cueHeadWidth = 96.0;
+
 const _layerColors = [Color(0xFF3B6FD4), Color(0xFF1F8A7A), Color(0xFF9A3BD4), Color(0xFFD4803B), Color(0xFFD43B6F)];
 
 Color layerColor(int index) => _layerColors[index % _layerColors.length];
@@ -407,40 +410,65 @@ class _CueBlockState extends State<_CueBlock> {
     final left = widget.scale.x(cue.atBeat) + _dx;
     final naturalWidth = widget.scale.x(widget.span.endBeat - cue.atBeat);
     final width = isStop ? 34.0 : math.max(naturalWidth - 2, 30.0);
+    // Only the head of the block is the cue — it is what you tap to change or
+    // delete it, and what you drag. The faded tail just shows how long it
+    // lasts (until the next cue on the layer) and lets taps through to the
+    // lane, so a Stop or another look can still be placed anywhere along it.
+    final headWidth = math.min(width, _cueHeadWidth);
+    final radius = BorderRadius.circular(5);
     return Positioned(
       left: left,
       width: width,
       top: 4,
       bottom: 4,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        onHorizontalDragUpdate: (d) => setState(() => _dx += d.delta.dx),
-        onHorizontalDragEnd: (_) {
-          final moved = widget.snap.apply(widget.scale.beatAt(widget.scale.x(cue.atBeat) + _dx));
-          setState(() => _dx = 0);
-          if (moved != cue.atBeat) widget.onMove(moved);
-        },
-        onHorizontalDragCancel: () => setState(() => _dx = 0),
-        child: Opacity(
-          opacity: widget.muted ? 0.4 : 1,
-          child: Container(
-            alignment: Alignment.centerLeft,
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            decoration: BoxDecoration(
-              color: isStop ? AppColors.panel2 : widget.color,
-              borderRadius: BorderRadius.circular(5),
-              border: Border.all(
-                color: widget.selected ? Colors.white : (isStop ? AppColors.textFaint : Colors.transparent),
-                width: widget.selected ? 2 : 1,
+      child: Opacity(
+        opacity: widget.muted ? 0.4 : 1,
+        child: Stack(
+          children: [
+            if (width > headWidth)
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.28), borderRadius: radius),
+                  ),
+                ),
+              ),
+            Positioned(
+              left: 0,
+              top: 0,
+              bottom: 0,
+              width: headWidth,
+              child: GestureDetector(
+                key: ValueKey('cue-head-${cue.id}'),
+                onTap: widget.onTap,
+                onHorizontalDragUpdate: (d) => setState(() => _dx += d.delta.dx),
+                onHorizontalDragEnd: (_) {
+                  final moved = widget.snap.apply(widget.scale.beatAt(widget.scale.x(cue.atBeat) + _dx));
+                  setState(() => _dx = 0);
+                  if (moved != cue.atBeat) widget.onMove(moved);
+                },
+                onHorizontalDragCancel: () => setState(() => _dx = 0),
+                child: Container(
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  decoration: BoxDecoration(
+                    color: isStop ? AppColors.panel2 : widget.color,
+                    borderRadius: radius,
+                    border: Border.all(
+                      color: widget.selected ? Colors.white : (isStop ? AppColors.textFaint : Colors.transparent),
+                      width: widget.selected ? 2 : 1,
+                    ),
+                  ),
+                  child: Text(
+                    isStop ? 'Stop' : widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  ),
+                ),
               ),
             ),
-            child: Text(
-              isStop ? 'Stop' : widget.label,
-              maxLines: 1,
-              overflow: TextOverflow.clip,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
-            ),
-          ),
+          ],
         ),
       ),
     );

@@ -33,6 +33,7 @@ Future<void> tapAtLane(WidgetTester tester, String key, double dx) async {
 
 void main() {
   scopeAndImportTests();
+  cueBlockTests();
   testWidgets('the list shows and deletes song shows', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -178,5 +179,53 @@ void scopeAndImportTests() {
     ));
     expect(find.byKey(const ValueKey('import-song-show')), findsOneWidget);
     expect(find.byKey(const ValueKey('export-song-a')), findsOneWidget);
+  });
+}
+
+void cueBlockTests() {
+  testWidgets('a Stop can be placed along a bank that plays to the end of the lane', (tester) async {
+    final container = await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    final bank = container.read(banksProvider.notifier).addBank();
+
+    // The bank at beat 2: its block now covers the lane to the right.
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 70);
+    await tester.tap(find.byKey(const ValueKey('add-start-cue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('target-bank-${bank.id}')));
+    await tester.pumpAndSettle();
+    expect(container.read(songShowsProvider).single.cues, hasLength(1));
+
+    // A tap well to the right, over the faded tail, still adds a cue.
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 330); // beat 10
+    await tester.tap(find.byKey(const ValueKey('add-stop-cue')));
+    await tester.pumpAndSettle();
+    final cues = container.read(songShowsProvider).single.cues;
+    expect(cues, hasLength(2), reason: 'the bank is still there');
+    expect(cues.where((c) => c.action == SongCueAction.start).single.target!.bankId, bank.id);
+    final stop = cues.singleWhere((c) => c.action == SongCueAction.stop);
+    expect(stop.atBeat, 10);
+  });
+
+  testWidgets('tapping the head of a cue opens its menu, which no longer offers to turn it into a stop', (tester) async {
+    final container = await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    final bank = container.read(banksProvider.notifier).addBank();
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 70);
+    await tester.tap(find.byKey(const ValueKey('add-start-cue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('target-bank-${bank.id}')));
+    await tester.pumpAndSettle();
+
+    final cue = container.read(songShowsProvider).single.cues.single;
+    await tester.tap(find.byKey(ValueKey('cue-head-${cue.id}')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('cue-change')), findsOneWidget);
+    expect(find.byKey(const ValueKey('cue-delete')), findsOneWidget);
+    expect(find.byKey(const ValueKey('cue-make-stop')), findsNothing);
+  });
+
+  testWidgets('the screen explains how cues work', (tester) async {
+    await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    expect(find.byKey(const ValueKey('timeline-hint')), findsOneWidget);
+    expect(find.textContaining('add a Stop to end it'), findsOneWidget);
   });
 }
