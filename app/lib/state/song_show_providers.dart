@@ -2,14 +2,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/song/soloud_song_audio.dart';
+import '../core/song/silent_song_audio.dart';
 import '../core/song/song_scope.dart';
 import '../core/song/song_show_player.dart';
+import '../core/song/song_timeline_math.dart';
 import '../models/song_show.dart';
 import 'artnet_providers.dart';
 import 'bank_providers.dart';
 import 'chase_providers.dart';
 import 'fixture_group_providers.dart';
 import 'fixture_providers.dart';
+import 'scene_providers.dart';
 import 'playback_providers.dart' as pb;
 import 'provider_reader.dart';
 
@@ -52,6 +55,13 @@ class LayerCueSink implements SongCueSink {
 
   @override
   void start(SongCue cue) {
+    final sceneId = cue.sceneId;
+    if (sceneId != null) {
+      final matches = _read(scenesProvider).where((s) => s.id == sceneId);
+      if (matches.isEmpty) return;
+      pb.runSceneOnLayer(_read, scene: matches.first, layerId: cue.layerId);
+      return;
+    }
     final target = cue.target;
     if (target == null) return;
     if (target.isBank) {
@@ -62,7 +72,7 @@ class LayerCueSink implements SongCueSink {
       final matches = _read(chasesProvider).where((c) => c.id == target.id);
       if (matches.isEmpty) return;
       // The whole chase plays, on the layers its own steps name; a cue's layer
-      // only matters for banks.
+      // only matters for banks and scenes.
       pb.startLayeredChase(
         _read,
         matches.first,
@@ -70,7 +80,6 @@ class LayerCueSink implements SongCueSink {
       );
     }
   }
-
   @override
   void stopLayer(String layerId) => pb.stopLayer(_read, layerId);
 }
@@ -147,7 +156,9 @@ void _endSongShow(ReadProvider read) {
 /// Plays [show] from [from]. Returns a message when it can't start.
 Future<String?> startSongShow(ReadProvider read, SongShow show, {Duration from = Duration.zero}) async {
   final path = show.audio?.path;
-  if (path == null) return '${show.name} has no audio file linked';
+  // No song file linked: the show still runs, on a silent clock over its own
+  // length, so the lights can be tested from the tempo alone.
+  if (path == null && show.cues.isEmpty) return 'Add some cues to ${show.name} first';
   // One show at a time: the one on stage ends before this one starts.
   if (read(songShowPlayerProvider).show != null) {
     read(songShowPlayerProvider).stop();
@@ -155,7 +166,14 @@ Future<String?> startSongShow(ReadProvider read, SongShow show, {Duration from =
   }
   _applySongScope(read, show);
   try {
-    await read(songShowPlayerProvider).play(show, from: from, audioPath: path);
+    await read(songShowPlayerProvider).play(
+      show,
+      from: from,
+      audioPath: path,
+      audioOverride: path == null
+          ? SilentSongAudio(length: Duration(milliseconds: show.msOfBeat(timelineBeats(show)).round()))
+          : null,
+    );
   } catch (e) {
     _endSongShow(read);
     return 'Could not play ${show.name}: $e';
@@ -163,6 +181,12 @@ Future<String?> startSongShow(ReadProvider read, SongShow show, {Duration from =
   read(playingSongShowIdProvider.notifier).state = show.id;
   return null;
 }
+
+/// Starts one cue's look right now, outside any song — "Try it" in the editor.
+void previewSongCue(ReadProvider read, SongCue cue) => LayerCueSink(read).start(cue);
+
+/// Stops what a layer is playing, outside any song.
+void stopSongLayer(ReadProvider read, String layerId) => pb.stopLayer(stableRead(read), layerId);
 
 void stopSongShow(ReadProvider read) {
   read(songShowPlayerProvider).stop();

@@ -54,6 +54,7 @@ class SongShowExport {
       projectName: projectName,
       bankIds: {for (final c in show.cues) ?c.target?.bankId},
       chaseIds: {for (final c in show.cues) ?c.target?.chaseId},
+      sceneIds: {for (final c in show.cues) ?c.sceneId},
       allBanks: allBanks,
       allChases: allChases,
       allScenes: allScenes,
@@ -141,6 +142,7 @@ SongShowImport importSongShow(
   required List<Bank> banks,
   required List<Chase> chases,
   required Set<String> sceneNames,
+  required Set<String> sceneIds,
   required Set<String> songShowNames,
   required String Function() newId,
 }) {
@@ -166,14 +168,19 @@ SongShowImport importSongShow(
   final fileChaseIds = {for (final c in json['chases'] as List? ?? const []) (c as Map)['id'] as String};
   final haveBanks = {for (final b in banks) b.id};
   final haveChases = {for (final c in chases) c.id};
-  final everythingHere = fileBankIds.every(haveBanks.contains) && fileChaseIds.every(haveChases.contains);
+  final cueSceneIds = {for (final c in source.cues) ?c.sceneId};
+  final everythingHere = fileBankIds.every(haveBanks.contains) &&
+      fileChaseIds.every(haveChases.contains) &&
+      cueSceneIds.every(sceneIds.contains);
 
   ShowItemsImport? items;
   var bankMap = <String, String>{};
   var chaseMap = <String, String>{};
+  var sceneMap = <String, String>{};
   if (everythingHere) {
     bankMap = {for (final id in fileBankIds) id: id};
     chaseMap = {for (final id in fileChaseIds) id: id};
+    sceneMap = {for (final id in cueSceneIds) id: id};
   } else {
     items = importShowItems(
       content,
@@ -187,6 +194,7 @@ SongShowImport importSongShow(
     );
     bankMap = items.bankIdMap;
     chaseMap = items.chaseIdMap;
+    sceneMap = items.sceneIdMap;
     warnings.addAll(items.warnings);
   }
 
@@ -214,12 +222,21 @@ SongShowImport importSongShow(
       }
       mapped = ProgramTarget(id: newTarget, isBank: target.isBank, lane: target.lane);
     }
+    String? mappedScene;
+    if (cue.sceneId != null) {
+      mappedScene = sceneMap[cue.sceneId];
+      if (mappedScene == null) {
+        dropped++;
+        continue;
+      }
+    }
     cues.add(SongCue(
       id: newId(),
       atBeat: cue.atBeat,
       layerId: layerMap[cue.layerId] ?? layer1Id,
       action: cue.action,
       target: mapped,
+      sceneId: mappedScene,
     ));
   }
   if (dropped > 0) warnings.add('$dropped cue${dropped == 1 ? '' : 's'} pointed at something missing from the file and were left out.');

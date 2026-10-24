@@ -33,6 +33,10 @@ class SongShowPlayer {
   static const _skipThreshold = Duration(milliseconds: 500);
 
   final SongAudio audio;
+
+  /// What is playing now: [audio], or the silent clock a show without a song
+  /// file is run on.
+  late SongAudio _active = audio;
   final SongCueSink sink;
   final Duration Function() _wall;
 
@@ -59,11 +63,17 @@ class SongShowPlayer {
 
   /// Starts [show] at [from]. Whatever should already be running at that
   /// point starts too, so jumping into a drop lands on the drop's look.
-  Future<void> play(SongShow show, {Duration from = Duration.zero, String? audioPath}) async {
+  Future<void> play(
+    SongShow show, {
+    Duration from = Duration.zero,
+    String? audioPath,
+    SongAudio? audioOverride,
+  }) async {
     stop();
-    if (audioPath != null) await audio.load(audioPath);
+    if (audioOverride == null && audioPath != null) await audio.load(audioPath);
+    _active = audioOverride ?? audio;
     _show = show;
-    audio.play(from);
+    _active.play(from);
     _clock.start(from, _wall());
     _lastPos = from;
     _restoreState(from);
@@ -79,7 +89,7 @@ class SongShowPlayer {
 
   void seek(Duration to) {
     if (!isPlaying) return;
-    audio.seek(to);
+    _active.seek(to);
     _clock.start(to, _wall());
     _lastPos = to;
     _restoreState(to);
@@ -90,7 +100,7 @@ class SongShowPlayer {
   void stop() {
     _timer?.cancel();
     _timer = null;
-    if (_show != null) audio.stop();
+    if (_show != null) _active.stop();
     _clock.stop();
     _show = null;
   }
@@ -100,7 +110,7 @@ class SongShowPlayer {
     final show = _show;
     if (show == null) return;
     final wall = _wall();
-    _clock.report(audio.position, wall);
+    _clock.report(_active.position, wall);
     final pos = _clock.now(wall);
     if (pos < _lastPos || pos - _lastPos > _skipThreshold) {
       _restoreState(pos);
@@ -110,7 +120,7 @@ class SongShowPlayer {
       }
     }
     _lastPos = pos;
-    final length = audio.length;
+    final length = _active.length;
     if (length > Duration.zero && pos >= length) {
       stop();
       _finished.add(null);
@@ -132,7 +142,7 @@ class SongShowPlayer {
   void _fire(SongCue cue) {
     switch (cue.action) {
       case SongCueAction.start:
-        if (cue.target != null) sink.start(cue);
+        if (cue.hasTarget) sink.start(cue);
       case SongCueAction.stop:
         sink.stopLayer(cue.layerId);
     }

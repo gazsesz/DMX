@@ -94,9 +94,12 @@ class SongCue {
   final String layerId;
   final SongCueAction action;
 
-  /// What a [SongCueAction.start] plays; the same bank-or-chase reference a
-  /// Smart Program zone uses. Null for a stop.
+  /// What a [SongCueAction.start] plays when it plays a bank or a chase; the
+  /// same reference a Smart Program zone uses. Null for a stop and for a scene.
   final ProgramTarget? target;
+
+  /// Set instead of [target] when the cue plays one scene, held as it is.
+  final String? sceneId;
 
   const SongCue({
     required this.id,
@@ -104,14 +107,40 @@ class SongCue {
     required this.layerId,
     this.action = SongCueAction.start,
     this.target,
+    this.sceneId,
   });
 
-  SongCue copyWith({double? atBeat, String? layerId, SongCueAction? action, ProgramTarget? target}) => SongCue(
+  /// Whether a start cue has anything to start.
+  bool get hasTarget => target != null || sceneId != null;
+
+  /// Moved to [atBeat] and/or [layerId]; everything else stays.
+  SongCue copyWith({double? atBeat, String? layerId}) => SongCue(
     id: id,
     atBeat: atBeat ?? this.atBeat,
     layerId: layerId ?? this.layerId,
-    action: action ?? this.action,
-    target: target ?? this.target,
+    action: action,
+    target: target,
+    sceneId: sceneId,
+  );
+
+  /// The same cue starting a bank or chase instead of whatever it started.
+  SongCue startingTarget(ProgramTarget next) =>
+      SongCue(id: id, atBeat: atBeat, layerId: layerId, target: next);
+
+  /// The same cue starting one scene.
+  SongCue startingScene(String scene) => SongCue(id: id, atBeat: atBeat, layerId: layerId, sceneId: scene);
+
+  /// A stop in the place of whatever it was.
+  SongCue asStop() => SongCue(id: id, atBeat: atBeat, layerId: layerId, action: SongCueAction.stop);
+
+  /// A copy under a new [newId], for pasting.
+  SongCue duplicatedAs(String newId, {double? atBeat, String? layerId}) => SongCue(
+    id: newId,
+    atBeat: atBeat ?? this.atBeat,
+    layerId: layerId ?? this.layerId,
+    action: action,
+    target: target,
+    sceneId: sceneId,
   );
 
   Map<String, dynamic> toJson() => {
@@ -122,6 +151,7 @@ class SongCue {
     if (target?.chaseId != null) 'chaseId': target!.chaseId,
     if (target?.bankId != null) 'bankId': target!.bankId,
     if (target?.chaseLane != null) 'chaseLane': target!.chaseLane,
+    if (sceneId != null) 'sceneId': sceneId,
   };
 
   factory SongCue.fromJson(Map<String, dynamic> json) => SongCue(
@@ -134,6 +164,7 @@ class SongCue {
       bankId: json['bankId'] as String?,
       chaseLane: json['chaseLane'] as String?,
     ),
+    sceneId: json['sceneId'] as String?,
   );
 }
 
@@ -191,6 +222,7 @@ class SongShow {
 
   bool usesChase(String chaseId) => cues.any((c) => c.target?.chaseId == chaseId);
   bool usesBank(String bankId) => cues.any((c) => c.target?.bankId == bankId);
+  bool usesScene(String sceneId) => cues.any((c) => c.sceneId == sceneId);
 
   SongShow copyWith({
     String? name,

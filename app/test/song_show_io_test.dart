@@ -79,6 +79,7 @@ void main() {
     List<Bank> banks = const [],
     List<Chase> chases = const [],
     Set<String> names = const {},
+    Set<String> sceneIds = const {},
   }) {
     counter = 0;
     return importSongShow(
@@ -89,6 +90,7 @@ void main() {
       banks: banks,
       chases: chases,
       sceneNames: {},
+      sceneIds: sceneIds,
       songShowNames: {...names},
       newId: newId,
     );

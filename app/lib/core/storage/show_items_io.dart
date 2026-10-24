@@ -95,6 +95,7 @@ class ShowItemsExport {
     required String projectName,
     Iterable<String> bankIds = const [],
     Iterable<String> chaseIds = const [],
+    Iterable<String> sceneIds = const [],
     required List<Bank> allBanks,
     required List<Chase> allChases,
     required List<Scene> allScenes,
@@ -105,6 +106,7 @@ class ShowItemsExport {
     final wantedBanks = {...bankIds, for (final c in chases) for (final s in c.steps) ?s.bankId};
     final banks = allBanks.where((b) => wantedBanks.contains(b.id)).toList();
     final wantedScenes = {
+      ...sceneIds,
       for (final b in banks) for (final id in b.sceneSlots) ?id,
       for (final c in chases) for (final s in c.steps) ?s.sceneId,
     };
@@ -152,6 +154,7 @@ class ShowItemsImport {
   /// (null: not found here), for a caller that has to re-point references.
   final Map<String, String> bankIdMap;
   final Map<String, String> chaseIdMap;
+  final Map<String, String> sceneIdMap;
   final Map<String, String?> layerMap;
 
   const ShowItemsImport({
@@ -161,6 +164,7 @@ class ShowItemsImport {
     required this.warnings,
     this.bankIdMap = const {},
     this.chaseIdMap = const {},
+    this.sceneIdMap = const {},
     this.layerMap = const {},
   });
 
@@ -333,6 +337,7 @@ ShowItemsImport importShowItems(
     warnings: warnings,
     bankIdMap: bankMap,
     chaseIdMap: chaseMap,
+    sceneIdMap: sceneMap,
     layerMap: layerMap,
   );
 }

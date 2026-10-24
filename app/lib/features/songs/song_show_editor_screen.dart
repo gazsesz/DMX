@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -49,6 +50,9 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
   Timer? _ticker;
   bool _recording = false;
   String? _recordLayerId;
+
+  /// A cue copied from the timeline, waiting to be pasted onto a lane.
+  SongCue? _clipboard;
 
   SongShow? get _show {
     for (final s in ref.read(songShowsProvider)) {
@@ -262,6 +266,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     final show = _show;
     if (show == null) return;
     setState(() => _cursorBeat = beat);
+    final clip = _clipboard;
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
@@ -271,9 +276,16 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
             ListTile(
               key: const ValueKey('add-start-cue'),
               leading: const Icon(Icons.play_arrow),
-              title: const Text('Start a bank or chase here'),
+              title: const Text('Start a bank, scene or chase here'),
               onTap: () => Navigator.pop(context, 'start'),
             ),
+            if (clip != null)
+              ListTile(
+                key: const ValueKey('paste-cue'),
+                leading: const Icon(Icons.content_paste),
+                title: Text('Paste: ${songCueName(ref, clip)}'),
+                onTap: () => Navigator.pop(context, 'paste'),
+              ),
             ListTile(
               key: const ValueKey('add-stop-cue'),
               leading: const Icon(Icons.stop),
@@ -289,26 +301,55 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
       _addCue(show, SongCue(id: _uuid.v4(), atBeat: beat, layerId: layerId, action: SongCueAction.stop));
       return;
     }
-    final target = await showSongTargetPicker(context);
-    if (target == null || !mounted) return;
+    if (choice == 'paste' && clip != null) {
+      _addCue(show, clip.duplicatedAs(_uuid.v4(), atBeat: beat, layerId: layerId));
+      return;
+    }
+    final pick = await showSongTargetPicker(context);
+    if (pick == null || !mounted) return;
     final latest = _show;
     if (latest == null) return;
-    _addCue(latest, SongCue(id: _uuid.v4(), atBeat: beat, layerId: layerId, target: target));
+    _addCue(
+      latest,
+      SongCue(id: _uuid.v4(), atBeat: beat, layerId: layerId, target: pick.target, sceneId: pick.sceneId),
+    );
   }
 
   Future<void> _tapCue(SongCue cue) async {
     setState(() => _selectedCueId = cue.id);
+    final isStart = cue.action == SongCueAction.start;
     final choice = await showModalBottomSheet<String>(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (isStart)
+              ListTile(
+                key: const ValueKey('cue-try'),
+                leading: const Icon(Icons.play_circle_outline),
+                title: const Text('Try it now'),
+                subtitle: const Text('Plays this look on its layer, outside the song'),
+                onTap: () => Navigator.pop(context, 'try'),
+              ),
+            ListTile(
+              key: const ValueKey('cue-stop-layer'),
+              leading: const Icon(Icons.stop_circle_outlined),
+              title: const Text('Stop this layer now'),
+              onTap: () => Navigator.pop(context, 'stop-layer'),
+            ),
             ListTile(
               key: const ValueKey('cue-change'),
               leading: const Icon(Icons.swap_horiz),
-              title: Text(cue.action == SongCueAction.stop ? 'Start something instead' : 'Change what it starts'),
+              title: Text(isStart ? 'Change what it starts' : 'Start something instead'),
               onTap: () => Navigator.pop(context, 'change'),
+            ),
+            ListTile(
+              key: const ValueKey('cue-copy'),
+              leading: const Icon(Icons.copy_outlined),
+              title: const Text('Copy'),
+              subtitle: const Text('Then tap a lane to paste it there'),
+              onTap: () => Navigator.pop(context, 'copy'),
             ),
             ListTile(
               key: const ValueKey('cue-delete'),
@@ -326,11 +367,18 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
       case 'delete':
         _save(show.copyWith(cues: [for (final c in show.cues) if (c.id != cue.id) c]));
         setState(() => _selectedCueId = null);
+      case 'copy':
+        setState(() => _clipboard = cue);
+        _snackText('Copied "${songCueName(ref, cue)}" — tap a lane to paste it');
+      case 'try':
+        previewSongCue(ref.read, cue);
+      case 'stop-layer':
+        stopSongLayer(ref.read, cue.layerId);
       case 'change':
-        final target = await showSongTargetPicker(context);
+        final pick = await showSongTargetPicker(context);
         final latest = _show;
-        if (target == null || latest == null || !mounted) return;
-        _replaceCue(latest, SongCue(id: cue.id, atBeat: cue.atBeat, layerId: cue.layerId, target: target));
+        if (pick == null || latest == null || !mounted) return;
+        _replaceCue(latest, pick.sceneId != null ? cue.startingScene(pick.sceneId!) : cue.startingTarget(pick.target!));
     }
   }
 
@@ -518,7 +566,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 playheadBeat: _playhead,
                 cursorBeat: _cursorBeat,
                 selectedCueId: _selectedCueId,
-                targetName: (t) => songTargetName(ref, t),
+                cueName: (c) => songCueName(ref, c),
                 onTapRuler: _tapRuler,
                 onTapLane: _tapLane,
                 onTapCue: _tapCue,
@@ -527,6 +575,13 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 onTapSectionRow: _addSection,
               ),
             ),
+          ),
+          _TransportBar(
+            show: show,
+            playing: playing,
+            playhead: _playhead,
+            cursorBeat: _cursorBeat,
+            onToggle: _togglePlay,
           ),
           if (_recording && playing) _RecordBar(layers: layers, layerId: _recordLayerId, onLayer: _pickRecordLayer, onPress: _recordPress),
         ],
@@ -681,3 +736,66 @@ Future<bool> confirmDeleteSongShow(BuildContext context, SongShow show) => confi
   title: 'Delete "${show.name}"?',
   message: 'Its timeline goes with it. The banks and chases it used stay in the project, and the song file is untouched.',
 );
+
+/// Play and Stop where the thumb is, with where in the song it is — editing
+/// and testing go hand in hand. A show without a song file plays silently, on
+/// its tempo, so the lights can still be tried.
+class _TransportBar extends StatelessWidget {
+  const _TransportBar({
+    required this.show,
+    required this.playing,
+    required this.playhead,
+    required this.cursorBeat,
+    required this.onToggle,
+  });
+
+  final SongShow show;
+  final bool playing;
+  final ValueListenable<double?> playhead;
+  final double cursorBeat;
+  final VoidCallback onToggle;
+
+  static String barBeat(double beat) {
+    final b = beat < 0 ? 0.0 : beat;
+    return 'bar ${b ~/ 4 + 1} · beat ${(b % 4).floor() + 1}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final silent = show.audio?.path == null;
+    return Container(
+      color: AppColors.panel2,
+      padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      child: Row(
+        children: [
+          FilledButton.icon(
+            key: const ValueKey('transport-play'),
+            onPressed: onToggle,
+            style: playing ? FilledButton.styleFrom(backgroundColor: AppColors.danger) : null,
+            icon: Icon(playing ? Icons.stop : Icons.play_arrow),
+            label: Text(playing ? 'Stop' : 'Play'),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ValueListenableBuilder<double?>(
+              valueListenable: playhead,
+              builder: (context, beat, _) => Text(
+                playing && beat != null
+                    ? 'Playing · ${barBeat(beat)}'
+                    : 'Starts from ${barBeat(cursorBeat)} (tap the ruler to move it)',
+                key: const ValueKey('transport-position'),
+                style: const TextStyle(fontSize: 12, color: AppColors.textDim),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          if (silent)
+            const Tooltip(
+              message: 'No song file linked: plays without sound, on the tempo',
+              child: Icon(Icons.volume_off, size: 18, color: AppColors.textFaint),
+            ),
+        ],
+      ),
+    );
+  }
+}

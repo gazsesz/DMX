@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import '../../core/song/song_timeline_math.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/layer.dart';
-import '../../models/smart_program.dart';
 import '../../models/song_show.dart';
 
 const timelineLabelWidth = 88.0;
@@ -51,7 +50,7 @@ class SongTimeline extends StatelessWidget {
     required this.layers,
     required this.scale,
     required this.scrollController,
-    required this.targetName,
+    required this.cueName,
     required this.snap,
     this.waveform,
     this.waveformBinsPerSecond = 20,
@@ -70,7 +69,7 @@ class SongTimeline extends StatelessWidget {
   final List<Layer> layers;
   final TimelineScale scale;
   final ScrollController scrollController;
-  final String Function(ProgramTarget? target) targetName;
+  final String Function(SongCue cue) cueName;
   final SongSnap snap;
   final Float32List? waveform;
   final int waveformBinsPerSecond;
@@ -178,7 +177,7 @@ class SongTimeline extends StatelessWidget {
                         scale: scale,
                         snap: snap,
                         endBeat: totalBeats,
-                        targetName: targetName,
+                        cueName: cueName,
                         selectedCueId: selectedCueId,
                         onTapLane: onTapLane,
                         onTapCue: onTapCue,
@@ -317,7 +316,7 @@ class _Lane extends StatelessWidget {
     required this.scale,
     required this.snap,
     required this.endBeat,
-    required this.targetName,
+    required this.cueName,
     required this.selectedCueId,
     this.onTapLane,
     this.onTapCue,
@@ -330,7 +329,7 @@ class _Lane extends StatelessWidget {
   final TimelineScale scale;
   final SongSnap snap;
   final double endBeat;
-  final String Function(ProgramTarget? target) targetName;
+  final String Function(SongCue cue) cueName;
   final String? selectedCueId;
   final void Function(String layerId, double beat)? onTapLane;
   final void Function(SongCue cue)? onTapCue;
@@ -361,7 +360,7 @@ class _Lane extends StatelessWidget {
             color: color,
             scale: scale,
             snap: snap,
-            label: targetName(span.cue.target),
+            label: cueName(span.cue),
             selected: span.cue.id == selectedCueId,
             muted: !(show.sectionAt(span.cue.atBeat)?.enabled ?? true),
             onTap: () => onTapCue?.call(span.cue),

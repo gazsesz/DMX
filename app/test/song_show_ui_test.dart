@@ -2,16 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:dmx_controller/features/songs/song_show_editor_screen.dart';
+import 'support/silent_beats.dart';
 import 'package:dmx_controller/features/songs/song_shows_section.dart';
+import 'package:dmx_controller/features/songs/song_target_picker.dart' show resetSongPickFilter;
 import 'package:dmx_controller/models/fixture_group.dart';
 import 'package:dmx_controller/models/layer.dart';
 import 'package:dmx_controller/models/song_show.dart';
+import 'package:dmx_controller/state/audio_providers.dart';
 import 'package:dmx_controller/state/bank_providers.dart';
+import 'package:dmx_controller/state/chase_providers.dart';
+import 'package:dmx_controller/state/scene_providers.dart';
 import 'package:dmx_controller/state/fixture_group_providers.dart';
 import 'package:dmx_controller/state/song_show_providers.dart';
 
 Future<ProviderContainer> pumpEditor(WidgetTester tester, SongShow show) async {
-  final container = ProviderContainer();
+  final container = ProviderContainer(overrides: [activeBeatSourceProvider.overrideWithValue(SilentBeats())]);
   addTearDown(container.dispose);
   container.read(songShowsProvider.notifier).upsert(show);
   tester.view.physicalSize = const Size(1200, 900);
@@ -32,8 +37,10 @@ Future<void> tapAtLane(WidgetTester tester, String key, double dx) async {
 }
 
 void main() {
+  setUp(resetSongPickFilter);
   scopeAndImportTests();
   cueBlockTests();
+  transportAndPickerTests();
   testWidgets('the list shows and deletes song shows', (tester) async {
     final container = ProviderContainer();
     addTearDown(container.dispose);
@@ -130,12 +137,6 @@ void main() {
     expect(container.read(songShowsProvider).single.sections, isEmpty);
   });
 
-  testWidgets('Play without a linked audio file explains itself', (tester) async {
-    await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
-    await tester.tap(find.byKey(const ValueKey('song-play')));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('has no audio file linked'), findsOneWidget);
-  });
 }
 
 void scopeAndImportTests() {
@@ -227,5 +228,132 @@ void cueBlockTests() {
     await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
     expect(find.byKey(const ValueKey('timeline-hint')), findsOneWidget);
     expect(find.textContaining('add a Stop to end it'), findsOneWidget);
+  });
+}
+
+void transportAndPickerTests() {
+  testWidgets('Play on an empty show without a song asks for some cues first', (tester) async {
+    await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    await tester.tap(find.byKey(const ValueKey('transport-play')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Add some cues'), findsOneWidget);
+  });
+
+  testWidgets('a show without a song plays silently from the bottom bar, and Stop ends it', (tester) async {
+    final container = await pumpEditor(
+      tester,
+      const SongShow(
+        id: 's',
+        name: 'Song',
+        cues: [SongCue(id: 'c', atBeat: 0, layerId: layer1Id, action: SongCueAction.stop)],
+      ),
+    );
+    expect(find.text('Play'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('transport-play')));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(container.read(playingSongShowIdProvider), 's');
+    expect(find.text('Stop'), findsWidgets);
+    expect(find.textContaining('Playing'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('transport-play')));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(container.read(playingSongShowIdProvider), isNull);
+    expect(find.text('Play'), findsOneWidget);
+  });
+
+  testWidgets('the picker lists banks, scenes and chases and narrows them by filter and search', (tester) async {
+    final container = await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    final bank = container.read(banksProvider.notifier).addBank(name: 'Warm bank');
+    final scene = container.read(scenesProvider.notifier).create('Red wash', {});
+    container.read(scenesProvider.notifier).create('Blue wash', {});
+    final chase = container.read(chasesProvider.notifier).create('Rainbow run');
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 100);
+    await tester.tap(find.byKey(const ValueKey('add-start-cue')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(ValueKey('target-bank-${bank.id}')), findsOneWidget);
+    expect(find.byKey(ValueKey('target-scene-${scene.id}')), findsOneWidget);
+    await tester.drag(find.descendant(of: find.byType(AlertDialog), matching: find.byType(ListView)).first, const Offset(0, -400));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('target-chase-${chase.id}')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('pick-filter-scenes')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('target-bank-${bank.id}')), findsNothing);
+    expect(find.byKey(ValueKey('target-chase-${chase.id}')), findsNothing);
+    expect(find.byKey(ValueKey('target-scene-${scene.id}')), findsOneWidget);
+
+    await tester.enterText(find.byKey(const ValueKey('target-search')), 'blue');
+    await tester.pumpAndSettle();
+    expect(find.byKey(ValueKey('target-scene-${scene.id}')), findsNothing);
+    expect(find.text('Blue wash'), findsOneWidget);
+  });
+
+  testWidgets('a scene can be picked for a cue, and copied from the picker first', (tester) async {
+    final container = await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    final scene = container.read(scenesProvider.notifier).create('Red wash', {});
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 100);
+    await tester.tap(find.byKey(const ValueKey('add-start-cue')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(ValueKey('copy-scene-${scene.id}')));
+    await tester.pumpAndSettle();
+    expect(container.read(scenesProvider).map((s) => s.name), ['Red wash', 'Red wash Copy']);
+
+    await tester.tap(find.byKey(ValueKey('target-scene-${scene.id}')));
+    await tester.pumpAndSettle();
+    final cue = container.read(songShowsProvider).single.cues.single;
+    expect(cue.sceneId, scene.id);
+    expect(cue.target, isNull);
+    expect(find.text('Red wash'), findsWidgets, reason: 'the block is named after the scene');
+  });
+
+  testWidgets('the picker offers a new scene', (tester) async {
+    await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 100);
+    await tester.tap(find.byKey(const ValueKey('add-start-cue')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('new-scene')), findsOneWidget);
+  });
+
+  testWidgets('a cue can be copied and pasted onto another lane', (tester) async {
+    final container = await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    // A stop cue on layer 1 at beat 3 to copy.
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 100);
+    await tester.tap(find.byKey(const ValueKey('add-stop-cue')));
+    await tester.pumpAndSettle();
+    final cue = container.read(songShowsProvider).single.cues.single;
+
+    await tester.tap(find.byKey(ValueKey('cue-head-${cue.id}')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('cue-copy')));
+    await tester.pumpAndSettle();
+
+    await tapAtLane(tester, 'lane-tap-$layer2Id', 320); // beat 10 on layer 2
+    expect(find.byKey(const ValueKey('paste-cue')), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('paste-cue')));
+    await tester.pumpAndSettle();
+    final cues = container.read(songShowsProvider).single.cues;
+    expect(cues, hasLength(2));
+    final pasted = cues.singleWhere((c) => c.id != cue.id);
+    expect(pasted.layerId, layer2Id);
+    expect(pasted.atBeat, 10);
+    expect(pasted.action, SongCueAction.stop);
+  });
+
+  testWidgets('the cue menu offers Try it, Copy and Delete for a start cue', (tester) async {
+    final container = await pumpEditor(tester, const SongShow(id: 's', name: 'Song'));
+    final scene = container.read(scenesProvider.notifier).create('Red wash', {});
+    await tapAtLane(tester, 'lane-tap-$layer1Id', 100);
+    await tester.tap(find.byKey(const ValueKey('add-start-cue')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(ValueKey('target-scene-${scene.id}')));
+    await tester.pumpAndSettle();
+    final cue = container.read(songShowsProvider).single.cues.single;
+    await tester.tap(find.byKey(ValueKey('cue-head-${cue.id}')));
+    await tester.pumpAndSettle();
+    for (final key in ['cue-try', 'cue-stop-layer', 'cue-change', 'cue-copy', 'cue-delete']) {
+      expect(find.byKey(ValueKey(key)), findsOneWidget, reason: key);
+    }
   });
 }

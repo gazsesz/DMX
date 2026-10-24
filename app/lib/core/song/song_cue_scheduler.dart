@@ -21,7 +21,7 @@ List<SongCue> stateAt(SongShow show, double ms) {
   }
   return [
     for (final c in lastPerLayer.values)
-      if (c.action == SongCueAction.start && c.target != null) c,
+      if (c.action == SongCueAction.start && c.hasTarget) c,
   ];
 }
 

@@ -65,6 +65,7 @@ Future<SongShow?> importSongShowFromFile(BuildContext context, WidgetRef ref) as
       banks: ref.read(banksProvider),
       chases: ref.read(chasesProvider),
       sceneNames: {for (final s in ref.read(scenesProvider)) s.name},
+      sceneIds: {for (final s in ref.read(scenesProvider)) s.id},
       songShowNames: {for (final s in ref.read(songShowsProvider)) s.name},
       newId: _uuid.v4,
     );
