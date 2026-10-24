@@ -4,6 +4,7 @@ import '../core/playback/chase_player.dart';
 import '../core/playback/smart_program_player.dart';
 import '../models/bank.dart';
 import '../models/chase.dart';
+import '../models/scene.dart';
 import '../models/layer.dart';
 import '../models/smart_program.dart';
 import 'artnet_providers.dart';
@@ -497,6 +498,66 @@ Chase bankRunChase(ReadProvider read, Bank bank, {required String layerId}) {
 /// show the user, or null on success. A layer the Smart Program was driving
 /// is taken back from it first; the program keeps its other layers.
 String? runBankOnLayer(ReadProvider read, {required Bank bank, required String layerId}) {
+  final error = _playOnLayer(
+    read,
+    layerId: layerId,
+    chase: bankRunChase(stableRead(read), bank, layerId: layerId),
+    // Auto-fade is the dock's; a bank keeping its own timing keeps its own
+    // fade too.
+    ownTiming: bank.ownTiming,
+    flashGap: (read) => bank.ownTiming ? bank.hold : read(tempoProvider).hold,
+    emptyMessage: '"${bank.name}" has no filled slots to play',
+  );
+  if (error != null) return error;
+  read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
+    id: bank.id,
+    kind: PlaybackKind.bank,
+    name: bank.name,
+  );
+  return null;
+}
+
+/// How long a single scene is held before the player re-applies it. The
+/// player has no "hold forever" for a scene step, so this is just very long.
+const sceneHold = Duration(hours: 1);
+
+/// Plays one [scene] on [layerId], held as it is (fading in at the dock's
+/// fade). What a song show's scene cue does. Returns an error message to show,
+/// or null on success.
+String? runSceneOnLayer(ReadProvider read, {required Scene scene, required String layerId}) {
+  final tempo = stableRead(read)(tempoProvider);
+  final error = _playOnLayer(
+    read,
+    layerId: layerId,
+    chase: Chase(
+      id: 'scene-run-$layerId-${scene.id}',
+      name: scene.name,
+      steps: [ChaseStep(sceneId: scene.id, hold: sceneHold, fade: tempo.fade)],
+    ),
+    ownTiming: false,
+    flashGap: (read) => read(tempoProvider).hold,
+    emptyMessage: '"${scene.name}" has nothing to play',
+  );
+  if (error != null) return error;
+  read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
+    id: 'scene-run-$layerId-${scene.id}',
+    kind: PlaybackKind.chase,
+    name: scene.name,
+  );
+  return null;
+}
+
+/// The player setup a bank and a scene have in common: [chase] on [layerId]'s
+/// player, reading the live show state on every step. Returns an error message
+/// or null.
+String? _playOnLayer(
+  ReadProvider read, {
+  required String layerId,
+  required Chase chase,
+  required bool ownTiming,
+  required Duration Function(ReadProvider read) flashGap,
+  required String emptyMessage,
+}) {
   // The player reads through this on every step — see [stableRead].
   read = stableRead(read);
   final service = read(artNetServiceProvider);
@@ -504,7 +565,7 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
   releaseLayersFromSmart(read, [layerId]);
   final player = read(chasePlayerProvider(layerId));
   player.play(
-    chase: bankRunChase(read, bank, layerId: layerId),
+    chase: chase,
     scenes: read(scenesProvider),
     banks: read(banksProvider),
     patchedFixtures: read(patchedFixturesProvider),
@@ -513,7 +574,7 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
     beatStream: read(beatPredictorProvider).events,
     liveBeatSync: () => read(beatSyncEnabledProvider),
     liveBeatAvailable: () => read(activeBeatSourceProvider).isListening,
-    liveFlashGap: () => bank.ownTiming ? bank.hold : read(tempoProvider).hold,
+    liveFlashGap: () => flashGap(read),
     beatRate: read(beatRateProvider),
     flashLength: read(flashLengthProvider),
     liveBeatRate: () => read(beatRateProvider),
@@ -524,9 +585,7 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
     liveGroups: () => read(fixtureGroupsProvider),
     liveDockTiming: () => (hold: read(tempoProvider).hold, fade: read(tempoProvider).fade),
     liveMovement: () => read(movementLiveProvider),
-    // Auto-fade is the dock's; a bank keeping its own timing keeps its own
-    // fade too.
-    fadeOverride: bank.ownTiming
+    fadeOverride: ownTiming
         ? null
         : () {
             final t = read(tempoProvider);
@@ -537,12 +596,7 @@ String? runBankOnLayer(ReadProvider read, {required Bank bank, required String l
   // A bank with every slot empty flattens to zero steps, and `play` quietly
   // declines to run them — reporting it as playing would leave nowPlaying
   // claiming a run that never started.
-  if (!player.isPlaying) return '"${bank.name}" has no filled slots to play';
-  read(nowPlayingForLayerProvider(layerId).notifier).state = NowPlaying(
-    id: bank.id,
-    kind: PlaybackKind.bank,
-    name: bank.name,
-  );
+  if (!player.isPlaying) return emptyMessage;
   return null;
 }
 

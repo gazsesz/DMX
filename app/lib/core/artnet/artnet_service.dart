@@ -242,6 +242,26 @@ class ArtNetService {
   /// whether or not it currently owns the channel.
   final Map<String, Map<String, Map<int, int>>> _layerValues = {};
 
+  /// Layer → universe id → the only channels that layer may write. A layer
+  /// with no entry writes anywhere. See [setLayerScope].
+  final Map<String, Map<String, Set<int>>> _layerScopes = {};
+
+  /// Limits [layer] to [allowed] (universe id → channels): its writes to any
+  /// other channel are dropped, and what it already holds outside the scope
+  /// is handed back (to the next layer asking for it, or left as it was).
+  /// Pass null to lift the limit. Used to confine a song show to some fixtures.
+  void setLayerScope(String layer, Map<String, Set<int>>? allowed) {
+    if (allowed == null) {
+      _layerScopes.remove(layer);
+      return;
+    }
+    _layerScopes[layer] = allowed;
+    releaseLayer(layer, keep: allowed);
+  }
+
+  /// Whether [layer] is currently limited to some channels.
+  bool layerIsScoped(String layer) => _layerScopes.containsKey(layer);
+
   /// Marks [layer] as the newest thing started: from now on it wins every
   /// channel it shares with a layer started before it.
   void claimLayer(String layer) => _layerStamps[layer] = ++_claimCounter;
@@ -261,6 +281,8 @@ class ArtNetService {
   /// [flush] afterwards, as with `setChannel(send: false)`.
   void setLayerChannel(UniverseConfig universe, int channel, int value, String layer) {
     if (channel < 0 || channel > 511) return;
+    final scope = _layerScopes[layer];
+    if (scope != null && !(scope[universe.id]?.contains(channel) ?? false)) return;
     final clamped = value.clamp(0, 255);
     _layerValues.putIfAbsent(layer, () => {}).putIfAbsent(universe.id, () => {})[channel] = clamped;
     final owners = _ownersFor(universe);

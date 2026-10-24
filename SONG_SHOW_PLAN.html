@@ -1,0 +1,202 @@
+<!doctype html>
+<html lang="hu">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Song Show — terv</title>
+<style>
+:root{--bg:#0f1115;--card:#181b22;--line:#2a2f3a;--fg:#e6e8ee;--mut:#8b93a5;--acc:#7c5cff;--a2:#22d3ee;--ok:#34d399;--warn:#fbbf24;--bad:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.55 system-ui,Segoe UI,sans-serif}
+main{max-width:1100px;margin:0 auto;padding:24px 16px 80px}
+h1{font-size:30px;margin:0 0 4px}h2{font-size:22px;margin:44px 0 10px;border-top:1px solid var(--line);padding-top:24px}h3{font-size:16px;margin:22px 0 6px;color:var(--a2)}
+p,li{color:#cfd3de}.mut{color:var(--mut)}
+table{border-collapse:collapse;width:100%;font-size:13.5px;margin:10px 0}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}th{background:var(--card)}
+code{background:var(--card);padding:1px 5px;border-radius:4px;font-size:13px}
+.box{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin:12px 0}
+.tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mut)}
+.good{color:var(--ok)}.warnc{color:var(--warn)}
+/* mockups */
+.dev{background:#000;border:2px solid #333;border-radius:14px;padding:8px;margin:14px 0;overflow:hidden}
+.scr{background:#12141a;border-radius:8px;padding:10px;font-size:12px}
+.bar{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.btn{background:#242938;border:1px solid #343b4d;border-radius:6px;padding:4px 10px;font-size:12px;white-space:nowrap}
+.btn.p{background:var(--acc);border-color:var(--acc)}
+.wave{height:54px;border-radius:6px;background:#0b0d12;position:relative;overflow:hidden;display:flex;align-items:center;gap:1px;padding:0 2px}
+.wave i{flex:1;background:var(--a2);opacity:.75;min-width:1px}
+.sec{display:flex;height:22px;margin:4px 0;gap:2px}
+.sec b{border-radius:4px;font-size:11px;font-weight:600;padding:3px 6px;overflow:hidden;white-space:nowrap}
+.lane{display:flex;align-items:center;margin:3px 0;height:30px;position:relative}
+.lane>span{width:84px;font-size:11px;color:var(--mut);flex:none}
+.track{position:relative;flex:1;height:28px;background:#0d1016;border-radius:5px}
+.cue{position:absolute;top:3px;height:22px;border-radius:4px;font-size:10.5px;padding:3px 6px;overflow:hidden;white-space:nowrap;color:#fff}
+.ph{position:absolute;top:0;bottom:0;width:2px;background:#fff;left:38%}
+.grid{display:grid;gap:12px}.g2{grid-template-columns:1fr 1fr}.g3{grid-template-columns:repeat(3,1fr)}
+@media(max-width:760px){.g2,.g3{grid-template-columns:1fr}}
+.row{display:flex;justify-content:space-between;align-items:center;padding:7px 8px;border-bottom:1px solid #222733}
+.chip{display:inline-block;padding:2px 8px;border-radius:99px;background:#242938;border:1px solid #343b4d;font-size:11px;margin:0 3px 3px 0}
+.chip.on{background:#2b2358;border-color:var(--acc)}
+</style>
+</head>
+<body>
+<main>
+<h1>Song Show — egy számra időzített program</h1>
+<p class="mut">Terv · 2026-10-24 · alap: v1.39.0 · csak tervezés, kód nem készült. Az ábrák mockupok, nem működő képernyők.</p>
+
+<div class="box">
+<b>Röviden:</b> a négy ötleted nem alternatíva, hanem <b>ugyanannak az egy adatmodellnek négy belépési pontja</b>. Egy <b>Song Show</b> = egy szám + egy idővonal, amin <i>szakaszok</i> (intro, build, drop…) és <i>jelek</i> (cue-k) vannak, a jelek a meglévő bankokat/chase-eket/jeleneteket/Smart Programokat indítják a rétegeken. Kézzel is szerkeszthető, élő felvétellel („tapizd be lejátszás közben") is, és automatikusan is generálható — de mindhárom ugyanazt a szerkesztőt nyitja meg. Exportálható/importálható, és fixture-csoportra szűkíthető.
+</div>
+
+<h2>1. Hogyan csinálja a piac</h2>
+<table>
+<tr><th>Szoftver</th><th>Mit csinál az idővonallal / zenével</th><th>Mit érdemes átvenni</th></tr>
+<tr><td><a style="color:var(--a2)" href="https://help.malighting.com/grandMA3/2.2/HTML/timecode_tracks.html">grandMA3</a></td><td>Timecode show: sávok (track), időtartományok és események; hanganyag a sávra tehető, a nézet kirajzolja a hullámformát. Külső SMPTE / MIDI / Art-Net timecode is vezérelheti. A hangsávba nem tehetsz eseményt, külön sáv kell.</td><td>Sáv-per-cél felépítés; külső óra (sync) fogadása.</td></tr>
+<tr><td><a style="color:var(--a2)" href="https://wiki.pangolin.com/beyond:timeline_overview">Pangolin Beyond</a></td><td>Cue-okat húzol az idővonalra, külön Audio/Video sáv; az időpontokat <b>kézzel</b> jelölöd a zenéhez. Fórumon panasz: audio eltűnik szerkesztés közben.</td><td>Drag&amp;drop cue; de kerüljük a kézi-only munkát és az audio elvesztést (hash + újrakapcsolás).</td></tr>
+<tr><td><a style="color:var(--a2)" href="https://www.bonedo.de/artikel/soundswitch-2-8-lighting-software-bringt-phrasenbearbeitung-verbessertes-batch-scripting-und-neue-styles/">SoundSwitch</a></td><td>Számonkénti script DAW-szerű szerkesztővel. <b>Autoscript</b>: felismeri a szakaszokat (Intro, Main 1/2, Middle, Bridge, Outro); a szakaszok hosszát lehet módosítani, ki-be lehet kapcsolni; több szám egyszerre (batch), stílus/preset választással és fixture kizárással. Script nélküli számra <b>Autoloop</b> (v2.9: 4×32 loop), automatikus BPM.</td><td><b>A legközelebbi minta.</b> Auto → szerkeszthető; stílusválasztás; fixture kizárás; fallback számok elemzés nélkül.</td></tr>
+<tr><td><a style="color:var(--a2)" href="https://www.digitaldjtips.com/reviews/rbdmx1/">Rekordbox Lighting</a></td><td>Phrase analysis: energiaszint szerint szakaszol (intro/outro, build-up, breakdown, drop/chorus); ebből dönti el, melyik fényprogram fusson. Becslés — kézzel módosítható.</td><td>A szakasz-típus → program hozzárendelés; a fázis-elemzés becslésként jelenik meg, nem „igazság".</td></tr>
+<tr><td><a style="color:var(--a2)" href="https://xlights.org/?p=1465">xLights</a></td><td>Vamp pluginokkal generál <b>timing track</b>-et (beat, bar, onset), ezekhez illeszkednek az effektek.</td><td>Beat/bar rács mint elsődleges idővonal; a jelek rácshoz tapadnak (snap).</td></tr>
+<tr><td><a style="color:var(--a2)" href="https://loopcommunity.com/blog/?p=7947">Lightkey + Prime</a></td><td>A hullámformán dupla koppintással cue-t teszel, ami MIDI-vel hív egy Lightkey cue-t.</td><td>Koppintásos jelölés érintőképernyőn; a cue csak egy „hívás".</td></tr>
+<tr><td>MADRIX, ETC, Alcorn (<a style="color:var(--a2)" href="https://support.etcconnect.com/ETC/FAQ/SMPTE_QuickGuide/">ETC</a>)</td><td>SMPTE timecode-ra indított cue-k; a zenét külső lejátszó adja.</td><td>Ez a „külső lejátszó" eset (DJ) — nálunk beat-forrás + tap-start helyettesíti.</td></tr>
+</table>
+<p><b>Tanulság:</b> a piacvezető DJ-s megoldások (SoundSwitch, Rekordbox) <i>automatikus szakaszolás + utólagos szerkesztés</i> mintát követnek, a színpadi konzolok (MA3, Beyond) <i>kézi idővonalat</i> adnak. Neked mindkettő kell, és mivel a DJ nem ül a gép előtt, az automatikus a fő út, a kézi a finomhangolás.</p>
+<p class="mut">Nem találtam megbízható forrást arra, hogy a Daslight/Sunlite/ShowXpress/Lightjams mit tud ebben — ezeket nem vettem figyelembe.</p>
+
+<h2>2. Adatmodell</h2>
+<div class="box"><pre style="margin:0;white-space:pre-wrap;color:#cfd3de;font-size:12.5px">SongShow
+  id, name, createdBy: manual | recorded | auto
+  audio:   { fileName, sha1, durationMs, bpm, beatOffsetMs, beats[]? }   // a hang NEM kerül a projektbe, csak hivatkozás
+  sections: [ { startBeat, lengthBeats, kind: intro|build|drop|break|outro|custom, label, enabled } ]
+  cues:     [ { atBeat | atMs, layerId, target: ProgramTarget(bank|chase),   // meglévő típus
+                fadeMs, timing: LaneTiming, dropout?: DropoutSettings,        // meglévő típusok
+                colour?: name|hex, action: start | stop | blackout } ]
+  scope:    { groupIds[], fixtureIds[] }    // show szintű, cue-n felülírható; üres = minden
+  styleSeed (auto-hoz, hogy újragenerálható legyen)</pre></div>
+<ul>
+<li><b>Beat-alapú idő</b> (ütem.beat), ms tartalékkal: ha a BPM/offset finomhangolásakor csúszik a rács, a jelek vele mozognak, nem a másodpercnél maradnak.</li>
+<li>A cue ugyanazt a <code>ProgramTarget</code>-et, <code>LaneTiming</code>-ot és <code>DropoutSettings</code>-et használja, mint a Smart Program → <b>nincs új lejátszó-logika</b>, a Song Show lényegében „idő-vezérelt Smart Program" (a zónák helyett szakaszok).</li>
+<li>Projekt-szintű, mint a fixture-csoportok (a fixture id csak egy patchen belül értelmes). Export: névvel hivatkozott csoportok, importkor leképezés (ahogy a <code>show_items_io.dart</code> már kezeli a fixture-öket).</li>
+</ul>
+
+<h2>3. Képernyők (mockup)</h2>
+
+<h3>3.1 Song Shows lista — külön kezelés, mentés, export/import</h3>
+<div class="dev"><div class="scr" style="max-width:520px">
+<div class="bar"><b style="font-size:14px">Song Shows</b><span style="flex:1"></span><span class="btn">Import</span><span class="btn p">+ Új</span></div>
+<div class="row"><div><b>Daft Punk – One More Time</b><br><span class="mut">122 BPM · 5:20 · 24 cue · Auto → szerkesztve</span></div><span class="btn">▶</span></div>
+<div class="row"><div><b>Intro szett (rock)</b><br><span class="mut">128 BPM · 3:41 · 11 cue · Kézi</span></div><span class="btn">▶</span></div>
+<div class="row"><div><b>Esküvő – első tánc</b><br><span class="mut">76 BPM · 4:02 · 7 cue · <span class="warnc">⚠ hang nem található</span></span></div><span class="btn">Újra-kapcsol</span></div>
+<div class="row"><div><b>Halloween drop</b><br><span class="mut">140 BPM · 2:50 · csak „Moving heads" csoport</span></div><span class="btn">▶</span></div>
+<div class="bar" style="margin-top:10px"><span class="btn">Másolat</span><span class="btn">Export (.smartshow)</span><span class="btn">Set-list</span></div>
+</div></div>
+
+<h3>3.2 Idővonal-szerkesztő (tablet, fekvő) — kézi + felvételes szerkesztés</h3>
+<div class="dev"><div class="scr">
+<div class="bar"><span class="btn">◀ Vissza</span><b>Daft Punk – One More Time</b><span class="tag">122 BPM</span><span style="flex:1"></span><span class="btn">⏺ Felvétel (tap)</span><span class="btn">Snap: 1 beat</span><span class="btn p">▶ 1:42 / 5:20</span></div>
+<div style="position:relative">
+<div class="wave" id="w"></div>
+<div class="sec"><b style="flex:8;background:#334">Intro</b><b style="flex:8;background:#3b4a8a">Build</b><b style="flex:16;background:#7c3a9a">DROP 1</b><b style="flex:8;background:#2a5a4a">Break</b><b style="flex:16;background:#7c3a9a">DROP 2</b><b style="flex:6;background:#334">Outro</b></div>
+<div class="lane"><span>Layer 1 · Színek</span><div class="track">
+<div class="cue" style="left:0;width:15%;background:#3b6fd4">Slow wash</div>
+<div class="cue" style="left:15%;width:15%;background:#9a3bd4">Build chase</div>
+<div class="cue" style="left:30%;width:25%;background:#d43b6f">Strobe+colour</div>
+<div class="cue" style="left:55%;width:12%;background:#3b6fd4">Slow wash</div>
+<div class="cue" style="left:67%;width:25%;background:#d43b6f">Strobe+colour</div></div></div>
+<div class="lane"><span>Layer 2 · Mozgás</span><div class="track">
+<div class="cue" style="left:15%;width:15%;background:#1f8a7a">FX Circle ×2</div>
+<div class="cue" style="left:30%;width:25%;background:#1f8a7a">FX Fan wide</div>
+<div class="cue" style="left:67%;width:25%;background:#1f8a7a">FX Fan wide</div></div></div>
+<div class="lane"><span>Dropout</span><div class="track">
+<div class="cue" style="left:28%;width:2%;background:#555"></div><div class="cue" style="left:65%;width:2%;background:#555"></div></div></div>
+<div class="ph"></div>
+</div>
+<div class="bar" style="margin-top:8px"><span class="mut">Kijelölt:</span><span class="btn">DROP 1 · Strobe+colour</span><span class="chip on">Moving heads</span><span class="chip on">Par wall</span><span class="chip">Haze</span><span style="flex:1"></span><span class="btn">Cél ▾</span><span class="btn">Fade 0.3s</span><span class="btn">Törlés</span></div>
+</div></div>
+<ul>
+<li><b>A hullámforma a háttér</b>, a szakaszsáv a „térkép" (koppintással hosszú nyomásra elvágható/átnevezhető/kikapcsolható), alatta rétegenkénti sávok — pont úgy, ahogy a Layers már most működik.</li>
+<li><b>Új jel három módon:</b> (a) koppints egy sávra → felugró bank/chase választó; (b) <b>Felvétel</b>: lejátszás közben a meglévő bank-gombokat nyomod, a rendszer beteszi a jelet a beat-rácsra (snap) — ez a leggyorsabb DJ-nek; (c) szakaszra koppintva „egész szakaszhoz" rendelsz programot.</li>
+<li>Érintőképernyős: minden jelnek látható neve van, nincs hover; nagy fogópontok a húzáshoz.</li>
+</ul>
+
+<h3>3.3 Automatikus programkészítő — varázsló</h3>
+<div class="dev"><div class="scr" style="max-width:760px">
+<div class="grid g3">
+<div><b>① Hang</b><br><span class="mut">Fájl kiválasztása…</span><br><span class="btn">Daft Punk – One More Time.mp3</span><br><br><span class="mut">Elemzés kész: 122.0 BPM, 5:20, 7 szakasz</span></div>
+<div><b>② Stílus</b><br><span class="chip on">Club</span><span class="chip">Rock</span><span class="chip">Chill</span><span class="chip">Show (sok váltás)</span><br><span class="mut">Honnan válogasson?</span><br><span class="chip on">Minden bank</span><span class="chip">Csak címkézettek</span><br><span class="mut">Mozgás-bankok:</span> <span class="chip on">igen</span></div>
+<div><b>③ Fixture-ök</b><br><span class="chip on">Moving heads</span><span class="chip on">Par wall</span><span class="chip">Haze</span><span class="chip">Laser</span><br><span class="mut">Kizárt: Haze, Laser</span><br><br><span class="mut">Merészség:</span> ▮▮▮▯▯<br><span class="mut">Seed: 4821</span> <span class="btn">🎲 Újra</span></div>
+</div>
+<div class="bar" style="margin-top:12px"><span class="btn p">Generálás</span><span class="mut">→ megnyílik az idővonal-szerkesztőben, ott módosítható; szakaszonként „Újragenerál" gomb</span></div>
+</div></div>
+
+<h3>3.4 Élő nézet — DJ vagy fénytechnikus</h3>
+<div class="dev"><div class="scr" style="max-width:560px">
+<div class="bar"><b>Következő: Daft Punk – One More Time</b><span style="flex:1"></span><span class="tag">ARMED</span></div>
+<div class="wave" style="height:40px" id="w2"></div>
+<div class="sec"><b style="flex:8;background:#334">Intro</b><b style="flex:8;background:#3b4a8a">Build</b><b style="flex:16;background:#7c3a9a">DROP 1</b><b style="flex:8;background:#2a5a4a">Break</b></div>
+<div class="bar"><span class="btn p">▶ Start az 1. ütemen</span><span class="btn">Kézi sync (tap)</span><span class="btn">Szakaszt átugrik</span><span class="btn">Stop → Smart Program</span></div>
+<span class="mut">Beat-forrás: rkbx_link · drift: +12 ms (korrigálva)</span>
+</div></div>
+
+<h2>4. Lejátszás: honnan jön az idő?</h2>
+<p>Ez a tervezés legkockázatosabb része, mert a kettő használati eset különbözik:</p>
+<table>
+<tr><th>Mód</th><th>Mikor</th><th>Hogyan</th><th>Kockázat</th></tr>
+<tr><td><b>A) Beépített lejátszó</b></td><td>Zenét az app lejátssza (próba, esküvő, fix show, csak DJ-nek nincs más)</td><td>Az óra az audio pozíció. Pontos, szinkronban marad.</td><td>Hang-dekódolás/lejátszás csomag Androidon (8.1!) és Windowson; hangkimenet-latencia.</td></tr>
+<tr><td><b>B) Külső szám (DJ)</b></td><td>A DJ lejátssza a számot Rekordboxban/CDJ-n, az app csak követ</td><td>Start: a DJ az 1. ütemen megnyomja az Armed show-t (vagy tap-sync); utána a belső óra fut, és a bejövő beat (OSC/MIDI, már van) <b>fázist korrigál</b>.</td><td>Ha a DJ elhúzza a pitchet, a tempó-skálázás kell (beat-alapú idő miatt megoldható). Ha a DJ visszatekeri, kézi újra-sync kell. <b>Ellenőrizve (rkbx_link README):</b> az OSC-ben van <code>/master/time</code> (számpozíció mp-ben), <code>/master/track/title|artist|album</code> (szöveg; <b>azonosító nincs</b>) és <code>/master/phrase/current|next|countin</code> (a rekordbox saját fázis-elemzése). Ezek külön bekapcsolandók az rkbx_link configjában (<code>osc.msg.master/time</code>, <code>…/phrase</code>). Tehát a számpozíció adott: nem kell tap-sync, a visszatekerést is követi. A számot cím+előadó alapján lehet felismerni. Streaming (Tidal) számra a phrase-adat meglétét nem tudom.</td></tr>
+<tr><td><b>C) Külső óra</b></td><td>Később: MIDI timecode / Art-Net timecode</td><td>Az óra a fogadott timecode.</td><td>Alacsony; kihagyható az első körben.</td></tr>
+</table>
+
+<h2>5. Automatikus elemzés — mit tudunk már, mit nem</h2>
+<ul>
+<li><b>Megvan a repóban:</b> <code>beat_detector</code>, <code>beat_predictor</code>, <code>tempo_estimator</code>, <code>onset_baseline</code> (élő, mikrofon/jel alapú), <code>fftea</code> és <code>record</code> csomag. Ezeket át kell írni <b>offline</b> (egész fájlon) használatra.</li>
+<li><b>Hiányzik:</b> a fájl PCM-re <b>dekódolása</b> (mp3/aac/flac Androidon és Windowson). A WAV triviális; a többihez csomag kell. → <b>Spike 0</b>.</li>
+<li><b>Szakaszolás (heurisztika, nem AI):</b> sávonkénti (basszus/közép/magas) energia-burkoló ütemenként → ugrások és hosszú emelkedés (build) → drop = nagy basszusugrás egy build után; break = basszus kiesése; intro/outro = az elejéhez/végéhez tartozó alacsony energia. Ütemhatárra illesztve (4/8/16 ütem). Ugyanezt csinálja a Rekordbox is „energiaszint" alapon, és mellette becslésként kezeli.</li>
+<li><b>Generálás:</b> szakasz-típus → program-sablon (pl. drop = erős szín + strobe bank + széles mozgás FX; break = lassú wash, kevés mozgás; build = gyorsuló chase). A banks-ból a <b>címkék/nevek/tulajdonságok</b> alapján válogat, seeddel véletlenít. A mozgás FX most bank, ezért közvetlenül kiosztható (a Generate Program korábbi mozgás-effektjeit már kivezettük).</li>
+<li><b>Őszinte elvárás:</b> a szakaszfelismerés elektronikus zenén jó lesz, élő zenén (rock, vokális) gyengébb. Ezért: mindig szerkeszthető, „Újragenerál" szakaszonként, a szakaszhatárok kézzel húzhatók.</li>
+</ul>
+
+<h2>6. Fixture-ök megadása</h2>
+<ul>
+<li>Show szintű <b>scope</b> (mint SoundSwitch „fixture kizárás"): csoportok/fixture-ök kiválasztása a meglévő Fixture groups alapján; az auto-generálás is ezt veszi figyelembe.</li>
+<li>Cue szintű felülírás: egy jel csak egy csoportra (pl. csak a mozgófejek kapják a Fan FX-et). Ugyanaz a csoportszűrő-mechanizmus, mint a Colour stripnél (<code>colorOverride</code> + csoport) — <b>megvalósításkor ellenőrizni kell</b>, hogy a bank/chase lejátszásra ez általánosítható-e kimeneti szinten.</li>
+<li>Import más patchre: csoport-név alapján automatikus leképezés, hiányzó csoport → figyelmeztetés + kézi hozzárendelés.</li>
+</ul>
+
+<h2>7. Kezelés, mentés, export/import</h2>
+<ul>
+<li>Külön lista (3.1), mint a Chases/Smart Programs; másolat, átnevezés, törlés.</li>
+<li>Export: <code>.smartshow</code> (JSON, a <code>ShowItemsExport</code> mintájára): idővonal + hivatkozott bankok/jelenetek/chase-ek beágyazva (hogy másik gépen is működjön) + hang <b>csak hivatkozásként</b> (név, hossz, hash). Opcionálisan „hanggal együtt" csomag (.zip).</li>
+<li>Import: ha a hang nincs meg, a show betöltődik, a hullámforma helyén figyelmeztetés + „Újra-kapcsol"; hash egyezés → automatikus.</li>
+<li>Set-list: show-k sorrendje egy estére (a következő szám „armed").</li>
+</ul>
+
+<h2>8. Ütemezés (fázisok, mindegyik önállóan szállítható)</h2>
+<table>
+<tr><th>Fázis</th><th>Tartalom</th><th>Kimenet</th><th>Becslés*</th></tr>
+<tr><td><b>0 · Spike</b></td><td>Hang dekódolás + lejátszás + hullámforma P20 Pro-n (8.1) és Tab S6 Lite-on; csomag kiválasztása</td><td>Döntés a csomagról, latencia-mérés</td><td>kicsi</td></tr>
+<tr><td><b>1 · Modell + lejátszó</b></td><td><code>SongShow</code> modell + JSON, <code>SongShowPlayer</code> (A mód), jelek → meglévő Chase/Smart lejátszó rétegekre; unit tesztek</td><td>Kézzel (kóddal/teszttel) összerakott show lejátszható</td><td>közepes</td></tr>
+<tr><td><b>2 · Szerkesztő + lista</b></td><td>3.1 és 3.2: hullámforma, szakaszok, sávok, tap-felvétel, snap, mentés</td><td>Teljes kézi workflow</td><td>nagy</td></tr>
+<tr><td><b>3 · Export/import + scope</b></td><td>.smartshow, újra-kapcsolás, fixture scope, csoport-leképezés</td><td>Megosztható show</td><td>közepes</td></tr>
+<tr><td><b>4 · Auto-generálás</b></td><td>Offline elemzés, szakaszolás, stílus-sablonok, varázsló (3.3)</td><td>Egy kattintásos javaslat</td><td>nagy</td></tr>
+<tr><td><b>5 · Élő / DJ</b></td><td>B mód (beat-fázis korrekció, tap-sync), Armed nézet, set-list, remote végpont (<code>/song?…</code>), Wear menü</td><td>DJ-barát használat</td><td>közepes</td></tr>
+</table>
+<p class="mut">*Nincs naptári becslés, mert a spike eredménye (dekódolás) érdemben változtathat rajta.</p>
+<p><b>Javasolt sorrend:</b> 0 → 1 → 2 → 4 → 3 → 5. A 4. előrehozható a 3. elé, mert az auto-generálás adja a legnagyobb értéket a „csak DJ" esetre, az export pedig csak akkor kell, ha már van mit megosztani.</p>
+
+<h2>9. Kockázatok és nyitott kérdések</h2>
+<ul>
+<li><b>Androidos dekódolás/lejátszás 8.1-en</b> — a spike dönt. Ha gond van, a minimum: WAV + natív platform-dekóder.</li>
+<li><b>Szinkron (B mód)</b> — a belső óra + beat-fázis korrekció elmélet; valódi DJ-setupon kell kipróbálni (a gépen csak unit/widget teszt futott eddig is).</li>
+<li><b>Bonyolultság</b> — termékelv: additív. A Song Show külön menüpont, ha nem használják, semmi nem változik; az auto-generálás az alapút egyetlen gombra csökkenti.</li>
+<li><b>Szerzői jog / hangfájl</b>: a hangot nem tároljuk a projektben és nem exportáljuk alapból.</li>
+<li><b>Nyitott döntések, rád várok:</b> (1) a beépített lejátszó (A) kell-e az első körben, vagy elég a DJ-s (B)? (2) a hang opcionális-e (idővonal csak BPM-ből, zene nélkül)? (3) mennyire fontos a szakaszonkénti „Újragenerál"?</li>
+</ul>
+
+<p class="mut" style="margin-top:40px">Források: <a style="color:var(--a2)" href="https://help.malighting.com/grandMA3/2.2/HTML/timecode_tracks.html">grandMA3</a>, <a style="color:var(--a2)" href="https://wiki.pangolin.com/beyond:timeline_overview">Pangolin Beyond</a>, <a style="color:var(--a2)" href="https://www.bonedo.de/artikel/soundswitch-2-8-lighting-software-bringt-phrasenbearbeitung-verbessertes-batch-scripting-und-neue-styles/">SoundSwitch 2.8</a>, <a style="color:var(--a2)" href="https://news.hummingbirdmedia.com/lighting-control-software-soundswitch-announces-version-29-with-auto-bpm-detection-and-enhanced-autoloop-features">SoundSwitch 2.9</a>, <a style="color:var(--a2)" href="https://www.digitaldjtips.com/reviews/rbdmx1/">Rekordbox Lighting</a>, <a style="color:var(--a2)" href="https://xlights.org/?p=1465">xLights</a>, <a style="color:var(--a2)" href="https://loopcommunity.com/blog/?p=7947">Loop/Prime × Lightkey</a>. A források főleg gyártói/ismertető oldalak, a verziók azóta változhattak.</p>
+</main>
+<script>
+function mk(id,n){var e=document.getElementById(id),h='';for(var i=0;i<n;i++){var v=10+Math.abs(Math.sin(i/6)*Math.sin(i/37+1))*80+((i*37)%13);if(i>n*.3&&i<n*.55)v=Math.min(98,v+25);if(i>n*.55&&i<n*.67)v*=.4;h+='<i style="height:'+v+'%"></i>';}e.innerHTML=h;}
+mk('w',220);mk('w2',160);
+</script>
+</body>
+</html>
