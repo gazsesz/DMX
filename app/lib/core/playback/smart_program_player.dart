@@ -153,12 +153,13 @@ class SmartProgramPlayer {
   /// without a clean pulse while the music is very much still playing.
   static const _noPulseTimeout = Duration(seconds: 10);
 
-  /// Steady-pulse beats in a row it takes to come back from silence. Dense
-  /// room noise lines up by chance for a few beats now and then (tuned on
-  /// simulated onsets: at 3–5 random hits a second the longest such run in a
-  /// minute is typically 3–5 and rarely 7+), while music, once it's back,
-  /// gives dozens in a row.
-  static const _steadyBeatsToResume = 6;
+  /// Steady-pulse beats in a row it takes to come back from silence. Room
+  /// noise lines up by chance for a few beats now and then (tuned on
+  /// simulated onsets: at 3–8 random hits a second the longest such run in
+  /// a minute is typically 3–6 and rarely 10+), while music, once it's back,
+  /// gives dozens in a row. Once music has been heard, the detector's own
+  /// level gate (`MusicLevelGate`) keeps the quiet room out entirely.
+  static const _steadyBeatsToResume = 10;
 
   /// Steady-pulse votes a zone switch needs before it lands, and the share
   /// of all beats since it became pending that must have voted for it.

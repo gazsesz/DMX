@@ -152,6 +152,8 @@ class BeatDetectorService implements BeatSource {
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
   final OnsetBaseline _baseline = OnsetBaseline();
+  final MusicLevelGate _musicGate = MusicLevelGate();
+  BeatFrequencyBand? _gateBand;
 
   /// A ~300ms level of the selected band, the "is anything happening in
   /// here" reading the escape hatch needs.
@@ -207,6 +209,7 @@ class BeatDetectorService implements BeatSource {
 
       final stream = await _openStream();
       _baseline.reset();
+      _musicGate.reset();
       _frameCount = 0;
       _lastBeat = null;
       _fastLevel = 0;
@@ -430,6 +433,13 @@ class BeatDetectorService implements BeatSource {
     // A short level, purely to answer "is this room still making noise" for
     // the escape hatch below.
     _fastLevel += (1 - math.exp(-_hopMs / _fastLevelMs)) * (flux - _fastLevel);
+    // Each band has its own scale, so switching band starts the music
+    // reference over.
+    if (_gateBand != frequencyBand) {
+      _gateBand = frequencyBand;
+      _musicGate.reset();
+    }
+    _musicGate.tick(_hopMs);
 
     final now = DateTime.now();
     // The bar can be left somewhere nothing musical will ever reach — see
@@ -493,8 +503,9 @@ class BeatDetectorService implements BeatSource {
 
     final pastRefractoryPeriod =
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
-    final isBeat = flux > thresholdFlux && pastRefractoryPeriod;
+    final isBeat = flux > thresholdFlux && pastRefractoryPeriod && _musicGate.allows(flux);
     if (isBeat) {
+      _musicGate.onBeat(flux);
       _lastBeat = now;
       _beatController.add(now);
     }

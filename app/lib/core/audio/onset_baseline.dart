@@ -100,3 +100,58 @@ bool shouldForgetBaseline({
   if (secondsSinceBeat < forgetAfterSeconds) return false;
   return fastLevel > mean * 0.5;
 }
+
+/// Keeps the room's own noise from counting as beats once music has been
+/// heard.
+///
+/// The beat threshold is relative ([OnsetBaseline]: mean + k·stddev of
+/// recent onsets), so when the music stops it slides down to whatever is
+/// left — and a keyboard being typed on, a glass put down or people talking
+/// next to the tablet then stand out of that quiet just as clearly as a kick
+/// stood out of the mix. Turning the sensitivity down doesn't help: it's
+/// still relative to the near-silence.
+///
+/// This remembers how strong the beats themselves were — a slow average of
+/// the onset strength of every beat let through, each one's pull capped so
+/// a clap next to the microphone can't set the bar — and from then on only
+/// lets through onsets within [floorRatio] of that. A breakdown or a softer
+/// track stays well inside it; a click in a quiet room after the set does
+/// not. Until a reference exists (the app just started, nothing played)
+/// everything passes.
+class MusicLevelGate {
+  /// −24 dB of the remembered beat strength.
+  static const floorRatio = 0.06;
+
+  /// How fast the reference is forgotten: slow enough that a long break
+  /// between sets stays dark, but a show hours later (another room, a moved
+  /// tablet) isn't held to tonight's level. Starting to listen again, or
+  /// changing the band, starts over anyway.
+  static const forgetTauMs = 3 * 3600 * 1000.0;
+
+  /// Each accepted beat moves the reference this much of the way...
+  static const learnRate = 0.05;
+
+  /// ...counting at most this many times the current reference.
+  static const maxPull = 4.0;
+
+  double _reference = 0;
+
+  double get reference => _reference;
+
+  void reset() => _reference = 0;
+
+  /// Lets the reference fade by one frame of [hopMs].
+  void tick(double hopMs) => _reference *= math.exp(-hopMs / forgetTauMs);
+
+  /// Whether an onset of strength [flux] may count as a beat.
+  bool allows(double flux) => _reference <= 0 || flux >= _reference * floorRatio;
+
+  /// A beat of strength [flux] was let through.
+  void onBeat(double flux) {
+    if (_reference <= 0) {
+      _reference = flux;
+      return;
+    }
+    _reference += learnRate * (math.min(flux, _reference * maxPull) - _reference);
+  }
+}

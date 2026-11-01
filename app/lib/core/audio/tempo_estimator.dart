@@ -160,10 +160,18 @@ const steadyPulseMinBeats = 6;
 /// passes four times in five.
 const steadyPulseRegularity = 0.75;
 
+/// The fastest pulse [isSteadyPulse] believes. The detector won't fire
+/// twice within 250 ms, so dense noise — typing, chatter, a busy hi-hat
+/// line the detector can't keep up with — comes out as a run of hits about
+/// that far apart: regular, but only because of the cap. No kick drum
+/// a Smart Program follows sits up there (drum & bass is ~174).
+const steadyPulseMaxBpm = 190.0;
+
 /// Whether [beatTimes] is a real, steady pulse rather than a confident-
 /// looking pile of random onsets — see [pulseRegularity].
 bool isSteadyPulse(List<DateTime> beatTimes, TempoEstimate? estimate) {
   if (estimate == null || !estimate.isConfident) return false;
   if (beatTimes.length < steadyPulseMinBeats) return false;
+  if (estimate.pulseBpm > steadyPulseMaxBpm) return false;
   return pulseRegularity(beatTimes, estimate.pulseBpm) >= steadyPulseRegularity;
 }

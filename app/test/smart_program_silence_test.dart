@@ -153,11 +153,20 @@ void main() {
 
     test('a clean pulse is fully regular, and the grid follows the beats, not the octave-corrected tempo', () {
       final t0 = DateTime(2026);
-      final hats = [for (var i = 0; i < 12; i++) t0.add(Duration(microseconds: (i * 60000000 / 256).round()))];
-      final estimate = estimateTempo(hats)!;
-      expect(estimate.bpm, closeTo(128, 1));
-      expect(pulseRegularity(hats, estimate.pulseBpm), 1.0);
-      expect(isSteadyPulse(hats, estimate), isTrue);
+      // 32 BPM: estimateTempo reports it doubled into range.
+      final slow = [for (var i = 0; i < 12; i++) t0.add(Duration(microseconds: (i * 60000000 / 32).round()))];
+      final estimate = estimateTempo(slow)!;
+      expect(estimate.bpm, closeTo(64, 1));
+      expect(pulseRegularity(slow, estimate.pulseBpm), 1.0);
+      expect(isSteadyPulse(slow, estimate), isTrue);
+    });
+
+    test('a pulse at the detector\'s own 250 ms limit is not believed', () {
+      final t0 = DateTime(2026);
+      final capped = [for (var i = 0; i < 12; i++) t0.add(Duration(milliseconds: i * 260))];
+      final estimate = estimateTempo(capped)!;
+      expect(pulseRegularity(capped, estimate.pulseBpm), 1.0);
+      expect(isSteadyPulse(capped, estimate), isFalse);
     });
   });
 
@@ -178,7 +187,7 @@ void main() {
       fakeAsync((async) {
         final rng = math.Random(5);
         final noise = _noise(rng, 3, const Duration(seconds: 25));
-        final music = _steady(122, const Duration(seconds: 26), const Duration(seconds: 8));
+        final music = _steady(122, const Duration(seconds: 26), const Duration(seconds: 12));
         final result = run(async, [...noise, ...music]);
         final silentAt = result.statuses.indexWhere((s) => s.isSilent);
         expect(silentAt, isNot(-1));
