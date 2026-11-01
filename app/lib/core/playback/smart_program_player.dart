@@ -101,7 +101,6 @@ class SmartProgramPlayer {
   StreamSubscription<DateTime>? _beatSub;
   Timer? _confirmTimer;
   Timer? _silenceTimer;
-  Timer? _noPulseTimer;
   final List<DateTime> _beatTimes = [];
   SmartProgramZone _pendingZone = SmartProgramZone.base;
   SmartProgramZone _confirmedZone = SmartProgramZone.base;
@@ -143,28 +142,19 @@ class SmartProgramPlayer {
   /// — even 40 BPM is a beat every 1.5s, so this leaves a wide margin).
   static const _silenceTimeout = Duration(seconds: 4);
 
-  /// How long beats may keep arriving without ever forming a steady pulse
-  /// before that, too, counts as no music. A quiet room is not silent to a
-  /// microphone: its noise floor, people talking between songs, a glass put
-  /// down all cross an adaptive threshold now and then — often enough to
-  /// keep resetting [_silenceTimeout] for ever, and (folded by
-  /// [estimateTempo]) "confident" enough to read as a fast song. Longer
-  /// than [_silenceTimeout] because a dense live mix can go a few bars
-  /// without a clean pulse while the music is very much still playing.
-  static const _noPulseTimeout = Duration(seconds: 10);
-
-  /// Steady-pulse beats in a row it takes to come back from silence. Room
-  /// noise lines up by chance for a few beats now and then (tuned on
-  /// simulated onsets: at 3–8 random hits a second the longest such run in
-  /// a minute is typically 3–6 and rarely 10+), while music, once it's back,
-  /// gives dozens in a row. Once music has been heard, the detector's own
-  /// level gate (`MusicLevelGate`) keeps the quiet room out entirely.
-  static const _steadyBeatsToResume = 10;
+  /// Coming back from silence: two beats in a row at a danceable spacing
+  /// (40–200 BPM) bring the show back, about a second after the music
+  /// does. Asking for a steady pulse here (6 beats in v1.44.2, 10 in
+  /// v1.44.3) kept real music in the dark. What keeps a quiet room's clicks
+  /// out once music has been heard is the detector's level gate
+  /// (`MusicLevelGate`), not a long wait.
+  static const _resumeMinGap = Duration(milliseconds: 300);
+  static const _resumeMaxGap = Duration(milliseconds: 1500);
 
   /// Steady-pulse votes a zone switch needs before it lands, and the share
   /// of all beats since it became pending that must have voted for it.
-  static const _votesToSwitch = 6;
-  static const _votesShareToSwitch = 2 / 3;
+  static const _votesToSwitch = 8;
+  static const _votesShareToSwitch = 0.75;
 
   final _statusController = StreamController<SmartProgramStatus>.broadcast();
   Stream<SmartProgramStatus> get statusStream => _statusController.stream;
@@ -240,7 +230,6 @@ class SmartProgramPlayer {
     );
     _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.base));
     _resetSilenceTimer(service: service, universes: universes);
-    _resetNoPulseTimer(service: service, universes: universes);
 
     _beatSub = beatEvents.listen((now) {
       _onBeat(
@@ -363,10 +352,6 @@ class SmartProgramPlayer {
     _silenceTimer = Timer(_silenceTimeout, () => _enterSilence(service: service, universes: universes));
   }
 
-  void _resetNoPulseTimer({required ArtNetService service, required List<UniverseConfig> universes}) {
-    _noPulseTimer?.cancel();
-    _noPulseTimer = Timer(_noPulseTimeout, () => _enterSilence(service: service, universes: universes));
-  }
 
   /// No beat has arrived for [_silenceTimeout] — the music has presumably
   /// stopped (or was never there). Blacks out and stops stepping instead of
@@ -375,9 +360,9 @@ class SmartProgramPlayer {
   void _enterSilence({required ArtNetService service, required List<UniverseConfig> universes}) {
     final program = _program;
     if (program == null || _isSilent) return;
+    _log('enter silence');
     _isSilent = true;
     _confirmTimer?.cancel();
-    _noPulseTimer?.cancel();
     _pendingZone = _confirmedZone;
     // Whatever was heard before the music stopped says nothing about what
     // comes back.
@@ -427,20 +412,29 @@ class SmartProgramPlayer {
     if (_beatTimes.length > 12) _beatTimes.removeAt(0);
 
     final estimate = estimateTempo(_beatTimes);
-    // Only a steady pulse counts as music. A beat on its own proves nothing
-    // (see [_noPulseTimeout]): a quiet room makes them too, and they used
-    // to keep the program out of its blackout and even push it into the
-    // faster zone with no music playing at all.
+    // Only a steady pulse may switch zones. Random onsets from a quiet room
+    // fold into a "confident" tempo most of the time, and used to push the
+    // program into the faster zone with no music playing at all.
     final steady = isSteadyPulse(_beatTimes, estimate);
     _steadyStreak = steady ? _steadyStreak + 1 : 0;
-    if (steady) _resetNoPulseTimer(service: service, universes: universes);
+    _log(
+      'beat t=${now.millisecondsSinceEpoch} n=${_beatTimes.length} '
+      'bpm=${estimate?.bpm.toStringAsFixed(1) ?? '-'} pulse=${estimate?.pulseBpm.toStringAsFixed(1) ?? '-'} '
+      'conf=${estimate?.isConfident ?? false} '
+      'reg=${estimate == null ? '-' : pulseRegularity(_beatTimes, estimate.pulseBpm).toStringAsFixed(2)} '
+      'steady=$steady streak=$_steadyStreak silent=$_isSilent zone=${_confirmedZone.name} pending=${_pendingZone.name} '
+      'votes=$_pendingVotes misses=$_pendingMisses',
+    );
 
     if (_isSilent) {
-      if (_steadyStreak < _steadyBeatsToResume) return;
+      final n = _beatTimes.length;
+      final gap = n < 2 ? null : _beatTimes[n - 1].difference(_beatTimes[n - 2]);
+      if (gap == null || gap < _resumeMinGap || gap > _resumeMaxGap) return;
       // Music is back after a silent stretch. Come up on the *slower* zone
       // rather than the base one: easing back in reads far better than
       // slamming into a fast look, and the following beats reclassify it
       // properly anyway.
+      _log('leave silence');
       _isSilent = false;
       _pendingZone = SmartProgramZone.slower;
       _confirmedZone = SmartProgramZone.slower;
@@ -530,6 +524,7 @@ class SmartProgramPlayer {
     }
     if (!_pendingHeld || _pendingVotes < _votesToSwitch || share < _votesShareToSwitch) return;
     _pendingHeld = false;
+    _log('zone -> ${zone.name}');
     _confirmedZone = zone;
     _confirmPlay?.call();
     _statusController.add(SmartProgramStatus(zone: zone, liveBpm: _lastLiveBpm));
@@ -718,8 +713,6 @@ class SmartProgramPlayer {
     _confirmTimer = null;
     _silenceTimer?.cancel();
     _silenceTimer = null;
-    _noPulseTimer?.cancel();
-    _noPulseTimer = null;
     _isSilent = false;
     // Not while being disposed: that happens as the provider container goes
     // down, and the dropout controller can no longer be read then.
@@ -732,6 +725,15 @@ class SmartProgramPlayer {
   }
 
   bool _disposed = false;
+
+  /// One line per beat and per decision in the device log (`adb logcat -s
+  /// flutter`, tag SMARTBEAT) — what the program heard and why it did what
+  /// it did, so thresholds can be tuned on a real room rather than on
+  /// simulated beats. Cheap: a few lines a second while a program runs.
+  static void _log(String message) {
+    // ignore: avoid_print
+    print('SMARTBEAT $message');
+  }
 
   void dispose() {
     _disposed = true;

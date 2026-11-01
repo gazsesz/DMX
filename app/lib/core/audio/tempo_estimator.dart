@@ -157,7 +157,8 @@ const steadyPulseMinBeats = 6;
 /// The share of beats that must sit on one grid — tuned on simulated beat
 /// streams: random onsets at 1–4 a second pass about 1 window in 50, while
 /// a real track with 30% of its kicks missed and 15% stray hits still
-/// passes four times in five.
+/// passes four times in five. Only zone switches ask for it; coming back
+/// from silence doesn't (see SmartProgramPlayer).
 const steadyPulseRegularity = 0.75;
 
 /// The fastest pulse [isSteadyPulse] believes. The detector won't fire

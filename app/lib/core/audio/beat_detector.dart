@@ -503,7 +503,12 @@ class BeatDetectorService implements BeatSource {
 
     final pastRefractoryPeriod =
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
-    final isBeat = flux > thresholdFlux && pastRefractoryPeriod && _musicGate.allows(flux);
+    final onset = flux > thresholdFlux && pastRefractoryPeriod;
+    final isBeat = onset && _musicGate.allows(flux);
+    if (onset && !isBeat) {
+      // ignore: avoid_print
+      print('SMARTBEAT gate blocked flux=${flux.toStringAsExponential(2)} ref=${_musicGate.reference.toStringAsExponential(2)}');
+    }
     if (isBeat) {
       _musicGate.onBeat(flux);
       _lastBeat = now;
