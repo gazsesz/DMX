@@ -56,22 +56,30 @@ class DashboardScreen extends ConsumerStatefulWidget {
 }
 
 class _DashboardScreenState extends ConsumerState<DashboardScreen> {
-  late final SmartProgramPlayer _smartPlayer;
+  /// Always the current runner. The provider builds a new one when the beat
+  /// source changes (mic ↔ MIDI ↔ rkbx_link), and this screen lives on in the
+  /// shell's IndexedStack — holding the first one meant it showed a program
+  /// started afterwards as not running, and its Start button acted on a
+  /// player nobody used any more.
+  SmartProgramPlayer get _smartPlayer => ref.read(smartProgramPlayerProvider);
   SmartProgramStatus? _smartStatus;
   StreamSubscription<SmartProgramStatus>? _smartStatusSub;
 
   @override
   void initState() {
     super.initState();
-    _smartPlayer = ref.read(smartProgramPlayerProvider);
     // Seeded from the last status rather than started blank: the stream
     // only reports changes, so a screen built while a program is already
     // running would otherwise show no zone and no tempo until the music
     // next crossed a threshold — which reads as "it isn't running".
     _smartStatus = ref.read(smartProgramStatusProvider).valueOrNull;
-    _smartStatusSub = _smartPlayer.statusStream.listen((status) {
-      if (mounted) setState(() => _smartStatus = status);
-    });
+    ref.listenManual<SmartProgramPlayer>(smartProgramPlayerProvider, (previous, player) {
+      _smartStatusSub?.cancel();
+      _smartStatusSub = player.statusStream.listen((status) {
+        if (mounted) setState(() => _smartStatus = status);
+      });
+      if (previous != null && mounted) setState(() => _smartStatus = null);
+    }, fireImmediately: true);
   }
 
   @override

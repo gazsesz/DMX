@@ -7,6 +7,7 @@ import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/beat_meter.dart';
+import '../../core/widgets/silence_floor_slider.dart';
 import '../../core/widgets/layer_badge.dart';
 import '../../core/widgets/log_scale.dart';
 import '../../models/chase.dart';
@@ -765,6 +766,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                         ref.read(beatDetectorProvider).sensitivity = v;
                       },
                     ),
+                    SilenceFloorSlider(service: ref.read(beatDetectorProvider)),
                     const SizedBox(height: 10),
                     const Text(
                       'React to',

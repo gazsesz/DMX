@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:fftea/fftea.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:record/record.dart';
 
 import 'beat_source.dart';
@@ -90,6 +91,10 @@ class BeatMeterSample {
   final double requiredRise; // threshold - avg, i.e. how sensitive we are
   final bool isBeat;
 
+  /// The manual silence floor in the same dB units as [db], or null when
+  /// it's off — see [BeatDetectorService.silenceFloorDb].
+  final double? silenceFloor;
+
   /// The band detection is currently listening to.
   final BeatFrequencyBand band;
 
@@ -104,6 +109,7 @@ class BeatMeterSample {
     required this.threshold,
     required this.requiredRise,
     required this.isBeat,
+    this.silenceFloor,
     this.band = BeatFrequencyBand.overall,
     this.bands = const {},
   });
@@ -147,13 +153,14 @@ class BeatDetectorService implements BeatSource {
   static final FFT _fft = FFT(_fftSize);
   static final Float64List _hannWindow = Window.hanning(_fftSize);
 
-  final AudioRecorder _recorder = AudioRecorder();
+  // Created on first use: the plugin wants a platform binding, and the
+  // detection maths (and its tests) don't.
+  AudioRecorder? _recorderInstance;
+  AudioRecorder get _recorder => _recorderInstance ??= AudioRecorder();
   StreamSubscription<Uint8List>? _pcmSub;
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
   final OnsetBaseline _baseline = OnsetBaseline();
-  final MusicLevelGate _musicGate = MusicLevelGate();
-  BeatFrequencyBand? _gateBand;
 
   /// A ~300ms level of the selected band, the "is anything happening in
   /// here" reading the escape hatch needs.
@@ -171,6 +178,21 @@ class BeatDetectorService implements BeatSource {
 
   /// 0 (least sensitive, needs a big spike) .. 1 (most sensitive).
   double sensitivity = 0.6;
+
+  /// Below this onset strength (same dB scale as the meter) nothing counts
+  /// as a beat, however far it sticks out of its own recent average.
+  ///
+  /// The statistical threshold is relative by design, which is exactly why
+  /// a quiet room fools it: with no music the average sinks to the noise
+  /// floor and a keyboard click becomes a big outlier. On the tablet a click
+  /// measured about -40..-27 dB against -4..-2 dB for a real kick, so one
+  /// fixed line between them tells "no music" from music where no amount of
+  /// statistics did (v1.44.2-4). At or below [silenceFloorOff] it's off.
+  double silenceFloorDb = silenceFloorOff;
+
+  static const double silenceFloorOff = -60.0;
+
+  bool get silenceFloorEnabled => silenceFloorDb > silenceFloorOff;
 
   /// Which frequency band [sensitivity]/detection reacts to.
   BeatFrequencyBand frequencyBand = BeatFrequencyBand.overall;
@@ -209,7 +231,6 @@ class BeatDetectorService implements BeatSource {
 
       final stream = await _openStream();
       _baseline.reset();
-      _musicGate.reset();
       _frameCount = 0;
       _lastBeat = null;
       _fastLevel = 0;
@@ -416,6 +437,10 @@ class BeatDetectorService implements BeatSource {
 
   static double _toDb(double linear) => linear > 1e-9 ? 20 * math.log(linear) / math.ln10 : -200.0;
 
+  /// Feeds one frame's per-band flux straight in, skipping the FFT.
+  @visibleForTesting
+  void debugHandleFlux(Map<BeatFrequencyBand, double> fluxes) => _handleFluxSample(fluxes);
+
   void _handleFluxSample(Map<BeatFrequencyBand, double> fluxes) {
     _frameCount++;
     // Detection follows the selected band; the rest are carried along
@@ -433,13 +458,6 @@ class BeatDetectorService implements BeatSource {
     // A short level, purely to answer "is this room still making noise" for
     // the escape hatch below.
     _fastLevel += (1 - math.exp(-_hopMs / _fastLevelMs)) * (flux - _fastLevel);
-    // Each band has its own scale, so switching band starts the music
-    // reference over.
-    if (_gateBand != frequencyBand) {
-      _gateBand = frequencyBand;
-      _musicGate.reset();
-    }
-    _musicGate.tick(_hopMs);
 
     final now = DateTime.now();
     // The bar can be left somewhere nothing musical will ever reach — see
@@ -473,6 +491,7 @@ class BeatDetectorService implements BeatSource {
         threshold: db,
         requiredRise: 0,
         isBeat: false,
+        silenceFloor: silenceFloorEnabled ? silenceFloorDb : null,
         band: frequencyBand,
         bands: bands,
       ));
@@ -503,14 +522,9 @@ class BeatDetectorService implements BeatSource {
 
     final pastRefractoryPeriod =
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
-    final onset = flux > thresholdFlux && pastRefractoryPeriod;
-    final isBeat = onset && _musicGate.allows(flux);
-    if (onset && !isBeat) {
-      // ignore: avoid_print
-      print('SMARTBEAT gate blocked flux=${flux.toStringAsExponential(2)} ref=${_musicGate.reference.toStringAsExponential(2)}');
-    }
+    final aboveFloor = !silenceFloorEnabled || _toDb(flux) >= silenceFloorDb;
+    final isBeat = flux > thresholdFlux && aboveFloor && pastRefractoryPeriod;
     if (isBeat) {
-      _musicGate.onBeat(flux);
       _lastBeat = now;
       _beatController.add(now);
     }
@@ -524,6 +538,7 @@ class BeatDetectorService implements BeatSource {
         threshold: thresholdDb,
         requiredRise: thresholdDb - avgDb,
         isBeat: isBeat,
+        silenceFloor: silenceFloorEnabled ? silenceFloorDb : null,
         band: frequencyBand,
         bands: bands,
       ),
@@ -532,7 +547,7 @@ class BeatDetectorService implements BeatSource {
 
   void dispose() {
     _pcmSub?.cancel();
-    _recorder.dispose();
+    _recorderInstance?.dispose();
     _beatController.close();
     _meterController.close();
   }

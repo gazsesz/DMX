@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 
 import 'app.dart';
+import 'core/audio/beat_detector.dart';
 import 'models/artnet_settings.dart';
 import 'models/output_protocol.dart';
 import 'state/artnet_providers.dart';
@@ -71,6 +72,9 @@ Future<void> main() async {
         controlDockProvider.overrideWith((ref) => ControlDockNotifier(initialDock)),
         remoteControlProvider.overrideWith((ref) => RemoteControlNotifier(initialRemote)),
         beatSourcePrefsProvider.overrideWith((ref) => BeatSourcePrefsNotifier(initialBeatSource)),
+        initialSilenceFloorProvider.overrideWithValue(
+          prefs.getDouble(prefBeatSilenceFloor) ?? BeatDetectorService.silenceFloorOff,
+        ),
       ],
       child: const DmxControllerApp(),
     ),

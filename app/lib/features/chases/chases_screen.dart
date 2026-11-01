@@ -38,20 +38,28 @@ class ChasesScreen extends ConsumerStatefulWidget {
 }
 
 class _ChasesScreenState extends ConsumerState<ChasesScreen> {
-  late final SmartProgramPlayer _smartPlayer;
+  /// Always the current runner. The provider builds a new one when the beat
+  /// source changes (mic ↔ MIDI ↔ rkbx_link), and this screen lives on in the
+  /// shell's IndexedStack — holding the first one meant it showed a program
+  /// started afterwards as not running, and its Start button acted on a
+  /// player nobody used any more.
+  SmartProgramPlayer get _smartPlayer => ref.read(smartProgramPlayerProvider);
   SmartProgramStatus? _smartStatus;
   StreamSubscription<SmartProgramStatus>? _smartStatusSub;
 
   @override
   void initState() {
     super.initState();
-    _smartPlayer = ref.read(smartProgramPlayerProvider);
     // The stream only carries changes — see the Dashboard, which shows the
     // same zone readout.
     _smartStatus = ref.read(smartProgramStatusProvider).valueOrNull;
-    _smartStatusSub = _smartPlayer.statusStream.listen((status) {
-      if (mounted) setState(() => _smartStatus = status);
-    });
+    ref.listenManual<SmartProgramPlayer>(smartProgramPlayerProvider, (previous, player) {
+      _smartStatusSub?.cancel();
+      _smartStatusSub = player.statusStream.listen((status) {
+        if (mounted) setState(() => _smartStatus = status);
+      });
+      if (previous != null && mounted) setState(() => _smartStatus = null);
+    }, fireImmediately: true);
   }
 
   @override

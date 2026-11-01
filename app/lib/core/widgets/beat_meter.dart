@@ -35,6 +35,12 @@ class _BeatMeterState extends State<BeatMeter> {
   BeatMeterSample? _sample;
   DateTime? _lastBeatAt;
 
+  // Loudest onset on the watched band lately, held for [_peakHold] — the
+  // number to set the silence floor against.
+  static const _peakHold = Duration(milliseconds: 1500);
+  double? _peakDb;
+  DateTime? _peakAt;
+
   @override
   void initState() {
     super.initState();
@@ -42,7 +48,12 @@ class _BeatMeterState extends State<BeatMeter> {
       if (!mounted) return;
       setState(() {
         _sample = sample;
-        if (sample.isBeat) _lastBeatAt = DateTime.now();
+        final now = DateTime.now();
+        if (sample.isBeat) _lastBeatAt = now;
+        if (_peakDb == null || sample.db >= _peakDb! || now.difference(_peakAt!) > _peakHold) {
+          _peakDb = sample.db;
+          _peakAt = now;
+        }
       });
     });
   }
@@ -67,6 +78,11 @@ class _BeatMeterState extends State<BeatMeter> {
     // it's the line that band has to cross to fire a beat.
     final threshold = active && sample != null && level != null
         ? _normalize(level.avg + sample.requiredRise, level.avg)
+        : null;
+    // The silence floor is absolute, so it sits against this band's own
+    // level reading — below it the bar can move all it likes, no beat.
+    final floor = active && sample?.silenceFloor != null && level != null
+        ? _normalize(sample!.silenceFloor!, level.avg)
         : null;
     final color = active ? AppColors.accent : AppColors.textFaint;
 
@@ -144,6 +160,13 @@ class _BeatMeterState extends State<BeatMeter> {
                           bottom: 0,
                           child: Container(width: 2, color: Colors.white70),
                         ),
+                      if (floor != null)
+                        Positioned(
+                          left: (floor * constraints.maxWidth - 1).clamp(0.0, constraints.maxWidth - 2),
+                          top: 0,
+                          bottom: 0,
+                          child: Container(width: 2, color: AppColors.danger),
+                        ),
                     ],
                   );
                 },
@@ -185,7 +208,9 @@ class _BeatMeterState extends State<BeatMeter> {
         Text(
           sample == null
               ? 'Waiting for the microphone…'
-              : 'Watching ${activeBand.label} · needs +${sample.requiredRise.toStringAsFixed(1)}dB above its average to trigger',
+              : 'Watching ${activeBand.label} · needs +${sample.requiredRise.toStringAsFixed(1)}dB above its average to trigger'
+                  ' · peak ${_peakDb == null || _peakDb! <= -199 ? '–' : '${_peakDb!.round()} dB'}'
+                  '${sample.silenceFloor == null ? '' : ' · floor ${sample.silenceFloor!.round()} dB'}',
           style: appMonoStyle(fontSize: 9, color: AppColors.textFaint),
         ),
       ],
