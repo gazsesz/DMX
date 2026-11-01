@@ -9,6 +9,8 @@ import '../../state/movement_live_providers.dart';
 import '../../state/playback_providers.dart';
 import 'trigger_actions.dart';
 
+export '../network/local_address.dart' show localWifiAddress;
+
 /// A tiny HTTP endpoint for firing triggers from outside the app — a phone,
 /// a smartwatch running MacroDroid, a laptop, anything on the same Wi-Fi as
 /// the tablet.
@@ -256,19 +258,4 @@ class RemoteControlServer {
       ..add(bytes)
       ..close();
   }
-}
-
-/// The Wi-Fi address to point a macro at, or null if there's no usable one.
-Future<String?> localWifiAddress() async {
-  try {
-    final interfaces = await NetworkInterface.list(type: InternetAddressType.IPv4, includeLoopback: false);
-    for (final interface in interfaces) {
-      for (final address in interface.addresses) {
-        if (!address.isLoopback) return address.address;
-      }
-    }
-  } catch (_) {
-    // No network yet — the Settings screen just shows nothing.
-  }
-  return null;
 }

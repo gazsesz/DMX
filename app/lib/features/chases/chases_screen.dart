@@ -7,6 +7,7 @@ import '../../core/playback/smart_layer_display.dart';
 import '../../core/playback/smart_program_player.dart';
 import '../../core/remote/trigger_actions.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/widgets/play_toggle_card.dart';
 import '../../core/widgets/confirm_dialog.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/layer_badge.dart';
@@ -60,9 +61,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
   }
 
   Future<void> _open(Chase chase) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChaseEditorScreen(existing: chase)),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => ChaseEditorScreen(existing: chase)));
   }
 
   void _snack(String message) {
@@ -115,9 +114,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
 
   Future<void> _newSmartProgram() async {
     final program = ref.read(smartProgramsProvider.notifier).create('New Smart Program');
-    await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => SmartProgramEditorScreen(existing: program)),
-    );
+    await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SmartProgramEditorScreen(existing: program)));
   }
 
   Future<void> _deleteChase(Chase chase) async {
@@ -224,7 +221,12 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
             children: [
               const Text(
                 'SMART PROGRAMS',
-                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint, letterSpacing: 1),
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: AppColors.textFaint,
+                  letterSpacing: 1,
+                ),
               ),
               IconButton(
                 icon: const Icon(Icons.add, size: 20),
@@ -254,88 +256,64 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                       ? 'NO MUSIC'
                       : zoneLabel(zone ?? SmartProgramZone.base).toUpperCase();
                   final lines = smartLayerLines(program, zone: zone, layers: layers, chases: chases, banks: banks);
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    color: active ? AppColors.accent2.withValues(alpha: 0.1) : null,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: active ? AppColors.accent2 : Colors.transparent, width: 1.5),
-                    ),
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(12),
-                      onTap: () => Navigator.of(context).push(
-                        MaterialPageRoute(builder: (_) => SmartProgramEditorScreen(existing: program)),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            InkWell(
-                              borderRadius: BorderRadius.circular(20),
-                              onTap: () => _toggleSmartProgram(program),
-                              child: Container(
-                                width: 36,
-                                height: 36,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: active ? AppColors.accent2 : AppColors.panel2,
-                                ),
-                                child: Icon(
-                                  active ? Icons.stop_rounded : Icons.auto_graph,
-                                  color: active ? AppColors.accent2On : AppColors.accent2,
-                                  size: 20,
+                  return PlayToggleCard(
+                    active: active,
+                    icon: Icons.auto_graph,
+                    accent: AppColors.accent2,
+                    accentOn: AppColors.accent2On,
+                    toggleKey: ValueKey('smart-toggle-${program.id}'),
+                    onToggle: () => _toggleSmartProgram(program),
+                    onOpen: () =>
+                        Navigator.of(context)
+                            .push(MaterialPageRoute(builder: (_) => SmartProgramEditorScreen(existing: program))),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                program.name,
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w700,
+                                  color: active ? AppColors.accent2 : null,
                                 ),
                               ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    program.name,
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
-                                      color: active ? AppColors.accent2 : null,
-                                    ),
-                                  ),
-                                  Text(
-                                    active
-                                        ? 'Zone $zoneText${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM live' : ''}'
-                                        : '${program.baseBpm.round()} BPM base',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: active ? AppColors.accent2 : AppColors.textFaint,
-                                      fontWeight: active ? FontWeight.w700 : FontWeight.normal,
-                                    ),
-                                  ),
-                                  if (lines.isEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 4),
-                                      child: Text(
-                                        'Nothing set yet — tap to pick chases per layer',
-                                        style: TextStyle(fontSize: 11, color: AppColors.textFaint),
-                                      ),
-                                    ),
-                                  for (final line in lines) _smartLine(line, active: active),
-                                ],
+                              Text(
+                                active
+                                    ? 'Zone $zoneText${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM live' : ''}'
+                                    : '${program.baseBpm.round()} BPM base',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: active ? AppColors.accent2 : AppColors.textFaint,
+                                  fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                                ),
                               ),
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.copy_outlined, size: 18),
-                              onPressed: () => ref.read(smartProgramsProvider.notifier).duplicate(program.id),
-                              tooltip: 'Duplicate',
-                            ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 18),
-                              onPressed: () => _deleteProgram(program),
-                              tooltip: 'Delete',
-                            ),
-                          ],
+                              if (lines.isEmpty)
+                                const Padding(
+                                  padding: EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    'Nothing set yet — tap to pick chases per layer',
+                                    style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                                  ),
+                                ),
+                              for (final line in lines) _smartLine(line, active: active),
+                            ],
+                          ),
                         ),
-                      ),
+                        IconButton(
+                          icon: const Icon(Icons.copy_outlined, size: 18),
+                          onPressed: () => ref.read(smartProgramsProvider.notifier).duplicate(program.id),
+                          tooltip: 'Duplicate',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () => _deleteProgram(program),
+                          tooltip: 'Delete',
+                        ),
+                      ],
                     ),
                   );
                 },
@@ -366,95 +344,90 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                   final onDashboard = ref
                       .watch(dashboardTriggersProvider)
                       .any((t) => t.id == chase.id && t.kind == TriggerKind.chase);
-                  return Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    color: active ? AppColors.accent.withValues(alpha: 0.1) : null,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: active ? AppColors.accent : Colors.transparent, width: 1.5),
-                    ),
-                    child: ListTile(
-                      leading: InkWell(
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () => _togglePlay(chase),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: active ? AppColors.accent : AppColors.panel2,
-                          ),
-                          child: Icon(
-                            active ? Icons.stop_rounded : Icons.fast_forward_outlined,
-                            color: active ? AppColors.accentOn : AppColors.accent,
-                            size: 20,
+                  return PlayToggleCard(
+                    active: active,
+                    icon: Icons.fast_forward_outlined,
+                    accent: AppColors.accent,
+                    accentOn: AppColors.accentOn,
+                    toggleKey: ValueKey('chase-toggle-${chase.id}'),
+                    onToggle: () => _togglePlay(chase),
+                    onOpen: () => _open(chase),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(chase.name, style: TextStyle(fontSize: 15, color: active ? AppColors.accent : null)),
+                              const SizedBox(height: 2),
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      active
+                                          ? (runningLayers.length < layerIds.length
+                                                ? 'Running on ${runningLayers.length} of ${layerIds.length} layers'
+                                                : 'Running…')
+                                          : '${chase.steps.length} steps · ${chase.stepSeconds.toStringAsFixed(2)}s/step',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: active ? AppColors.accent : AppColors.textFaint,
+                                        fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  for (final id in layerIds) ...[
+                                    const SizedBox(width: 5),
+                                    Opacity(
+                                      opacity: !active || runningLayers.contains(id) ? 1 : 0.3,
+                                      child: LayerBadge(index: layers.indexWhere((l) => l.id == id), small: true),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                      ),
-                      title: Text(chase.name, style: TextStyle(color: active ? AppColors.accent : null)),
-                      subtitle: Row(
-                        children: [
-                          Flexible(
-                            child: Text(
-                              active
-                                  ? (runningLayers.length < layerIds.length ? 'Running on ${runningLayers.length} of ${layerIds.length} layers' : 'Running…')
-                                  : '${chase.steps.length} steps · ${chase.stepSeconds.toStringAsFixed(2)}s/step',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: active ? AppColors.accent : AppColors.textFaint,
-                                fontWeight: active ? FontWeight.w700 : FontWeight.normal,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
+                        IconButton(
+                          icon: Icon(
+                            onDashboard ? Icons.dashboard : Icons.dashboard_customize_outlined,
+                            size: 18,
+                            color: AppColors.accent,
                           ),
-                          for (final id in layerIds) ...[
-                            const SizedBox(width: 5),
-                            Opacity(
-                              opacity: !active || runningLayers.contains(id) ? 1 : 0.3,
-                              child: LayerBadge(index: layers.indexWhere((l) => l.id == id), small: true),
-                            ),
-                          ],
-                        ],
-                      ),
-                      onTap: () => _open(chase),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: Icon(
-                              onDashboard ? Icons.dashboard : Icons.dashboard_customize_outlined,
-                              size: 18,
-                              color: AppColors.accent,
-                            ),
-                            style: IconButton.styleFrom(
-                              foregroundColor: AppColors.accent,
-                              hoverColor: AppColors.accent.withValues(alpha: 0.15),
-                              highlightColor: AppColors.accent.withValues(alpha: 0.25),
-                            ),
-                            tooltip: onDashboard ? 'Remove from Dashboard' : 'Add to Dashboard',
-                            onPressed: () {
-                              final notifier = ref.read(dashboardTriggersProvider.notifier);
-                              notifier.toggle(chase.id, TriggerKind.chase);
-                              _snack(onDashboard ? 'Removed "${chase.name}" from Dashboard' : 'Added "${chase.name}" to Dashboard');
-                            },
+                          style: IconButton.styleFrom(
+                            foregroundColor: AppColors.accent,
+                            hoverColor: AppColors.accent.withValues(alpha: 0.15),
+                            highlightColor: AppColors.accent.withValues(alpha: 0.25),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.copy_outlined, size: 18),
-                            onPressed: () => ref.read(chasesProvider.notifier).duplicate(chase.id),
-                            tooltip: 'Duplicate',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.upload_file, size: 18),
-                            onPressed: () => exportShowItemsToFile(context, ref, chaseIds: [chase.id]),
-                            tooltip: 'Export (with its banks and scenes)',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline, size: 18),
-                            onPressed: () => _deleteChase(chase),
-                            tooltip: 'Delete',
-                          ),
-                        ],
-                      ),
+                          tooltip: onDashboard ? 'Remove from Dashboard' : 'Add to Dashboard',
+                          onPressed: () {
+                            final notifier = ref.read(dashboardTriggersProvider.notifier);
+                            notifier.toggle(chase.id, TriggerKind.chase);
+                            _snack(
+                              onDashboard
+                                  ? 'Removed "${chase.name}" from Dashboard'
+                                  : 'Added "${chase.name}" to Dashboard',
+                            );
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.copy_outlined, size: 18),
+                          onPressed: () => ref.read(chasesProvider.notifier).duplicate(chase.id),
+                          tooltip: 'Duplicate',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.upload_file, size: 18),
+                          onPressed: () => exportShowItemsToFile(context, ref, chaseIds: [chase.id]),
+                          tooltip: 'Export (with its banks and scenes)',
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () => _deleteChase(chase),
+                          tooltip: 'Delete',
+                        ),
+                      ],
                     ),
                   );
                 },

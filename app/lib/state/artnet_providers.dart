@@ -221,6 +221,14 @@ class ConnectionStatusNotifier extends StateNotifier<ConnectionStatus> {
     _watchdog = Timer.periodic(_watchdogInterval, (_) => unawaited(_poll()));
   }
 
+  /// The tablet joined another network: the socket was bound while the old
+  /// one was up, so rebind it straight away and check the node again.
+  Future<void> onNetworkChanged() async {
+    _consecutiveMisses = 0;
+    await _reconnect(force: true);
+    await _poll();
+  }
+
   /// The Test button: same check, but awaited so the button can show a
   /// spinner and the caller knows when there's a result to read.
   Future<void> testConnection() async {

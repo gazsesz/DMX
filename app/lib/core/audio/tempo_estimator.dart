@@ -24,11 +24,17 @@ class TempoEstimate {
   final int agreeingIntervals;
   final int totalIntervals;
 
+  /// The tempo the beats themselves keep, before [bpm] was pulled back into
+  /// the plausible range by octaves — what a grid laid over those very
+  /// beats has to use. Same as [bpm] unless that correction happened.
+  final double pulseBpm;
+
   const TempoEstimate({
     required this.bpm,
     required this.agreeingIntervals,
     required this.totalIntervals,
-  });
+    double? pulseBpm,
+  }) : pulseBpm = pulseBpm ?? bpm;
 
   /// Most gaps told the same story.
   bool get isConfident => totalIntervals > 0 && agreeingIntervals / totalIntervals >= 0.6;
@@ -72,6 +78,7 @@ TempoEstimate? estimateTempo(List<DateTime> beatTimes, {double minBpm = 40, doub
   final meanMs = folded.reduce((a, b) => a + b) / folded.length;
   if (meanMs <= 0) return null;
   var bpm = 60000 / meanMs;
+  final pulseBpm = bpm;
 
   // Pull an octave error back into the plausible range. A detector that
   // fires on every eighth note reports 256 BPM for a 128 BPM track; one
@@ -87,6 +94,7 @@ TempoEstimate? estimateTempo(List<DateTime> beatTimes, {double minBpm = 40, doub
     bpm: bpm,
     agreeingIntervals: folded.length,
     totalIntervals: gaps.length,
+    pulseBpm: pulseBpm,
   );
 }
 
@@ -104,4 +112,58 @@ double? _fold(double gap, double median) {
     if ((gap - target).abs() <= target * _tolerance) return gap * n;
   }
   return null;
+}
+
+/// How much of [beatTimes] sits on one steady grid of about [bpm] — 0..1.
+///
+/// [estimateTempo]'s folding is generous on purpose (a missed beat or a
+/// double trigger is folded back in rather than averaged), and that same
+/// generosity makes it agree with almost anything: random onsets — a quiet
+/// room's noise floor, people talking, a glass put down — fold onto *some*
+/// multiple of their own median nearly every time, so a run of them reads
+/// as "confident" about nine times in ten. This asks the question folding
+/// can't: do the beats actually line up, one after another, on a single
+/// pulse? A grid of the estimated period (searched ±5% around it, since the
+/// folded mean is skewed by any extra hits) is anchored on each beat in
+/// turn, and the best share of beats within ±10% of a period of a grid line
+/// wins. Missed beats cost nothing here (an empty grid slot is fine); only
+/// hits that land off the pulse do.
+double pulseRegularity(List<DateTime> beatTimes, double bpm) {
+  if (beatTimes.length < 2 || bpm <= 0) return 0;
+  final first = beatTimes.first;
+  final ms = [for (final t in beatTimes) t.difference(first).inMicroseconds / 1000];
+  var best = 0;
+  for (var k = -10; k <= 10; k++) {
+    final period = 60000 / (bpm * (1 + k * 0.005));
+    for (final anchor in ms) {
+      var hits = 0;
+      for (final t in ms) {
+        var phase = ((t - anchor) / period) % 1.0;
+        if (phase < 0) phase += 1;
+        if (phase <= _gridTolerance || phase >= 1 - _gridTolerance) hits++;
+      }
+      if (hits > best) best = hits;
+    }
+  }
+  return best / ms.length;
+}
+
+const _gridTolerance = 0.1;
+
+/// The fewest beats [isSteadyPulse] will judge — fewer than this and even
+/// random hits line up often enough to fool it.
+const steadyPulseMinBeats = 6;
+
+/// The share of beats that must sit on one grid — tuned on simulated beat
+/// streams: random onsets at 1–4 a second pass about 1 window in 50, while
+/// a real track with 30% of its kicks missed and 15% stray hits still
+/// passes four times in five.
+const steadyPulseRegularity = 0.75;
+
+/// Whether [beatTimes] is a real, steady pulse rather than a confident-
+/// looking pile of random onsets — see [pulseRegularity].
+bool isSteadyPulse(List<DateTime> beatTimes, TempoEstimate? estimate) {
+  if (estimate == null || !estimate.isConfident) return false;
+  if (beatTimes.length < steadyPulseMinBeats) return false;
+  return pulseRegularity(beatTimes, estimate.pulseBpm) >= steadyPulseRegularity;
 }
