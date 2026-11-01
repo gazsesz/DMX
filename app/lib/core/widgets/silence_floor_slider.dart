@@ -20,7 +20,7 @@ class SilenceFloorSlider extends StatefulWidget {
 
 class _SilenceFloorSliderState extends State<SilenceFloorSlider> {
   late double _value = widget.service.silenceFloorDb
-      .clamp(BeatDetectorService.silenceFloorOff, 0.0)
+      .clamp(BeatDetectorService.silenceFloorOff, BeatDetectorService.silenceFloorMax)
       .toDouble();
 
   bool get _off => _value <= BeatDetectorService.silenceFloorOff;
@@ -48,8 +48,8 @@ class _SilenceFloorSliderState extends State<SilenceFloorSlider> {
           key: const Key('silence-floor-slider'),
           value: _value,
           min: BeatDetectorService.silenceFloorOff,
-          max: 0,
-          divisions: 60,
+          max: BeatDetectorService.silenceFloorMax,
+          divisions: 100,
           activeColor: AppColors.danger,
           onChanged: (v) {
             setState(() => _value = v);

@@ -192,6 +192,11 @@ class BeatDetectorService implements BeatSource {
 
   static const double silenceFloorOff = -60.0;
 
+  /// Top of the slider. Spectral flux is summed over every bin of the band,
+  /// so a sharp broadband click close to the mic can read well above 0 dB
+  /// on the wide bands — the scale has to reach past it.
+  static const double silenceFloorMax = 40.0;
+
   bool get silenceFloorEnabled => silenceFloorDb > silenceFloorOff;
 
   /// Which frequency band [sensitivity]/detection reacts to.
@@ -524,6 +529,13 @@ class BeatDetectorService implements BeatSource {
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
     final aboveFloor = !silenceFloorEnabled || _toDb(flux) >= silenceFloorDb;
     final isBeat = flux > thresholdFlux && aboveFloor && pastRefractoryPeriod;
+    if (flux > thresholdFlux && pastRefractoryPeriod) {
+      // Every onset the statistics accept, kept or dropped by the floor —
+      // the only way to see on the device what a click or a cough measures.
+      // ignore: avoid_print
+      print('SMARTBEAT onset band=${frequencyBand.name} db=${_toDb(flux).toStringAsFixed(1)} '
+          'floor=${silenceFloorEnabled ? silenceFloorDb.toStringAsFixed(0) : 'off'} ${isBeat ? 'BEAT' : 'blocked'}');
+    }
     if (isBeat) {
       _lastBeat = now;
       _beatController.add(now);

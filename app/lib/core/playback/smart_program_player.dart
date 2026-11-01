@@ -129,6 +129,15 @@ class SmartProgramPlayer {
   /// — even 40 BPM is a beat every 1.5s, so this leaves a wide margin).
   static const _silenceTimeout = Duration(seconds: 4);
 
+  /// Out of blackout only on a short run of beats that could be music:
+  /// [_resumeBeats] in a row, each [_resumeMinGap]..[_resumeMaxGap] after
+  /// the last (40–200 BPM). A cough or a single click never makes a run;
+  /// about two seconds of music always does.
+  static const _resumeBeats = 4;
+  static const _resumeMinGap = Duration(milliseconds: 300);
+  static const _resumeMaxGap = Duration(milliseconds: 1500);
+  final List<DateTime> _resumeRun = [];
+
   final _statusController = StreamController<SmartProgramStatus>.broadcast();
   Stream<SmartProgramStatus> get statusStream => _statusController.stream;
 
@@ -330,6 +339,9 @@ class SmartProgramPlayer {
     final program = _program;
     if (program == null || _isSilent) return;
     _isSilent = true;
+    _resumeRun.clear();
+    // ignore: avoid_print
+    print('SMARTBEAT silence: blackout');
     _confirmTimer?.cancel();
     // Free-running layers ride out the silence: a slow sweep is not a thing
     // that should die with the music.
@@ -368,6 +380,17 @@ class SmartProgramPlayer {
 
     _resetSilenceTimer(service: service, universes: universes);
     if (_isSilent) {
+      if (_resumeRun.isNotEmpty) {
+        final gap = now.difference(_resumeRun.last);
+        if (gap < _resumeMinGap || gap > _resumeMaxGap) _resumeRun.clear();
+      }
+      _resumeRun.add(now);
+      // ignore: avoid_print
+      print('SMARTBEAT silent beat ${_resumeRun.length}/$_resumeBeats');
+      if (_resumeRun.length < _resumeBeats) return;
+      _resumeRun.clear();
+      // ignore: avoid_print
+      print('SMARTBEAT resume on slower');
       // Music is back after a silent stretch. Come up on the *slower* zone
       // rather than the base one: a single beat says nothing about tempo
       // yet, and easing back in reads far better than slamming into a fast
