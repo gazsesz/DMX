@@ -141,8 +141,9 @@ void main() {
           k++;
           final ms = k * 60000 / 128 + (rng.nextDouble() - 0.5) * 30;
           if (rng.nextDouble() > 0.2) beats.add(t0.add(Duration(microseconds: (ms * 1000).round())));
-          if (rng.nextDouble() < 0.08)
+          if (rng.nextDouble() < 0.08) {
             beats.add(t0.add(Duration(microseconds: ((ms + 60000 / 128 * 0.5) * 1000).round())));
+          }
         }
         beats.sort();
         if (isSteadyPulse(beats, estimateTempo(beats))) steady++;
@@ -180,7 +181,9 @@ void main() {
         fakeAsync((async) {
           final rng = math.Random(seed);
           final result = run(async, _noise(rng, 3.5, const Duration(seconds: 40)));
-          if (result.statuses.any((s) => s.zone == SmartProgramZone.faster)) faster++;
+          if (result.statuses.any((s) => s.zone == SmartProgramZone.faster)) {
+            faster++;
+          }
           result.smart.dispose();
         });
       }
