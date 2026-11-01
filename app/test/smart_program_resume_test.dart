@@ -65,12 +65,20 @@ void main() {
     FakeAsync async,
     List<Duration> beats, {
     Duration tail = const Duration(seconds: 2),
+    Map<Duration, bool?> presence = const {},
   }) {
     final service = ArtNetService();
     service.connect(const ArtNetSettings(demoMode: true));
     final source = _FakeBeatSource();
     final players = <String, ChasePlayer>{};
-    final smart = SmartProgramPlayer(playerFor: (id) => players.putIfAbsent(id, ChasePlayer.new), beatService: source);
+    final presenceController = StreamController<bool?>.broadcast();
+    bool? present;
+    final smart = SmartProgramPlayer(
+      playerFor: (id) => players.putIfAbsent(id, ChasePlayer.new),
+      beatService: source,
+      musicPresence: presenceController.stream,
+      musicPresentNow: () => present,
+    );
     final statuses = <SmartProgramStatus>[];
     smart.statusStream.listen(statuses.add);
     smart.start(
@@ -85,10 +93,18 @@ void main() {
     async.flushMicrotasks();
     final t0 = DateTime(2026, 11, 1, 12);
     var elapsed = Duration.zero;
-    for (final at in beats) {
+    final events = <(Duration, void Function())>[
+      for (final at in beats) (at, () => source.beat(t0.add(at))),
+      for (final e in presence.entries)
+        (e.key, () {
+          present = e.value;
+          presenceController.add(e.value);
+        }),
+    ]..sort((a, b) => a.$1.compareTo(b.$1));
+    for (final (at, fire) in events) {
       async.elapse(at - elapsed);
       elapsed = at;
-      source.beat(t0.add(at));
+      fire();
       async.flushMicrotasks();
     }
     async.elapse(tail);
@@ -131,6 +147,49 @@ void main() {
           tail: const Duration(milliseconds: 100));
       expect(four.statuses.last.isSilent, isFalse);
       expect(four.statuses.last.zone, SmartProgramZone.slower);
+    });
+  });
+
+  group('with the loudness check on', () {
+    test('a quiet room blacks out in 2 s, and clicks or beat runs there do not wake it', () {
+      fakeAsync((async) {
+        final r = run(
+          async,
+          [...steady(Duration.zero, 4), ...steady(const Duration(seconds: 6), 8, gapMs: 400)],
+          presence: {const Duration(milliseconds: 1): false},
+          tail: const Duration(milliseconds: 100),
+        );
+        expect(r.statuses.last.isSilent, isTrue);
+      });
+    });
+
+    test('loud room with the detector missing beats for 9 s: no blackout', () {
+      fakeAsync((async) {
+        final r = run(
+          async,
+          [...steady(Duration.zero, 6), ...steady(const Duration(seconds: 12), 4)],
+          presence: {const Duration(milliseconds: 1): true},
+          tail: const Duration(seconds: 1),
+        );
+        expect(r.statuses.any((s) => s.isSilent), isFalse);
+      });
+    });
+
+    test('music level back: out of blackout on Slower without waiting for beats', () {
+      fakeAsync((async) {
+        final r = run(
+          async,
+          const [],
+          presence: {
+            const Duration(milliseconds: 1): false,
+            const Duration(seconds: 6): true,
+          },
+          tail: const Duration(milliseconds: 100),
+        );
+        expect(r.statuses.any((s) => s.isSilent), isTrue);
+        expect(r.statuses.last.isSilent, isFalse);
+        expect(r.statuses.last.zone, SmartProgramZone.slower);
+      });
     });
   });
 }

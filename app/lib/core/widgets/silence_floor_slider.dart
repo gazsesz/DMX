@@ -5,10 +5,10 @@ import '../audio/beat_detector.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
-/// The manual "below this is silence" line for the microphone — see
+/// The "below this loudness is silence" line for the microphone — see
 /// [BeatDetectorService.silenceFloorDb]. Shown next to Sensitivity, under
-/// the [BeatMeter] that draws the same line in red, so it can be set by
-/// eye: play nothing, tap the keyboard, and pull it above the peaks.
+/// the [BeatMeter] whose Level bar draws the same line in red, so it can be
+/// set by eye: play nothing, then music, and put it between the two.
 class SilenceFloorSlider extends StatefulWidget {
   final BeatDetectorService service;
 
@@ -49,7 +49,7 @@ class _SilenceFloorSliderState extends State<SilenceFloorSlider> {
           value: _value,
           min: BeatDetectorService.silenceFloorOff,
           max: BeatDetectorService.silenceFloorMax,
-          divisions: 100,
+          divisions: 80,
           activeColor: AppColors.danger,
           onChanged: (v) {
             setState(() => _value = v);
@@ -57,8 +57,8 @@ class _SilenceFloorSliderState extends State<SilenceFloorSlider> {
           },
         ),
         const Text(
-          'Anything quieter is silence: no beat, so a Smart Program blacks out. '
-          'Set it above the room (keyboard, talking) and below the music.',
+          'Loudness (the Level bar) that counts as music. Below it for about 2 s, a Smart Program '
+          'blacks out; back above it, it comes back. Set it above the quiet room, below the music.',
           style: TextStyle(fontSize: 9.5, color: AppColors.textFaint),
         ),
       ],

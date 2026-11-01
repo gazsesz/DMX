@@ -34,7 +34,9 @@ final oscBeatSourceProvider = Provider<OscBeatSource>((ref) {
   return source;
 });
 
-const prefBeatSilenceFloor = 'beat.silenceFloorDb';
+// A new key on purpose: v1.44.5-6 saved an onset-strength value under
+// 'beat.silenceFloorDb', which means nothing on the loudness scale.
+const prefBeatSilenceFloor = 'beat.levelFloorDb';
 
 /// The saved silence floor, loaded in `main()` before the first frame and
 /// handed to [beatDetectorProvider]. Device-level like the beat source: it
