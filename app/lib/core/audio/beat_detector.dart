@@ -285,6 +285,12 @@ class BeatDetectorService implements BeatSource {
       _prevMagnitude = null;
       _presence.reset();
       _levelDisplayDb = -200;
+      // A new listen knows nothing yet: don't let a Smart Program act on
+      // what the room sounded like before the mic was last switched off.
+      if (_lastPresent != null) {
+        _lastPresent = null;
+        _presenceController.add(null);
+      }
       _pcmSub = stream.listen(_onPcmChunk);
       return true;
     } catch (e) {
