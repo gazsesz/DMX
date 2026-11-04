@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/audio/beat_detector.dart';
 import '../core/playback/chase_player.dart';
 import '../core/playback/smart_program_player.dart';
 import '../models/bank.dart';
@@ -62,9 +63,15 @@ final playbackControllerProvider = chasePlayerProvider(layer1Id);
 /// back first ([releaseLayersFromSmart]), or the program's beat listener
 /// would reassert its own target there on the next zone change.
 final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
+  final source = ref.watch(activeBeatSourceProvider);
+  // Only the microphone knows how loud the room is; MIDI and rkbx_link
+  // keep the beat timeout.
+  final mic = source is BeatDetectorService ? source : null;
   final player = SmartProgramPlayer(
     playerFor: (layerId) => ref.read(chasePlayerProvider(layerId)),
-    beatService: ref.watch(activeBeatSourceProvider),
+    beatService: source,
+    musicPresence: mic?.musicPresenceStream,
+    musicPresentNow: mic == null ? null : () => mic.musicPresent,
     // Read, not watched: the program is driven from callbacks, and a
     // rebuilt player would drop the running show on the floor.
     beatSyncEnabled: () => ref.read(beatSyncEnabledProvider),

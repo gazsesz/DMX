@@ -11,7 +11,7 @@ import '../core/playback/chase_player.dart';
 /// One shared beat detector for the whole app, so a chase started from any
 /// screen reacts to the same microphone listener the Dashboard toggles.
 final beatDetectorProvider = Provider<BeatDetectorService>((ref) {
-  final service = BeatDetectorService();
+  final service = BeatDetectorService()..silenceFloorDb = ref.read(initialSilenceFloorProvider);
   ref.onDispose(service.dispose);
   return service;
 });
@@ -33,6 +33,22 @@ final oscBeatSourceProvider = Provider<OscBeatSource>((ref) {
   ref.onDispose(source.dispose);
   return source;
 });
+
+// A new key on purpose: v1.44.5-6 saved an onset-strength value under
+// 'beat.silenceFloorDb', which means nothing on the loudness scale.
+const prefBeatSilenceFloor = 'beat.levelFloorDb';
+
+/// The saved silence floor, loaded in `main()` before the first frame and
+/// handed to [beatDetectorProvider]. Device-level like the beat source: it
+/// belongs to this tablet's microphone and the room, not to a show.
+final initialSilenceFloorProvider = Provider<double>((ref) => BeatDetectorService.silenceFloorOff);
+
+/// Sets the detector's silence floor and remembers it for the next launch.
+Future<void> setSilenceFloor(BeatDetectorService service, double db) async {
+  service.silenceFloorDb = db;
+  final sp = await SharedPreferences.getInstance();
+  await sp.setDouble(prefBeatSilenceFloor, db);
+}
 
 const prefBeatSourceKind = 'beatSource.kind';
 const prefBeatSourceMidiDeviceId = 'beatSource.midiDeviceId';

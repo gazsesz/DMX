@@ -75,6 +75,12 @@ class SmartProgramPlayer {
   final ({Duration hold, Duration fade}) Function()? liveDockTiming;
   final MovementLive Function()? liveMovement;
 
+  /// The microphone's "is music playing" from loudness (see
+  /// `MusicPresence`): every change, and the value right now. Null values
+  /// (floor off, or a source without it) leave silence to the beat timeout.
+  final Stream<bool?>? musicPresence;
+  final bool? Function() musicPresentNow;
+
   SmartProgramPlayer({
     required this.playerFor,
     required this.beatService,
@@ -90,7 +96,10 @@ class SmartProgramPlayer {
     this.liveBanks,
     this.liveDockTiming,
     this.liveMovement,
-  })  : setDropout = setDropout ?? ((_) {}),
+    this.musicPresence,
+    bool? Function()? musicPresentNow,
+  })  : musicPresentNow = musicPresentNow ?? (() => null),
+        setDropout = setDropout ?? ((_) {}),
         beatEvents = beatEvents ?? beatService.beatEvents,
         beatSyncEnabled = beatSyncEnabled ?? (() => false),
         beatRate = beatRate ?? (() => BeatRate.normal),
@@ -99,6 +108,16 @@ class SmartProgramPlayer {
         setAutoFade = setAutoFade ?? ((_) {});
 
   StreamSubscription<DateTime>? _beatSub;
+  StreamSubscription<bool?>? _presenceSub;
+  Timer? _quietTimer;
+
+  /// Resumes out of blackout with the arguments [start] was given — for a
+  /// resume that comes from the loudness check rather than a beat.
+  void Function()? _resumeFromSilence;
+
+  /// How long the room must stay below the floor before a blackout, once
+  /// the loudness check has said "no music" (it already looks back 2 s).
+  static const _quietTimeout = Duration(seconds: 2);
   Timer? _confirmTimer;
   Timer? _silenceTimer;
   final List<DateTime> _beatTimes = [];
@@ -125,9 +144,18 @@ class SmartProgramPlayer {
   static ProgramTarget? _freeTarget(LayerZoneTargets layer) => layer.base ?? layer.faster ?? layer.slower;
 
   /// How long to wait without a single beat before assuming the music has
-  /// stopped (rather than just being between two real beats of a slow song
-  /// — even 40 BPM is a beat every 1.5s, so this leaves a wide margin).
-  static const _silenceTimeout = Duration(seconds: 4);
+  /// stopped. Was 4 s; on the tablet the onset detector went 6–9 s without
+  /// a beat in the middle of real music, which blacked the rig out mid-song.
+  static const _silenceTimeout = Duration(seconds: 8);
+
+  /// Out of blackout on [_resumeBeats] beats in a row, each
+  /// [_resumeMinGap]..[_resumeMaxGap] after the last (40–200 BPM): a lone
+  /// cough or click doesn't do it, music does within a second. Four (v1.44.6)
+  /// kept the rig dark too long with a detector that misses beats.
+  static const _resumeBeats = 2;
+  static const _resumeMinGap = Duration(milliseconds: 300);
+  static const _resumeMaxGap = Duration(milliseconds: 1500);
+  final List<DateTime> _resumeRun = [];
 
   final _statusController = StreamController<SmartProgramStatus>.broadcast();
   Stream<SmartProgramStatus> get statusStream => _statusController.stream;
@@ -200,6 +228,17 @@ class SmartProgramPlayer {
     );
     _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.base));
     _resetSilenceTimer(service: service, universes: universes);
+
+    _resumeFromSilence = () => _resume(
+      chases: chases,
+      scenes: scenes,
+      banks: banks,
+      patchedFixtures: patchedFixtures,
+      universes: universes,
+      service: service,
+    );
+    _presenceSub = musicPresence?.listen((present) => _onPresence(present, service: service, universes: universes));
+    _onPresence(musicPresentNow(), service: service, universes: universes);
 
     _beatSub = beatEvents.listen((now) {
       _onBeat(
@@ -326,10 +365,38 @@ class SmartProgramPlayer {
   /// stopped (or was never there). Blacks out and stops stepping instead of
   /// looping the base chase forever with nothing real driving it; a fresh
   /// beat later restarts cleanly.
-  void _enterSilence({required ArtNetService service, required List<UniverseConfig> universes}) {
+  /// The loudness check changed its mind. Off → blackout after
+  /// [_quietTimeout]; on → straight out of blackout. Null hands silence
+  /// back to the beat timeout.
+  void _onPresence(bool? present, {required ArtNetService service, required List<UniverseConfig> universes}) {
+    _quietTimer?.cancel();
+    _quietTimer = null;
+    if (_program == null) return;
+    if (present == false && !_isSilent) {
+      _quietTimer = Timer(_quietTimeout, () => _enterSilence(service: service, universes: universes, fromLoudness: true));
+    } else if (present == true && _isSilent) {
+      // ignore: avoid_print
+      print('SMARTBEAT resume on slower (music level)');
+      _resumeFromSilence?.call();
+    } else if (present == null) {
+      _resetSilenceTimer(service: service, universes: universes);
+    }
+  }
+
+  void _enterSilence({
+    required ArtNetService service,
+    required List<UniverseConfig> universes,
+    bool fromLoudness = false,
+  }) {
     final program = _program;
     if (program == null || _isSilent) return;
+    // While the loudness check is on, it alone decides: a stretch without
+    // beats in a loud room is the onset detector missing them, not silence.
+    if (!fromLoudness && musicPresentNow() != null) return;
     _isSilent = true;
+    _resumeRun.clear();
+    // ignore: avoid_print
+    print('SMARTBEAT silence: blackout');
     _confirmTimer?.cancel();
     // Free-running layers ride out the silence: a slow sweep is not a thing
     // that should die with the music.
@@ -354,6 +421,37 @@ class SmartProgramPlayer {
     _statusController.add(SmartProgramStatus(zone: _confirmedZone, isSilent: true));
   }
 
+  void _resume({
+    required List<Chase> chases,
+    required List<Scene> scenes,
+    required List<Bank> banks,
+    required List<PatchedFixture> patchedFixtures,
+    required List<UniverseConfig> universes,
+    required ArtNetService service,
+  }) {
+    if (_program == null || !_isSilent) return;
+    _resumeRun.clear();
+    _resetSilenceTimer(service: service, universes: universes);
+    // Music is back after a silent stretch. Come up on the *slower* zone
+    // rather than the base one: a single beat says nothing about tempo
+    // yet, and easing back in reads far better than slamming into a fast
+    // look. The next few beats reclassify it properly anyway.
+    _isSilent = false;
+    _beatTimes.clear();
+    _pendingZone = SmartProgramZone.slower;
+    _confirmedZone = SmartProgramZone.slower;
+    _playZone(
+      SmartProgramZone.slower,
+      chases: chases,
+      scenes: scenes,
+      banks: banks,
+      patchedFixtures: patchedFixtures,
+      universes: universes,
+      service: service,
+    );
+    _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.slower));
+  }
+
   void _onBeat(
     DateTime now, {
     required List<Chase> chases,
@@ -368,16 +466,21 @@ class SmartProgramPlayer {
 
     _resetSilenceTimer(service: service, universes: universes);
     if (_isSilent) {
-      // Music is back after a silent stretch. Come up on the *slower* zone
-      // rather than the base one: a single beat says nothing about tempo
-      // yet, and easing back in reads far better than slamming into a fast
-      // look. The next few beats reclassify it properly anyway.
-      _isSilent = false;
-      _beatTimes.clear();
-      _pendingZone = SmartProgramZone.slower;
-      _confirmedZone = SmartProgramZone.slower;
-      _playZone(
-        SmartProgramZone.slower,
+      // The loudness check brings it back by itself; a beat in a quiet room
+      // (a click, a cough) is not music.
+      if (musicPresentNow() != null) return;
+      if (_resumeRun.isNotEmpty) {
+        final gap = now.difference(_resumeRun.last);
+        if (gap < _resumeMinGap || gap > _resumeMaxGap) _resumeRun.clear();
+      }
+      _resumeRun.add(now);
+      // ignore: avoid_print
+      print('SMARTBEAT silent beat ${_resumeRun.length}/$_resumeBeats');
+      if (_resumeRun.length < _resumeBeats) return;
+      _resumeRun.clear();
+      // ignore: avoid_print
+      print('SMARTBEAT resume on slower');
+      _resume(
         chases: chases,
         scenes: scenes,
         banks: banks,
@@ -385,7 +488,6 @@ class SmartProgramPlayer {
         universes: universes,
         service: service,
       );
-      _statusController.add(const SmartProgramStatus(zone: SmartProgramZone.slower));
       return;
     }
 
@@ -615,6 +717,11 @@ class SmartProgramPlayer {
     _freeStarted.clear();
     _beatSub?.cancel();
     _beatSub = null;
+    _presenceSub?.cancel();
+    _presenceSub = null;
+    _quietTimer?.cancel();
+    _quietTimer = null;
+    _resumeFromSilence = null;
     _confirmTimer?.cancel();
     _confirmTimer = null;
     _silenceTimer?.cancel();

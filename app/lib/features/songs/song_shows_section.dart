@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/widgets/play_toggle_card.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/song_show.dart';
 import '../../state/song_show_providers.dart';
@@ -97,68 +98,43 @@ class SongShowsSection extends ConsumerWidget {
           )
         else
           for (final show in shows)
-            Card(
+            PlayToggleCard(
               key: ValueKey('song-show-${show.id}'),
-              margin: const EdgeInsets.only(bottom: 8),
-              color: playingId == show.id ? AppColors.accent2.withValues(alpha: 0.1) : null,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-                side: BorderSide(color: playingId == show.id ? AppColors.accent2 : Colors.transparent, width: 1.5),
-              ),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(12),
-                onTap: () => _open(context, show.id),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
-                  child: Row(
-                    children: [
-                      InkWell(
-                        key: ValueKey('song-toggle-${show.id}'),
-                        borderRadius: BorderRadius.circular(20),
-                        onTap: () => toggle(show),
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: playingId == show.id ? AppColors.accent2 : AppColors.panel2,
-                          ),
-                          child: Icon(
-                            playingId == show.id ? Icons.stop_rounded : Icons.music_note,
-                            color: playingId == show.id ? AppColors.accent2On : AppColors.accent2,
-                            size: 20,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(show.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-                            Text(_subtitle(show), style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        key: ValueKey('export-song-${show.id}'),
-                        icon: const Icon(Icons.ios_share, size: 18),
-                        tooltip: 'Export',
-                        onPressed: () => exportSongShowToFile(context, ref, show),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.copy_outlined, size: 18),
-                        tooltip: 'Duplicate',
-                        onPressed: () => ref.read(songShowsProvider.notifier).duplicate(show.id),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline, size: 18),
-                        tooltip: 'Delete',
-                        onPressed: () => delete(show),
-                      ),
-                    ],
+              toggleKey: ValueKey('song-toggle-${show.id}'),
+              active: playingId == show.id,
+              icon: Icons.music_note,
+              accent: AppColors.accent2,
+              accentOn: AppColors.accent2On,
+              onToggle: () => toggle(show),
+              onOpen: () => _open(context, show.id),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(show.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
+                        Text(_subtitle(show), style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
+                      ],
+                    ),
                   ),
-                ),
+                  IconButton(
+                    key: ValueKey('export-song-${show.id}'),
+                    icon: const Icon(Icons.ios_share, size: 18),
+                    tooltip: 'Export',
+                    onPressed: () => exportSongShowToFile(context, ref, show),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.copy_outlined, size: 18),
+                    tooltip: 'Duplicate',
+                    onPressed: () => ref.read(songShowsProvider.notifier).duplicate(show.id),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    tooltip: 'Delete',
+                    onPressed: () => delete(show),
+                  ),
+                ],
               ),
             ),
       ],
