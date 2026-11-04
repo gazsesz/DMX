@@ -20,6 +20,7 @@ import '../remote/trigger_actions.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import 'beat_meter.dart';
+import 'silence_floor_slider.dart';
 import 'log_scale.dart';
 import 'momentary_fx_buttons.dart';
 
@@ -404,6 +405,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
                 ref.read(beatDetectorProvider).sensitivity = value;
               },
             ),
+            SilenceFloorSlider(service: ref.read(beatDetectorProvider)),
             _label('Baseline memory'),
             SegmentedButton<BeatAdaptSpeed>(
               segments: [

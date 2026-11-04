@@ -3,9 +3,11 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:fftea/fftea.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:record/record.dart';
 
 import 'beat_source.dart';
+import 'music_presence.dart';
 import 'onset_baseline.dart';
 
 /// How fast the detector's rolling baseline chases the music.
@@ -90,6 +92,17 @@ class BeatMeterSample {
   final double requiredRise; // threshold - avg, i.e. how sensitive we are
   final bool isBeat;
 
+  /// The silence floor (dBFS, against [level]), or null when it's off —
+  /// see [BeatDetectorService.silenceFloorDb].
+  final double? silenceFloor;
+
+  /// The room's plain loudness right now: frame RMS in dBFS, lightly
+  /// smoothed.
+  final double level;
+
+  /// See [BeatDetectorService.musicPresent].
+  final bool? musicPresent;
+
   /// The band detection is currently listening to.
   final BeatFrequencyBand band;
 
@@ -104,6 +117,9 @@ class BeatMeterSample {
     required this.threshold,
     required this.requiredRise,
     required this.isBeat,
+    this.silenceFloor,
+    this.level = -200,
+    this.musicPresent,
     this.band = BeatFrequencyBand.overall,
     this.bands = const {},
   });
@@ -147,7 +163,10 @@ class BeatDetectorService implements BeatSource {
   static final FFT _fft = FFT(_fftSize);
   static final Float64List _hannWindow = Window.hanning(_fftSize);
 
-  final AudioRecorder _recorder = AudioRecorder();
+  // Created on first use: the plugin wants a platform binding, and the
+  // detection maths (and its tests) don't.
+  AudioRecorder? _recorderInstance;
+  AudioRecorder get _recorder => _recorderInstance ??= AudioRecorder();
   StreamSubscription<Uint8List>? _pcmSub;
   final _beatController = StreamController<DateTime>.broadcast();
   final _meterController = StreamController<BeatMeterSample>.broadcast();
@@ -169,6 +188,54 @@ class BeatDetectorService implements BeatSource {
 
   /// 0 (least sensitive, needs a big spike) .. 1 (most sensitive).
   double sensitivity = 0.6;
+
+  /// The room's loudness (frame RMS, dBFS) that counts as "music is
+  /// playing" — see [MusicPresence] for why it's loudness and not beats.
+  /// At or below [silenceFloorOff] it's off and a Smart Program falls back
+  /// to "no beat for 4 s" as before.
+  double silenceFloorDb = silenceFloorOff;
+
+  static const double silenceFloorOff = -80.0;
+  static const double silenceFloorMax = 0.0;
+
+  bool get silenceFloorEnabled => silenceFloorDb > silenceFloorOff;
+
+  final MusicPresence _presence = MusicPresence();
+  final _presenceController = StreamController<bool?>.broadcast();
+  bool? _lastPresent;
+  double _levelDb = -200;
+  double _levelDisplayDb = -200;
+
+  /// Feeds one frame's loudness (dBFS) straight into the presence check.
+  @visibleForTesting
+  void debugHandleLevel(double levelDb) {
+    _levelDb = levelDb;
+    _updatePresence(levelDb);
+  }
+
+  /// Whether the room has been loud enough for music lately; null while
+  /// the floor is off or the window is still filling.
+  bool? get musicPresent => _lastPresent;
+
+  /// Every change of [musicPresent].
+  Stream<bool?> get musicPresenceStream => _presenceController.stream;
+
+  void _updatePresence(double levelDb) {
+    bool? present;
+    if (silenceFloorEnabled) {
+      present = _presence.add(levelDb, silenceFloorDb, _hopMs);
+    } else {
+      _presence.reset();
+    }
+    if (present != _lastPresent) {
+      _lastPresent = present;
+      // ignore: avoid_print
+      print('SMARTBEAT presence=${present ?? 'n/a'} level=${levelDb.toStringAsFixed(1)} '
+          'floor=${silenceFloorEnabled ? silenceFloorDb.toStringAsFixed(0) : 'off'} '
+          'share=${_presence.share.toStringAsFixed(2)}');
+      _presenceController.add(present);
+    }
+  }
 
   /// Which frequency band [sensitivity]/detection reacts to.
   BeatFrequencyBand frequencyBand = BeatFrequencyBand.overall;
@@ -216,6 +283,14 @@ class BeatDetectorService implements BeatSource {
       _samplesBuffered = 0;
       _samplesSinceFrame = 0;
       _prevMagnitude = null;
+      _presence.reset();
+      _levelDisplayDb = -200;
+      // A new listen knows nothing yet: don't let a Smart Program act on
+      // what the room sounded like before the mic was last switched off.
+      if (_lastPresent != null) {
+        _lastPresent = null;
+        _presenceController.add(null);
+      }
       _pcmSub = stream.listen(_onPcmChunk);
       return true;
     } catch (e) {
@@ -391,6 +466,19 @@ class BeatDetectorService implements BeatSource {
       fluxes[band] = sum;
     }
     _prevMagnitude = magnitude;
+
+    // Plain loudness of the newest hop, for "is music playing" — see
+    // [MusicPresence].
+    var sumSquares = 0.0;
+    for (var i = 1; i <= _hopSize; i++) {
+      final v = _ring[(_ringWrite - i + _fftSize) % _fftSize];
+      sumSquares += v * v;
+    }
+    final meanSquare = sumSquares / _hopSize;
+    _levelDb = meanSquare > 1e-12 ? 10 * math.log(meanSquare) / math.ln10 : -120.0;
+    _levelDisplayDb = _levelDisplayDb < -150 ? _levelDb : _levelDisplayDb + 0.08 * (_levelDb - _levelDisplayDb);
+    _updatePresence(_levelDb);
+
     _handleFluxSample(fluxes);
   }
 
@@ -412,6 +500,10 @@ class BeatDetectorService implements BeatSource {
   static double _square(double value) => value * value;
 
   static double _toDb(double linear) => linear > 1e-9 ? 20 * math.log(linear) / math.ln10 : -200.0;
+
+  /// Feeds one frame's per-band flux straight in, skipping the FFT.
+  @visibleForTesting
+  void debugHandleFlux(Map<BeatFrequencyBand, double> fluxes) => _handleFluxSample(fluxes);
 
   void _handleFluxSample(Map<BeatFrequencyBand, double> fluxes) {
     _frameCount++;
@@ -463,6 +555,9 @@ class BeatDetectorService implements BeatSource {
         threshold: db,
         requiredRise: 0,
         isBeat: false,
+        silenceFloor: silenceFloorEnabled ? silenceFloorDb : null,
+        level: _levelDisplayDb,
+        musicPresent: _lastPresent,
         band: frequencyBand,
         bands: bands,
       ));
@@ -495,6 +590,9 @@ class BeatDetectorService implements BeatSource {
         _lastBeat == null || now.difference(_lastBeat!) > const Duration(milliseconds: 250);
     final isBeat = flux > thresholdFlux && pastRefractoryPeriod;
     if (isBeat) {
+      // ignore: avoid_print
+      print('SMARTBEAT onset band=${frequencyBand.name} db=${_toDb(flux).toStringAsFixed(1)} '
+          'level=${_levelDb.toStringAsFixed(1)}');
       _lastBeat = now;
       _beatController.add(now);
     }
@@ -508,6 +606,9 @@ class BeatDetectorService implements BeatSource {
         threshold: thresholdDb,
         requiredRise: thresholdDb - avgDb,
         isBeat: isBeat,
+        silenceFloor: silenceFloorEnabled ? silenceFloorDb : null,
+        level: _levelDisplayDb,
+        musicPresent: _lastPresent,
         band: frequencyBand,
         bands: bands,
       ),
@@ -516,8 +617,9 @@ class BeatDetectorService implements BeatSource {
 
   void dispose() {
     _pcmSub?.cancel();
-    _recorder.dispose();
+    _recorderInstance?.dispose();
     _beatController.close();
     _meterController.close();
+    _presenceController.close();
   }
 }

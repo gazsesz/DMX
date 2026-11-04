@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Bump this on every release you build for the tablet — the Setup screen
 # reads it straight from here, so it's the single source of truth for
 # "which build is on the device?".
-version: 1.44.1+71
+version: 1.44.7+77
 
 environment:
   sdk: ^3.13.2
@@ -57,6 +57,7 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  fake_async: any
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is

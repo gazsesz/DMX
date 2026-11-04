@@ -5,6 +5,7 @@ import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/live_color_bar.dart';
 import '../../core/widgets/movement_live_bar.dart';
 import '../../models/control_dock_prefs.dart';
+import '../../state/network_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/playback_providers.dart';
 import '../banks/banks_screen.dart';
@@ -165,6 +166,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Rebinds the output and OSC sockets when the tablet changes Wi-Fi.
+    ref.watch(networkChangeWatcherProvider);
     return LayoutBuilder(
       builder: (context, constraints) {
         final isTablet = constraints.maxWidth >= _tabletBreakpoint;

@@ -164,6 +164,83 @@ class _BeatMeterState extends State<BeatMeter> {
     );
   }
 
+  /// The room's plain loudness on a fixed dBFS scale, with the silence
+  /// floor as a red line and whether that reads as music right now — the
+  /// row to set the Silence floor slider against.
+  Widget _levelRow(BeatMeterSample? sample) {
+    const lo = -80.0;
+    const hi = 0.0;
+    double pos(double db) => ((db - lo) / (hi - lo)).clamp(0.0, 1.0);
+    final level = sample?.level ?? -200;
+    final floor = sample?.silenceFloor;
+    final present = sample?.musicPresent;
+    final (tag, tagColor) = switch (present) {
+      true => ('MUSIC', AppColors.success),
+      false => ('QUIET', AppColors.danger),
+      null => (floor == null ? '' : '…', AppColors.textFaint),
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(
+        children: [
+          const SizedBox(width: 17),
+          SizedBox(
+            width: 58,
+            child: Text(
+              'Level',
+              style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.text),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: SizedBox(
+              height: 11,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Stack(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          color: AppColors.panel2,
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                      ),
+                      FractionallySizedBox(
+                        widthFactor: pos(level),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: present == true ? AppColors.success : AppColors.textDim,
+                            borderRadius: BorderRadius.circular(3),
+                          ),
+                        ),
+                      ),
+                      if (floor != null)
+                        Positioned(
+                          left: (pos(floor) * constraints.maxWidth - 1).clamp(0.0, constraints.maxWidth - 2),
+                          top: 0,
+                          bottom: 0,
+                          child: Container(width: 2, color: AppColors.danger),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          SizedBox(
+            width: 26,
+            child: Text(
+              tag,
+              textAlign: TextAlign.right,
+              style: appMonoStyle(fontSize: 7.5, color: tagColor).copyWith(fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sample = _sample;
@@ -181,11 +258,14 @@ class _BeatMeterState extends State<BeatMeter> {
             active: band == activeBand,
             recentBeat: recentBeat,
           ),
+        _levelRow(sample),
         const SizedBox(height: 2),
         Text(
           sample == null
               ? 'Waiting for the microphone…'
-              : 'Watching ${activeBand.label} · needs +${sample.requiredRise.toStringAsFixed(1)}dB above its average to trigger',
+              : 'Watching ${activeBand.label} · needs +${sample.requiredRise.toStringAsFixed(1)}dB above its average to trigger'
+                  ' · level ${sample.level <= -150 ? '–' : '${sample.level.round()} dB'}'
+                  '${sample.silenceFloor == null ? '' : ' · floor ${sample.silenceFloor!.round()} dB'}',
           style: appMonoStyle(fontSize: 9, color: AppColors.textFaint),
         ),
       ],

@@ -19,8 +19,8 @@ import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../core/remote/background_service.dart';
-import '../../core/remote/remote_control_server.dart';
 import '../../state/control_dock_providers.dart';
+import '../../state/network_providers.dart';
 import '../../state/remote_providers.dart';
 import 'dmx_map_screen.dart';
 
@@ -36,8 +36,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _hostController;
   late final TextEditingController _portController;
   bool _testing = false;
+
+  /// This tablet's address right now — live, so joining another Wi-Fi
+  /// while the app runs updates the remote URL and the rkbx_link line
+  /// (this screen is built once and kept alive by the shell, so a one-off
+  /// read in initState used to show the old network's address for good).
+  /// Only read from build and what it calls.
+  String? get _wifiAddress => ref.watch(localAddressProvider).valueOrNull;
   String? _version;
-  String? _wifiAddress;
   late final TextEditingController _remotePortController;
   late final TextEditingController _sacnPriorityController;
   bool _batteryOptimized = false;
@@ -59,9 +65,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _remotePortController = TextEditingController(text: ref.read(remoteControlProvider).port.toString());
     _sacnPriorityController = TextEditingController(text: settings.sacnPriority.toString());
     _refreshBatteryState();
-    localWifiAddress().then((address) {
-      if (mounted) setState(() => _wifiAddress = address);
-    });
     if (ref.read(beatSourcePrefsProvider).kind == BeatSourceKind.midi) _refreshMidiDevices();
   }
 
