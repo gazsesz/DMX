@@ -144,15 +144,15 @@ class SmartProgramPlayer {
   static ProgramTarget? _freeTarget(LayerZoneTargets layer) => layer.base ?? layer.faster ?? layer.slower;
 
   /// How long to wait without a single beat before assuming the music has
-  /// stopped (rather than just being between two real beats of a slow song
-  /// — even 40 BPM is a beat every 1.5s, so this leaves a wide margin).
-  static const _silenceTimeout = Duration(seconds: 4);
+  /// stopped. Was 4 s; on the tablet the onset detector went 6–9 s without
+  /// a beat in the middle of real music, which blacked the rig out mid-song.
+  static const _silenceTimeout = Duration(seconds: 8);
 
-  /// Out of blackout only on a short run of beats that could be music:
-  /// [_resumeBeats] in a row, each [_resumeMinGap]..[_resumeMaxGap] after
-  /// the last (40–200 BPM). A cough or a single click never makes a run;
-  /// about two seconds of music always does.
-  static const _resumeBeats = 4;
+  /// Out of blackout on [_resumeBeats] beats in a row, each
+  /// [_resumeMinGap]..[_resumeMaxGap] after the last (40–200 BPM): a lone
+  /// cough or click doesn't do it, music does within a second. Four (v1.44.6)
+  /// kept the rig dark too long with a detector that misses beats.
+  static const _resumeBeats = 2;
   static const _resumeMinGap = Duration(milliseconds: 300);
   static const _resumeMaxGap = Duration(milliseconds: 1500);
   final List<DateTime> _resumeRun = [];

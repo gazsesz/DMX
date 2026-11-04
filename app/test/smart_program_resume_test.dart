@@ -115,9 +115,13 @@ void main() {
   List<Duration> steady(Duration from, int count, {int gapMs = 500}) =>
       [for (var i = 0; i < count; i++) from + Duration(milliseconds: i * gapMs)];
 
-  test('music, then silence: blacks out after 4 s', () {
+  test('music, then silence: blacks out after 8 s, not on a 6 s gap', () {
     fakeAsync((async) {
-      final r = run(async, steady(Duration.zero, 8), tail: const Duration(seconds: 6));
+      final r = run(async, steady(Duration.zero, 8), tail: const Duration(seconds: 7));
+      expect(r.statuses.any((s) => s.isSilent), isFalse, reason: 'the detector missing beats mid-song');
+    });
+    fakeAsync((async) {
+      final r = run(async, steady(Duration.zero, 8), tail: const Duration(seconds: 9));
       expect(r.statuses.last.isSilent, isTrue);
     });
   });
@@ -126,24 +130,24 @@ void main() {
     fakeAsync((async) {
       final beats = [
         ...steady(Duration.zero, 8),
-        const Duration(seconds: 10), // cough
-        const Duration(seconds: 13), // click
-        const Duration(milliseconds: 13100), // a double click, too close
-        const Duration(seconds: 16),
+        const Duration(seconds: 13), // cough
+        const Duration(seconds: 16), // click
+        const Duration(milliseconds: 16100), // a double click, too close
+        const Duration(seconds: 19),
       ];
       final r = run(async, beats);
       expect(r.statuses.last.isSilent, isTrue);
     });
   });
 
-  test('three beats of music are not enough, the fourth brings it back on Slower', () {
+  test('one beat is not enough, the second in tempo brings it back on Slower', () {
     fakeAsync((async) {
-      final three = run(async, [...steady(Duration.zero, 8), ...steady(const Duration(seconds: 10), 3)],
+      final one = run(async, [...steady(Duration.zero, 8), ...steady(const Duration(seconds: 13), 1)],
           tail: const Duration(milliseconds: 100));
-      expect(three.statuses.last.isSilent, isTrue);
+      expect(one.statuses.last.isSilent, isTrue);
     });
     fakeAsync((async) {
-      final four = run(async, [...steady(Duration.zero, 8), ...steady(const Duration(seconds: 10), 4)],
+      final four = run(async, [...steady(Duration.zero, 8), ...steady(const Duration(seconds: 13), 2)],
           tail: const Duration(milliseconds: 100));
       expect(four.statuses.last.isSilent, isFalse);
       expect(four.statuses.last.zone, SmartProgramZone.slower);
