@@ -974,5 +974,8 @@
   "statusImported": "Importálva: {parts}",
   "statusCountBanks": "{count} bank",
   "statusCountChases": "{count} chase",
-  "statusCountScenes": "{count} scene"
+  "statusCountScenes": "{count} scene",
+  "songLooksOn": "Lookok: ",
+  "songMovementOn": "Mozgás: ",
+  "songGroupCount": "{count} csoport"
 }

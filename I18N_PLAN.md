@@ -1,6 +1,6 @@
 # Kétnyelvűsítés (EN + HU) — felmérés és terv
 
-_Készült: 2026-10-09 · alap: v1.30.1 · **frissítve: 2026-11-09, alap: v1.44.8** · státusz: **1–3. lépés kész** (v1.45.1, ág: `claude/i18n-foundation`), a 4. lépés (Scenes + Fixtures) következik._
+_Készült: 2026-10-09 · alap: v1.30.1 · **frissítve: 2026-11-09, alap: v1.44.8** · státusz: **1–7. lépés kész** (v1.46.0, ág: `claude/i18n-foundation`, PR #9); nyitott: Android-natív szövegek, eszközös ellenőrzés._
 
 Cél: az app angol és magyar nyelven fusson; a nyelv a **Setup** oldalon váltható, azonnal (újraindítás nélkül), és megmarad az újraindítás után.
 
@@ -76,11 +76,11 @@ Cél: az app angol és magyar nyelven fusson; a nyelv a **Setup** oldalon válth
 | 1 | Alap + Setup nyelvválasztó | kész (2026-11-09, v1.45.0) |
 | 2 | Shell, Setup, Dashboard, Files, Manual, DMX térkép | kész (2026-11-09, v1.45.0) — az enum-címkék (pl. `OutputProtocol`, `BeatSourceKind`, `ControlDockPosition`) és a `zoneLabel` még angolok, ezek a 6. lépésben jönnek |
 | 3 | Banks + Layers (+ Movement FX szerkesztő, Program generátor) | kész (2026-11-09, v1.45.1) — a Layers korábbi beégetett magyar szövegei most angolul is megvannak |
-| 4 | Scenes + Fixtures | — |
-| 5 | Chases, Smart Program, core/widgets | — |
-| 5b | Song Show | — |
-| 6 | Logikai szövegek | — |
-| 7 | Átfutás, lint, eszközös ellenőrzés | — |
+| 4 | Scenes + Fixtures | kész (2026-11-09, v1.46.0) |
+| 5 | Chases, Smart Program, core/widgets | kész (2026-11-09, v1.46.0) |
+| 5b | Song Show | kész (2026-11-09, v1.46.0) |
+| 6 | Logikai szövegek | kész (2026-11-09, v1.46.0) — enum-címkék `tr(l10n)` kiterjesztéssel (`l10n/labels.dart`), státusz-/hibaüzenetek a UI határán `localizeStatus`-szal (`l10n/status_messages.dart`); a remote API és a szakzsargon enumok (MovementShape, GeneratorEffect, MomentaryFx, BeatRate, szekciótípusok) szándékosan angolok |
+| 7 | Átfutás, lint, eszközös ellenőrzés | kész a kódban (978 kulcs, analyze hibamentes, 586 teszt zöld); eszközös ellenőrzés (P20 Pro, Tab S6 Lite) Gabornál; Android-natív szövegek (értesítés, widget) még angolok |
 
 ## Megvalósítási megjegyzések (2026-11-09)
 

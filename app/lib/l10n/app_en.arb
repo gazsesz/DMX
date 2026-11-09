@@ -2684,5 +2684,15 @@
         "type": "int"
       }
     }
+  },
+  "songLooksOn": "Looks on ",
+  "songMovementOn": "Movement on ",
+  "songGroupCount": "{count, plural, =1{1 group} other{{count} groups}}",
+  "@songGroupCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

@@ -611,7 +611,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                   key: const ValueKey('song-scope'),
                   onPressed: _pickGroups,
                   icon: const Icon(Icons.lightbulb_outline, size: 18),
-                  label: Text(show.groupIds.isEmpty ? context.l10n.wAllFixtures : '${show.groupIds.length} group${show.groupIds.length == 1 ? '' : 's'}'),
+                  label: Text(show.groupIds.isEmpty ? context.l10n.wAllFixtures : context.l10n.songGroupCount(show.groupIds.length)),
                 ),
                 OutlinedButton.icon(
                   key: const ValueKey('song-auto'),

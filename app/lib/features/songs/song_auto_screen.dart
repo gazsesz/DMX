@@ -232,14 +232,14 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
             _Heading(context.l10n.dashLayersHeader),
             Row(
               children: [
-                const Text('Looks on '),
+                Text(context.l10n.songLooksOn),
                 DropdownButton<String>(
                   value: layers.any((l) => l.id == _options.lookLayerId) ? _options.lookLayerId : layers.first.id,
                   items: [for (final l in layers) DropdownMenuItem(value: l.id, child: Text(l.name))],
                   onChanged: (v) => setState(() => _options = _options.copyWith(lookLayerId: v)),
                 ),
                 const SizedBox(width: 16),
-                const Text('Movement on '),
+                Text(context.l10n.songMovementOn),
                 DropdownButton<String?>(
                   key: const ValueKey('move-layer'),
                   value: layers.any((l) => l.id == _options.moveLayerId) ? _options.moveLayerId : null,
