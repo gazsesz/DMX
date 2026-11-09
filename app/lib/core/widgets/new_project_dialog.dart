@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../storage/project_snapshot.dart';
 import '../theme/app_colors.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// What the New Project / Duplicate dialog came back with.
 class NewProjectChoice {
@@ -114,7 +115,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                option.label,
+                                option.tr(context.l10n),
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13,
@@ -123,7 +124,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                option.description,
+                                option.trDescription(context.l10n),
                                 style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                               ),
                             ],

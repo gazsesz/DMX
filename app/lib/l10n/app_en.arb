@@ -2459,5 +2459,230 @@
   "songNothingMatches": "Nothing matches",
   "songScenes": "SCENES",
   "songMakeACopyTo": "Make a copy to change",
-  "songDeleted": "(deleted)"
+  "songDeleted": "(deleted)",
+  "enumProtocolBoth": "Both",
+  "enumFormationPoint": "Single point",
+  "enumFormationLine": "Line",
+  "enumFormationCircle": "Circle",
+  "enumDockBottom": "Bottom",
+  "enumDockRight": "Right side",
+  "enumLaneFollowDock": "Follow dock",
+  "enumLaneOnBeat": "On beat",
+  "enumLaneFree": "Free-running",
+  "enumMountHanging": "Hanging",
+  "enumMountStanding": "Standing",
+  "enumSpaceStage": "Stage plan",
+  "enumAdaptFast": "Fast",
+  "enumAdaptNormal": "Normal",
+  "enumAdaptSlow": "Slow",
+  "enumBandVolume": "Volume",
+  "enumBandBass": "Bass",
+  "enumBandMid": "Mid",
+  "enumBandHigh": "High",
+  "enumStrobeRight": "Right →",
+  "enumStrobeLeft": "← Left",
+  "enumStrobeBounce": "↔ Bounce",
+  "enumFlashSingle": "One colour",
+  "enumFlashRandomSame": "Random, all lamps alike",
+  "enumFlashRandomEach": "Random, every lamp its own",
+  "enumPatternAll": "All Together",
+  "enumPatternAlternating": "Alternating",
+  "enumPatternOneAtATime": "One at a Time",
+  "enumPatternRandomSubset": "Random Subset",
+  "enumCarryEmpty": "Empty project",
+  "enumCarryFixtures": "Keep fixtures",
+  "enumCarryEverything": "Full copy",
+  "enumCarryEmptyHint": "Start from nothing — no fixtures, scenes, banks or chases",
+  "enumCarryFixturesHint": "Universes, fixture profiles and the patch carry over; scenes, banks and chases start empty",
+  "enumCarryEverythingHint": "Everything carries over, saved under the new name",
+  "enumFilterAll": "All Fixtures",
+  "enumFilterRgb": "RGB Only",
+  "enumFilterMoving": "Moving Heads",
+  "enumSourceMic": "Microphone",
+  "enumStyleClubHint": "Frequent changes, movement on builds and drops",
+  "enumStyleRockHint": "Longer looks, movement on drops only",
+  "enumStyleChillHint": "Slow changes, little movement",
+  "enumStyleShowHint": "Busy: changes often, movement almost everywhere",
+  "enumSnapFree": "Free",
+  "enumSnapBeat": "1 beat",
+  "enumSnapHalf": "½ beat",
+  "enumSnapBar": "1 bar",
+  "enumAdaptOff": "Off",
+  "songKindLooks": "{kind} looks",
+  "@songKindLooks": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "songMovementKinds": "Movement ({kinds})",
+  "@songMovementKinds": {
+    "placeholders": {
+      "kinds": {
+        "type": "String"
+      }
+    }
+  },
+  "statusStarted": "Started {name}",
+  "@statusStarted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusStopped": "Stopped {name}",
+  "@statusStopped": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNotConnected": "Not connected — check Settings",
+  "statusBankGone": "That bank no longer exists",
+  "statusChaseGone": "That chase no longer exists",
+  "statusSmartGone": "That smart program no longer exists",
+  "statusNothingPlayed": "Nothing has played yet",
+  "statusBeatSync": "{when, select, already{Beat sync already {state, select, on{on} other{off}}} other{Beat sync {state, select, on{on} other{off}}}}",
+  "@statusBeatSync": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "statusPredict": "{when, select, already{Predict already {state, select, on{on} other{off}}} other{Predict {state, select, on{on} other{off}}}}",
+  "@statusPredict": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "statusDropout": "{when, select, already{Dropout already {state, select, on{on} other{off}}} other{Dropout {state, select, on{on} other{off}}}}",
+  "@statusDropout": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNoName": "No name given",
+  "statusNothingCalled": "Nothing called \"{name}\"",
+  "@statusNothingCalled": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusMicTempo": "Could not open the microphone for tempo tracking",
+  "statusNoValidSteps": "{name} has no valid steps to play",
+  "@statusNoValidSteps": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNoFilledSlots": "\"{name}\" has no filled slots to play",
+  "@statusNoFilledSlots": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNothingToPlay": "\"{name}\" has nothing to play",
+  "@statusNothingToPlay": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusAddCues": "Add some cues to {name} first",
+  "@statusAddCues": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusCouldNotPlay": "Could not play {name}: {error}",
+  "@statusCouldNotPlay": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "statusMicDenied": "Microphone permission denied",
+  "statusNoMic": "No microphone/input device found",
+  "statusBeatSourceFailed": "Could not start the beat source",
+  "statusNoMidiSelected": "No MIDI device selected — pick one in Setup",
+  "statusNoMidiPlatform": "No MIDI input on this platform",
+  "statusSocketNotOpen": "Socket not open",
+  "statusNoArtPollReply": "No ArtPollReply received from {host}",
+  "@statusNoArtPollReply": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "statusSocketFailed": "Could not open the socket: {error}",
+  "@statusSocketFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "statusImported": "Imported {parts}",
+  "@statusImported": {
+    "placeholders": {
+      "parts": {
+        "type": "String"
+      }
+    }
+  },
+  "statusCountBanks": "{count, plural, =1{1 bank} other{{count} banks}}",
+  "@statusCountBanks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statusCountChases": "{count, plural, =1{1 chase} other{{count} chases}}",
+  "@statusCountChases": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statusCountScenes": "{count, plural, =1{1 scene} other{{count} scenes}}",
+  "@statusCountScenes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

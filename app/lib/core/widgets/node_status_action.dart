@@ -5,6 +5,7 @@ import '../../state/artnet_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// The node's reachability, in the top-right corner of every screen.
 ///
@@ -44,7 +45,7 @@ class _NodeStatusActionState extends ConsumerState<NodeStatusAction> {
     } else {
       message = status.error ?? context.l10n.wNoReplyFrom(settings.host);
     }
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   @override

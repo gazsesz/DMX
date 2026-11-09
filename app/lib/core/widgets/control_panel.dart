@@ -24,6 +24,8 @@ import 'silence_floor_slider.dart';
 import 'log_scale.dart';
 import 'momentary_fx_buttons.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
 
 /// Everything that used to be the Dashboard's "Tempo & Chase Speed" card,
 /// in one narrow column that the control dock can slide open over any tab.
@@ -140,7 +142,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
     }
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
       return;
     }
     await restartActiveTrigger(ref.read);
@@ -363,7 +365,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             color: AppColors.textDim,
           ),
           title: Text(context.l10n.wBeatSync, style: TextStyle(fontSize: 13)),
-          subtitle: Text(beatSourceKind.label, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+          subtitle: Text(beatSourceKind.tr(context.l10n), style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
           value: beatSync,
           onChanged: _setBeatSync,
         ),
@@ -411,7 +413,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             SegmentedButton<BeatAdaptSpeed>(
               segments: [
                 for (final speed in BeatAdaptSpeed.values)
-                  ButtonSegment(value: speed, label: Text(speed.label)),
+                  ButtonSegment(value: speed, label: Text(speed.tr(context.l10n))),
               ],
               selected: {_adaptSpeed},
               showSelectedIcon: false,
@@ -433,7 +435,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
               child: SegmentedButton<BeatFrequencyBand>(
                 segments: [
                   for (final band in BeatFrequencyBand.values)
-                    ButtonSegment(value: band, label: Text(band.label)),
+                    ButtonSegment(value: band, label: Text(band.tr(context.l10n))),
                 ],
                 selected: {_frequencyBand},
                 showSelectedIcon: false,
@@ -577,7 +579,7 @@ class _MidiStatusRowState extends State<_MidiStatusRow> {
     if (device == null) {
       message = context.l10n.wNoMidiDevicePick;
     } else if (!listening) {
-      message = context.l10n.panelCheckSetup(widget.source.lastError ?? context.l10n.panelNotConnected);
+      message = context.l10n.panelCheckSetup(localizeStatusOrNull(widget.source.lastError, context.l10n) ?? context.l10n.panelNotConnected);
     } else if (beatIsCurrent) {
       message = _bpm == null
           ? context.l10n.wClockFrom(device.name)
@@ -667,7 +669,7 @@ class _OscStatusRowState extends State<_OscStatusRow> {
     final String message;
     final bool ok;
     if (!listening) {
-      message = context.l10n.panelCheckSetup(widget.source.lastError ?? context.l10n.panelNotListening);
+      message = context.l10n.panelCheckSetup(localizeStatusOrNull(widget.source.lastError, context.l10n) ?? context.l10n.panelNotListening);
       ok = false;
     } else if (beatIsCurrent) {
       message = bpm == null ? context.l10n.wBeatsFromRkbxLink : context.l10n.wBeatsFromRkbxLink2(bpm.toStringAsFixed(1));

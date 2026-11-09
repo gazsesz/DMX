@@ -7,6 +7,7 @@ import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../theme/app_colors.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// Asks which layer to run [bank] on — every layer runs independently, so
 /// this doesn't stop whatever else is already playing elsewhere.
@@ -115,7 +116,7 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
     final error = runBankOnLayer(ref.read, bank: widget.bank, layerId: layerId);
     Navigator.pop(context);
     if (error != null) {
-      messenger.showSnackBar(SnackBar(content: Text(error)));
+      messenger.showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
     }
   }
 }

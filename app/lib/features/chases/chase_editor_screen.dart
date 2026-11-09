@@ -23,6 +23,8 @@ import '../../state/scene_providers.dart';
 import '../../state/tempo_providers.dart';
 import '../layers/dropout_controls.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
 
 class ChaseEditorScreen extends ConsumerStatefulWidget {
   final Chase existing;
@@ -327,7 +329,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       final beatService = ref.read(activeBeatSourceProvider);
       if (!await beatService.start() && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(context.l10n.chaseFallbackTimed(beatService.lastError ?? context.l10n.chaseMicUnavailable))),
+          SnackBar(content: Text(context.l10n.chaseFallbackTimed(localizeStatusOrNull(beatService.lastError, context.l10n) ?? context.l10n.chaseMicUnavailable))),
         );
       }
     }
@@ -520,7 +522,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                       children: [
                         Icon(Icons.timer_outlined, size: 13, color: laneMode == LaneTiming.followApp ? AppColors.textFaint : AppColors.accent),
                         const SizedBox(width: 4),
-                        Text(laneMode.label, style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
+                        Text(laneMode.tr(context.l10n), style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700)),
                       ],
                     ),
                   ),
@@ -784,7 +786,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                       child: SegmentedButton<BeatFrequencyBand>(
                         segments: [
                           for (final band in BeatFrequencyBand.values)
-                            ButtonSegment(value: band, label: Text(band.label)),
+                            ButtonSegment(value: band, label: Text(band.tr(context.l10n))),
                         ],
                         selected: {_frequencyBand},
                         onSelectionChanged: (selection) {

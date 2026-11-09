@@ -30,6 +30,7 @@ import 'chase_editor_screen.dart';
 import '../songs/song_shows_section.dart';
 import 'smart_program_editor_screen.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 class ChasesScreen extends ConsumerStatefulWidget {
   const ChasesScreen({super.key});
@@ -75,7 +76,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   Future<void> _togglePlay(Chase chase) async {

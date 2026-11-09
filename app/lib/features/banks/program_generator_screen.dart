@@ -12,6 +12,7 @@ import '../../state/chase_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 const _uuid = Uuid();
 
@@ -250,7 +251,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                     Text(context.l10n.genDirection, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     SegmentedButton<StrobeDirection>(
-                      segments: [for (final d in StrobeDirection.values) ButtonSegment(value: d, label: Text(d.label))],
+                      segments: [for (final d in StrobeDirection.values) ButtonSegment(value: d, label: Text(d.tr(context.l10n)))],
                       selected: {_strobeDirection},
                       showSelectedIcon: false,
                       onSelectionChanged: (s) => setState(() => _strobeDirection = s.first),
@@ -303,7 +304,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
               children: [
                 for (final pattern in FixturePattern.values)
                   ChoiceChip(
-                    label: Text(pattern.label),
+                    label: Text(pattern.tr(context.l10n)),
                     selected: _pattern == pattern,
                     onSelected: (_) => setState(() => _pattern = pattern),
                   ),

@@ -4,6 +4,7 @@ import '../../models/fixture_profile.dart';
 import '../../models/patched_fixture.dart';
 import '../theme/app_colors.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// A quick type filter over the patched rig — what the generator used to
 /// offer as its only choice, now a way to tick a whole kind at once.
@@ -49,7 +50,7 @@ class FixtureChecklist extends StatelessWidget {
       children: [
         SegmentedButton<FixtureTypeFilter>(
           segments: [
-            for (final f in FixtureTypeFilter.values) ButtonSegment(value: f, label: Text(f.label)),
+            for (final f in FixtureTypeFilter.values) ButtonSegment(value: f, label: Text(f.tr(context.l10n))),
           ],
           selected: {filter},
           showSelectedIcon: false,

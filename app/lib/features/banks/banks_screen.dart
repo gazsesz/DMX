@@ -38,6 +38,8 @@ import '../scenes/scenes_screen.dart';
 import 'movement_fx_editor.dart';
 import 'program_generator_screen.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
 
 const _uuid = Uuid();
 
@@ -160,7 +162,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     // plays the same wherever it's fired from.
     final error = runBankOnLayer(ref.read, bank: bank, layerId: layer1Id);
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
       return;
     }
     setState(() => _manualSlot = null);
@@ -172,7 +174,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   Future<void> _setBeatSync(bool value) async {
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
     }
   }
 
@@ -314,7 +316,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         value: m,
-                        title: Text(m.label),
+                        title: Text(m.tr(context.l10n)),
                       ),
                   ],
                 ),

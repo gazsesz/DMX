@@ -29,6 +29,8 @@ import 'song_stop_dialog.dart';
 import 'song_target_picker.dart';
 import 'song_timeline.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
 
 const _uuid = Uuid();
 
@@ -146,7 +148,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
 
   void _snackText(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   void _save(SongShow show) {
@@ -268,7 +270,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     }
     final from = Duration(milliseconds: show.msOfBeat(_cursorBeat).round().clamp(0, 1 << 31));
     final error = await startSongShow(ref.read, show, from: from);
-    if (error != null) _snackText(error);
+    if (error != null) _snackText(localizeStatus(error, context.l10n));
     if (mounted) setState(() {});
   }
 
@@ -592,7 +594,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 DropdownButton<SongSnap>(
                   value: _snap,
                   underline: const SizedBox.shrink(),
-                  items: [for (final s in SongSnap.values) DropdownMenuItem(value: s, child: Text(context.l10n.songSnap(s.label)))],
+                  items: [for (final s in SongSnap.values) DropdownMenuItem(value: s, child: Text(context.l10n.songSnap(s.tr(context.l10n))))],
                   onChanged: (v) => setState(() => _snap = v ?? _snap),
                 ),
                 IconButton(

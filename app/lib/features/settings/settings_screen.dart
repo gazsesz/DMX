@@ -25,6 +25,8 @@ import '../../state/network_providers.dart';
 import '../../state/locale_providers.dart';
 import '../../state/remote_providers.dart';
 import 'dmx_map_screen.dart';
+import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -221,7 +223,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ref.read(beatSourcePrefsProvider.notifier).setMidiDevice(device.id, device.name);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(source.lastError ?? context.l10n.settingsMidiConnectFailed(device.name))),
+        SnackBar(content: Text(localizeStatusOrNull(source.lastError, context.l10n) ?? context.l10n.settingsMidiConnectFailed(device.name))),
       );
     }
     setState(() {});
@@ -382,7 +384,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   SegmentedButton<OutputProtocol>(
                     segments: [
                       for (final protocol in OutputProtocol.values)
-                        ButtonSegment(value: protocol, label: Text(protocol.label)),
+                        ButtonSegment(value: protocol, label: Text(protocol.tr(l))),
                     ],
                     selected: {settings.protocol},
                     onSelectionChanged: (selection) async {
@@ -612,7 +614,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   SegmentedButton<ControlDockPosition>(
                     segments: [
                       for (final position in ControlDockPosition.values)
-                        ButtonSegment(value: position, label: Text(position.label)),
+                        ButtonSegment(value: position, label: Text(position.tr(l))),
                     ],
                     selected: {ref.watch(controlDockProvider).position},
                     showSelectedIcon: false,
@@ -683,7 +685,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 10),
                   SegmentedButton<BeatSourceKind>(
                     segments: [
-                      for (final kind in BeatSourceKind.values) ButtonSegment(value: kind, label: Text(kind.label)),
+                      for (final kind in BeatSourceKind.values) ButtonSegment(value: kind, label: Text(kind.tr(l))),
                     ],
                     selected: {beatSource.kind},
                     showSelectedIcon: false,
@@ -756,7 +758,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onListen: () async {
                         final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(true);
                         if (error != null && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
                         }
                       },
                     ),
@@ -1075,7 +1077,7 @@ class _ConnectionStatusLine extends StatelessWidget {
       );
     }
     return Text(
-      status.error ?? context.l10n.settingsNoReply,
+      localizeStatusOrNull(status.error, context.l10n) ?? context.l10n.settingsNoReply,
       style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
       overflow: TextOverflow.ellipsis,
     );

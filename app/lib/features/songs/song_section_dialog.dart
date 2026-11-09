@@ -69,7 +69,7 @@ class _SectionDialogState extends State<_SectionDialog> {
               for (final k in SongSectionKind.values)
                 ChoiceChip(
                   key: ValueKey('section-kind-${k.name}'),
-                  label: Text(sectionKindLabel(k)),
+                  label: Text(sectionKindLabel(k, context.l10n)),
                   selected: k == _kind,
                   onSelected: (_) => setState(() => _kind = k),
                 ),

@@ -27,6 +27,7 @@ import '../../state/stage_providers.dart';
 import 'widgets/position_panel.dart';
 import 'widgets/wheel_pickers.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// A set of fixtures within a scene that share one set of channel values —
 /// lets a scene mix looks, e.g. three fixtures purple and a fourth dark.
@@ -730,7 +731,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     if (bankId == null || !mounted) return;
     final message = assignSceneToBank(ref, context.l10n, bankId: bankId, sceneId: widget.existing!.id);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
     }
   }
 

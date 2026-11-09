@@ -16,6 +16,7 @@ import '../../state/bank_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 const _lapScale = LogScale(min: 0.5, max: 60.0, inverted: true);
 
@@ -137,7 +138,7 @@ class MovementFxEditor extends ConsumerWidget {
           SegmentedButton<MovementSpace>(
             segments: [
               for (final space in MovementSpace.values)
-                ButtonSegment(value: space, label: Text(space.label)),
+                ButtonSegment(value: space, label: Text(space.tr(context.l10n))),
             ],
             selected: {fx.space},
             showSelectedIcon: false,

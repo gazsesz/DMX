@@ -16,6 +16,7 @@ import '../../state/layer_providers.dart';
 import '../../state/song_show_providers.dart';
 import 'song_timeline.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// Suggests a program for the song: it analyses the audio (tempo, beat grid,
 /// sections), then builds cues from the chosen banks in the chosen style.
@@ -198,7 +199,7 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                   ),
               ],
             ),
-            Text(_options.style.description, style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
+            Text(_options.style.trDescription(context.l10n), style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -259,11 +260,11 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: Container(width: 6, height: 28, color: sectionColor(kind)),
-                title: Text(sectionKindLabel(kind)),
+                title: Text(sectionKindLabel(kind, context.l10n)),
                 subtitle: Text(_names(_options.lookPools[kind] ?? const [], banks), maxLines: 2, overflow: TextOverflow.ellipsis),
                 trailing: const Icon(Icons.edit_outlined, size: 18),
                 onTap: () => _editPool(
-                  '${sectionKindLabel(kind)} looks',
+                  context.l10n.songKindLooks(sectionKindLabel(kind, context.l10n)),
                   _options.lookPools[kind] ?? const [],
                   lightBanks,
                   (ids) => _options = _options.copyWith(lookPools: {..._options.lookPools, kind: ids}),
@@ -275,7 +276,7 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.open_with, size: 20),
-                title: Text('Movement (${moveKinds.map((k) => sectionKindLabel(k).toLowerCase()).join(', ')})'),
+                title: Text(context.l10n.songMovementKinds(moveKinds.map((k) => sectionKindLabel(k, context.l10n).toLowerCase()).join(', '))),
                 subtitle: Text(fxBanks.isEmpty ? context.l10n.songNoMovementFxBanks : _names(_movePool, banks)),
                 trailing: const Icon(Icons.edit_outlined, size: 18),
                 onTap: fxBanks.isEmpty
@@ -385,7 +386,7 @@ class _Summary extends StatelessWidget {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(color: sectionColor(s.kind), borderRadius: BorderRadius.circular(4)),
                           child: Text(
-                            sectionKindLabel(s.kind),
+                            sectionKindLabel(s.kind, context.l10n),
                             maxLines: 1,
                             overflow: TextOverflow.clip,
                             style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),

@@ -30,6 +30,7 @@ import '../../state/song_show_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
 import 'live_stage_view.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 class _DashboardTrigger {
   final String id;
@@ -245,7 +246,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void _reportIfProblem(String message) {
     if (!mounted) return;
     if (message.startsWith('Started') || message.startsWith('Stopped')) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
 

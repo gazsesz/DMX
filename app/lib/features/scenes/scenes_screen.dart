@@ -15,6 +15,7 @@ import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
 import 'scene_editor_screen.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 enum _SortMode { manual, name }
 
@@ -272,7 +273,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   Future<void> _assignToBank(Scene scene) async {

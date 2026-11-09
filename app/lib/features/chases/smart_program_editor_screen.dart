@@ -17,6 +17,7 @@ import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../layers/dropout_controls.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 class SmartProgramEditorScreen extends ConsumerStatefulWidget {
   final SmartProgram existing;
@@ -283,7 +284,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                     isExpanded: true,
                     decoration: InputDecoration(labelText: layers[i].name, isDense: true),
                     items: [
-                      for (final mode in LaneTiming.values) DropdownMenuItem(value: mode, child: Text(mode.label)),
+                      for (final mode in LaneTiming.values) DropdownMenuItem(value: mode, child: Text(mode.tr(context.l10n))),
                     ],
                     onChanged: (mode) {
                       if (mode != null) setState(() => _layerTimings[layers[i].id] = mode);

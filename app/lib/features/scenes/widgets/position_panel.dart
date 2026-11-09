@@ -18,6 +18,7 @@ import '../../../state/fixture_providers.dart';
 import '../../../state/stage_providers.dart';
 import 'stage_aim_view.dart';
 import '../../../l10n/l10n.dart';
+import '../../../l10n/labels.dart';
 
 /// The Scene editor's Position tab for one group of movers: an XY pad (or
 /// the stage-aim view), saved positions, the fan, and pan/tilt speed.
@@ -588,7 +589,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                   color: fixture.mounting.isDefault ? AppColors.accent : AppColors.textDim,
                 ),
                 label: Text(
-                  '${fixture.label} · ${fixture.mounting.mount.label}${fixture.mounting.isCalibrated ? ' · cal' : ''}',
+                  '${fixture.label} · ${fixture.mounting.mount.tr(context.l10n)}${fixture.mounting.isCalibrated ? ' · cal' : ''}',
                   style: const TextStyle(fontSize: 11.5),
                 ),
                 tooltip: context.l10n.scRiggingThenCalibrateThis,
@@ -661,7 +662,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
             children: [
               for (final formation in StageFormation.values)
                 ChoiceChip(
-                  label: Text(formation.label, style: const TextStyle(fontSize: 11.5)),
+                  label: Text(formation.tr(context.l10n), style: const TextStyle(fontSize: 11.5)),
                   selected: position.formation == formation && position.aimOverrides.isEmpty,
                   onSelected: (_) => replace(position.copyWith(formation: formation, aimOverrides: const {})),
                 ),

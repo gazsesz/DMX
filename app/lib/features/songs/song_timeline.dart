@@ -33,13 +33,13 @@ Color sectionColor(SongSectionKind kind) => switch (kind) {
   SongSectionKind.custom => const Color(0xFF3F4756),
 };
 
-String sectionKindLabel(SongSectionKind kind) => switch (kind) {
+String sectionKindLabel(SongSectionKind kind, [AppLocalizations? l10n]) => switch (kind) {
   SongSectionKind.intro => 'Intro',
   SongSectionKind.build => 'Build',
   SongSectionKind.drop => 'Drop',
   SongSectionKind.breakdown => 'Break',
   SongSectionKind.outro => 'Outro',
-  SongSectionKind.custom => 'Section',
+  SongSectionKind.custom => l10n?.songSection ?? 'Section',
 };
 
 /// The song's timeline: ruler, waveform, section ribbon and one lane per
@@ -322,7 +322,7 @@ class _SectionRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(color: sectionColor(s.kind), borderRadius: BorderRadius.circular(4)),
                 child: Text(
-                  s.label.isEmpty ? sectionKindLabel(s.kind) : s.label,
+                  s.label.isEmpty ? sectionKindLabel(s.kind, context.l10n) : s.label,
                   maxLines: 1,
                   overflow: TextOverflow.clip,
                   style: TextStyle(

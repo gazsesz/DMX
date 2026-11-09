@@ -15,6 +15,7 @@ import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// Opens the rigging and calibration sheet for one moving head.
 Future<void> showFixtureMountingSheet(
@@ -173,7 +174,7 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
             _label(context.l10n.scMounting),
             SegmentedButton<MountKind>(
               showSelectedIcon: false,
-              segments: [for (final kind in MountKind.values) ButtonSegment(value: kind, label: Text(kind.label))],
+              segments: [for (final kind in MountKind.values) ButtonSegment(value: kind, label: Text(kind.tr(context.l10n)))],
               selected: {mounting.mount},
               onSelectionChanged: (s) {
                 final kind = s.first;

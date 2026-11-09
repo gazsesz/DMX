@@ -19,6 +19,7 @@ import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/song_show_providers.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 const _uuid = Uuid();
 
@@ -82,7 +83,7 @@ Future<SongShow?> importSongShowFromFile(BuildContext context, WidgetRef ref) as
   messenger.showSnackBar(
     SnackBar(
       content: Text([
-        result.summary,
+        localizeStatus(result.summary, context.l10n),
         if (result.needsAudio && result.show.audio != null) 'Open it and link "${result.show.audio!.fileName}" to play it.',
         ...result.warnings,
       ].join('\n')),

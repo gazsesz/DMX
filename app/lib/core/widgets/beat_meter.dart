@@ -6,6 +6,7 @@ import '../audio/beat_detector.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// Live microphone levels — one bar per frequency band, with the band
 /// detection is actually following marked as active.
@@ -100,7 +101,7 @@ class _BeatMeterState extends State<BeatMeter> {
           SizedBox(
             width: 58,
             child: Text(
-              band.label,
+              band.tr(context.l10n),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -265,7 +266,7 @@ class _BeatMeterState extends State<BeatMeter> {
           sample == null
               ? context.l10n.wWaitingForTheMicrophone
               : context.l10n.beatMeterWatching(
-                    activeBand.label,
+                    activeBand.tr(context.l10n),
                     sample.requiredRise.toStringAsFixed(1),
                     sample.level <= -150 ? '–' : '${sample.level.round()} dB',
                     sample.silenceFloor == null ? '' : context.l10n.beatMeterFloor(sample.silenceFloor!.round()),

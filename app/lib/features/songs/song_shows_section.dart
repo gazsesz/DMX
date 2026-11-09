@@ -8,6 +8,7 @@ import '../../state/song_show_providers.dart';
 import 'song_show_actions.dart';
 import 'song_show_editor_screen.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// The Song Shows block on the Chases screen: one row per timed program, a
 /// play button on each, and + to make a new one.
@@ -44,7 +45,7 @@ class SongShowsSection extends ConsumerWidget {
       }
       final error = await startSongShow(ref.read, show);
       if (error != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
       }
     }
 

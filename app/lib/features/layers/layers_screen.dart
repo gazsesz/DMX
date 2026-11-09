@@ -15,6 +15,7 @@ import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import 'dimmer_dropout_card.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// Lists every playback layer — what's running on each, and lets the user
 /// stop one, rename it, or add/remove layers. Priority and merge-mode are
@@ -69,7 +70,7 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
 
   Future<void> _resume(Layer layer) async {
     final message = await resumeLayer(ref.read, layer.id);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   /// For a layer a Smart Program drives: what it plays right now, and the

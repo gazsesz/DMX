@@ -18,6 +18,7 @@ import 'dock_layout.dart';
 import 'master_fader.dart';
 import 'momentary_fx_buttons.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// The live controls that are worth reaching from *any* screen: what's
 /// running (and a way to stop it), beat sync with its rate, blackout — and
@@ -163,14 +164,14 @@ class _DockControls extends ConsumerWidget {
   Future<void> _resume(BuildContext context, WidgetRef ref) async {
     final message = await resumeLastPlayed(ref.read);
     if (!context.mounted || message.startsWith('Started')) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   Future<void> _setBeatSync(BuildContext context, WidgetRef ref, bool value) async {
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
       }
       return;
     }

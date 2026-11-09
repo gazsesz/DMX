@@ -16,6 +16,7 @@ import '../../state/scene_providers.dart';
 import '../storage/show_items_io.dart';
 import '../theme/app_colors.dart';
 import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 const _uuid = Uuid();
 
@@ -86,7 +87,7 @@ Future<ShowItemsImport?> importShowItemsFromFile(BuildContext context, WidgetRef
   ref.read(chasesProvider.notifier).loadAll([...ref.read(chasesProvider), ...result.chases]);
   messenger.showSnackBar(
     SnackBar(
-      content: Text([result.summary, ...result.warnings].join('\n')),
+      content: Text([localizeStatus(result.summary, context.l10n), ...result.warnings].join('\n')),
       duration: Duration(seconds: result.warnings.isEmpty ? 3 : 8),
     ),
   );
