@@ -6,6 +6,7 @@ import '../../state/movement_live_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 import 'log_scale.dart';
+import '../../l10n/l10n.dart';
 
 const _speedScale = LogScale(min: 0.25, max: 4.0);
 
@@ -67,15 +68,15 @@ class MovementLiveBar extends ConsumerWidget {
             // Four across where there's room; two rows of two on a phone.
             final narrow = constraints.maxWidth < 620;
             final reset = IconButton(
-              tooltip: 'Reset the Movement knobs',
+              tooltip: context.l10n.wResetTheMovementKnobs,
               visualDensity: VisualDensity.compact,
               icon: Icon(Icons.restart_alt, size: 20, color: live.isNeutral ? AppColors.textFaint : AppColors.accent),
               onPressed: live.isNeutral ? null : notifier.reset,
             );
             return Row(
               children: [
-                const Tooltip(
-                  message: 'Movement FX — live knobs',
+                Tooltip(
+                  message: context.l10n.wMovementFxLiveKnobs,
                   child: Icon(Icons.open_with, size: 16, color: AppColors.accent2),
                 ),
                 const SizedBox(width: 8),

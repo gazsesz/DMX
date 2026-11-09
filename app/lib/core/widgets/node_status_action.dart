@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/artnet_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../../l10n/l10n.dart';
 
 /// The node's reachability, in the top-right corner of every screen.
 ///
@@ -35,14 +36,13 @@ class _NodeStatusActionState extends ConsumerState<NodeStatusAction> {
     final settings = ref.read(artNetSettingsProvider);
     final String message;
     if (status.demo) {
-      message = 'Demo mode — nothing is transmitted';
+      message = context.l10n.wDemoModeNothingIs;
     } else if (status.unverified) {
-      message = 'Sending sACN to the universe multicast groups — E1.31 has no reply to check';
+      message = context.l10n.wSendingSacnToThe;
     } else if (status.success) {
-      message = '${settings.deviceName} replied from ${settings.host} '
-          'in ${status.latency?.inMilliseconds ?? 0} ms';
+      message = context.l10n.wRepliedFromInMs(settings.deviceName, settings.host, status.latency?.inMilliseconds ?? 0);
     } else {
-      message = status.error ?? 'No reply from ${settings.host}';
+      message = status.error ?? context.l10n.wNoReplyFrom(settings.host);
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -61,34 +61,34 @@ class _NodeStatusActionState extends ConsumerState<NodeStatusAction> {
       color = AppColors.accent;
       icon = Icons.play_circle_outline;
       label = 'DEMO';
-      tooltip = 'Demo mode — no packets are sent';
+      tooltip = context.l10n.wDemoModeNoPackets;
     } else if (status.unverified && status.success) {
       color = AppColors.accent2;
       icon = Icons.cell_tower;
       label = 'sACN';
-      tooltip = 'Streaming sACN — E1.31 has no reply to verify against';
+      tooltip = context.l10n.wStreamingSacnE131;
     } else if (status.success) {
       color = AppColors.success;
       icon = Icons.check_circle;
-      label = '${status.latency?.inMilliseconds ?? 0}ms';
-      tooltip = '${settings.deviceName} online at ${settings.host}';
+      label = context.l10n.wMs2(status.latency?.inMilliseconds ?? 0);
+      tooltip = context.l10n.wOnlineAt(settings.deviceName, settings.host);
     } else if (!status.attempted) {
       // Nothing has come back yet — the very first poll is still in flight.
       color = AppColors.textFaint;
       icon = Icons.circle_outlined;
       label = '···';
-      tooltip = 'Looking for the node…';
+      tooltip = context.l10n.wLookingForTheNode;
     } else {
       // No text beside it: the icon already *is* an exclamation mark, and
       // a "!" label next to it just read as a stutter.
       color = AppColors.danger;
       icon = Icons.error;
       label = '';
-      tooltip = status.error ?? 'No reply from ${settings.host}';
+      tooltip = status.error ?? context.l10n.wNoReplyFrom(settings.host);
     }
 
     return Tooltip(
-      message: '$tooltip\nTap to re-check',
+      message: context.l10n.wTapToReCheck(tooltip),
       child: InkWell(
         onTap: _retrying ? null : _retry,
         borderRadius: BorderRadius.circular(20),

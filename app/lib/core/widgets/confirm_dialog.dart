@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
 
 /// Asks before something irreversible. Returns true only on an explicit yes.
 ///
@@ -11,8 +12,9 @@ Future<bool> confirmDelete(
   BuildContext context, {
   required String title,
   required String message,
-  String confirmLabel = 'Delete',
+  String? confirmLabel,
 }) async {
+  final deleteLabel = confirmLabel ?? context.l10n.scDelete;
   final result = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
@@ -20,11 +22,11 @@ Future<bool> confirmDelete(
       title: Text(title),
       content: Text(message, style: const TextStyle(fontSize: 13, color: AppColors.textDim)),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
           onPressed: () => Navigator.pop(context, true),
-          child: Text(confirmLabel),
+          child: Text(deleteLabel),
         ),
       ],
     ),
@@ -59,24 +61,21 @@ Future<BankDeleteChoice> askBankDelete(
     context: context,
     builder: (context) => AlertDialog(
       backgroundColor: AppColors.panel,
-      title: Text('Delete "$bankName"?'),
+      title: Text(context.l10n.wDelete(bankName)),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             sceneCount == 0
-                ? 'The bank has no scenes in it.'
-                : 'The bank holds $sceneCount ${sceneCount == 1 ? 'scene' : 'scenes'}. '
-                      'Scenes live in the project, not in the bank — keeping them just '
-                      'leaves them unsorted, ready to drop into another bank.',
+                ? context.l10n.wTheBankHasNo
+                : context.l10n.confirmBankHoldsScenes(sceneCount),
             style: const TextStyle(fontSize: 13, color: AppColors.textDim),
           ),
           if (shared > 0) ...[
             const SizedBox(height: 10),
             Text(
-              '$shared of them ${shared == 1 ? 'is' : 'are'} also used by another bank or a '
-              'chase and will be kept either way.',
+              context.l10n.confirmSharedScenes(shared),
               style: const TextStyle(fontSize: 12, color: AppColors.accent),
             ),
           ],
@@ -85,18 +84,18 @@ Future<BankDeleteChoice> askBankDelete(
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, BankDeleteChoice.cancel),
-          child: const Text('Cancel'),
+          child: Text(context.l10n.commonCancel),
         ),
         if (exclusiveSceneCount > 0)
           TextButton(
             style: TextButton.styleFrom(foregroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(context, BankDeleteChoice.deleteScenes),
-            child: Text('Delete with $exclusiveSceneCount ${exclusiveSceneCount == 1 ? 'scene' : 'scenes'}'),
+            child: Text(context.l10n.confirmDeleteWithScenes(exclusiveSceneCount)),
           ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
           onPressed: () => Navigator.pop(context, BankDeleteChoice.keepScenes),
-          child: Text(sceneCount == 0 ? 'Delete' : 'Delete, keep scenes'),
+          child: Text(sceneCount == 0 ? context.l10n.scDelete : context.l10n.wDeleteKeepScenes),
         ),
       ],
     ),

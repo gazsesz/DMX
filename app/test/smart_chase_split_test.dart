@@ -127,8 +127,8 @@ void main() {
 
     testWidgets('Szétosztás puts each layer\'s banks on that layer', (tester) async {
       final container = await openEditor(tester, split);
-      expect(find.textContaining('több rétegen fut'), findsOneWidget);
-      await tester.tap(find.text('Szétosztás'));
+      expect(find.textContaining('runs on several layers'), findsOneWidget);
+      await tester.tap(find.text('Spread out'));
       await tester.pumpAndSettle();
       final program = await save(tester, container);
       expect(program.targetsFor(layer1Id).base, const ProgramTarget(id: 'rgb', isBank: true),
@@ -139,7 +139,7 @@ void main() {
 
     testWidgets('Mind ezen a rétegen keeps the whole chase on the row it was picked on', (tester) async {
       final container = await openEditor(tester, split);
-      await tester.tap(find.text('Mind ezen a rétegen'));
+      await tester.tap(find.text('All on this layer'));
       await tester.pumpAndSettle();
       final program = await save(tester, container);
       expect(program.targetsFor(layer1Id).base, const ProgramTarget(id: 'show', isBank: false));
@@ -151,7 +151,7 @@ void main() {
         ChaseStep(sceneId: 's1'),
         ChaseStep(bankId: 'robot', layerId: _l2),
       ]));
-      expect(find.textContaining('több rétegen fut'), findsNothing);
+      expect(find.textContaining('runs on several layers'), findsNothing);
     });
   });
 }

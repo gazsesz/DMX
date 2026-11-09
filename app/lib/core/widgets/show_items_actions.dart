@@ -15,6 +15,7 @@ import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../storage/show_items_io.dart';
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
 
 const _uuid = Uuid();
 
@@ -38,7 +39,7 @@ Future<void> exportShowItemsToFile(
   );
   final messenger = ScaffoldMessenger.of(context);
   final path = await FilePicker.saveFile(
-    dialogTitle: 'Export',
+    dialogTitle: context.l10n.filesExport,
     fileName: export.suggestedFileName,
     bytes: Uint8List.fromList(utf8.encode(export.encode())),
     type: FileType.custom,
@@ -48,9 +49,9 @@ Future<void> exportShowItemsToFile(
   final what = [
     if (export.banks.isNotEmpty) '${export.banks.length} bank${export.banks.length == 1 ? '' : 's'}',
     if (export.chases.isNotEmpty) '${export.chases.length} chase${export.chases.length == 1 ? '' : 's'}',
-    '${export.scenes.length} scene${export.scenes.length == 1 ? '' : 's'}',
+    context.l10n.exportScenesCount(export.scenes.length),
   ].join(', ');
-  messenger.showSnackBar(SnackBar(content: Text('Exported $what')));
+  messenger.showSnackBar(SnackBar(content: Text(context.l10n.wExported(what))));
 }
 
 /// Reads a bank/chase export the user picks and adds its contents to the
@@ -73,10 +74,10 @@ Future<ShowItemsImport?> importShowItemsFromFile(BuildContext context, WidgetRef
       newId: _uuid.v4,
     );
   } on FormatException catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('Could not import: ${e.message}'), backgroundColor: AppColors.danger));
+    messenger.showSnackBar(SnackBar(content: Text(context.l10n.wCouldNotImport(e.message)), backgroundColor: AppColors.danger));
     return null;
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('Could not import: $e'), backgroundColor: AppColors.danger));
+    messenger.showSnackBar(SnackBar(content: Text(context.l10n.scCouldNotImport(e)), backgroundColor: AppColors.danger));
     return null;
   }
 

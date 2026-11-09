@@ -5,6 +5,7 @@ import '../../core/storage/project_snapshot.dart';
 import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../state/project_providers.dart';
+import '../../l10n/l10n.dart';
 
 /// A "Save Project" app bar action available from every main screen, not
 /// just the Files tab — saves the whole show under its current name (or
@@ -28,11 +29,11 @@ class _SaveProjectActionState extends ConsumerState<SaveProjectAction> {
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: AppColors.panel,
-          title: const Text('Save Project'),
+          title: Text(context.l10n.wSaveProject),
           content: TextField(controller: controller, autofocus: true),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
           ],
         ),
       );
@@ -44,14 +45,14 @@ class _SaveProjectActionState extends ConsumerState<SaveProjectAction> {
     await _storage.save(name, buildProjectSnapshot(ref));
     if (mounted) {
       setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved "$name"')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesSaved(name))));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return IconButton(
-      tooltip: 'Save Project',
+      tooltip: context.l10n.wSaveProject,
       icon: _saving
           ? const SizedBox(
               width: 18,

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../state/color_override_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
 
 /// The Colour strip: basic colours to lay over whatever the scenes are playing.
 ///
@@ -28,7 +29,7 @@ class LiveColorBar extends ConsumerWidget {
         child: Row(
           children: [
             Tooltip(
-              message: 'Colour override — over the scenes',
+              message: context.l10n.wColourOverrideOverThe,
               child: Icon(Icons.palette_outlined, size: 16, color: live.active ? AppColors.accent : AppColors.accent2),
             ),
             const SizedBox(width: 8),
@@ -53,11 +54,11 @@ class LiveColorBar extends ConsumerWidget {
             ),
             if (groups.isNotEmpty)
               PopupMenuButton<String?>(
-                tooltip: 'Which fixtures the colour goes to',
+                tooltip: context.l10n.wWhichFixturesTheColour,
                 initialValue: live.groupId,
                 onSelected: (id) => controller.setGroup(id == '' ? null : id),
                 itemBuilder: (_) => [
-                  const PopupMenuItem<String?>(value: '', child: Text('All fixtures')),
+                  PopupMenuItem<String?>(value: '', child: Text(context.l10n.wAllFixtures)),
                   for (final group in groups) PopupMenuItem<String?>(value: group.id, child: Text(group.name)),
                 ],
                 child: Padding(
@@ -66,7 +67,7 @@ class LiveColorBar extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
-                        groupName ?? 'All',
+                        groupName ?? context.l10n.commonAll,
                         style: TextStyle(fontSize: 11.5, color: groupName == null ? AppColors.textFaint : AppColors.accent),
                       ),
                       const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.textFaint),
@@ -101,7 +102,7 @@ class _AutoChip extends StatelessWidget {
           border: Border.all(color: active ? AppColors.accent : AppColors.border, width: active ? 2 : 1.5),
         ),
         child: Text(
-          'Auto',
+          context.l10n.wAuto,
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: active ? AppColors.accent : AppColors.textDim),
         ),
       ),

@@ -149,7 +149,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
   void _duplicateScene(String sceneId, {String? bankId}) {
     final copy = ref.read(scenesProvider.notifier).duplicate(sceneId);
     if (copy == null || bankId == null) return;
-    assignSceneToBank(ref, bankId: bankId, sceneId: copy.id);
+    assignSceneToBank(ref, context.l10n, bankId: bankId, sceneId: copy.id);
   }
 
   void _duplicateSelected() {
@@ -278,7 +278,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
   Future<void> _assignToBank(Scene scene) async {
     final bankId = await showBankPicker(context);
     if (bankId == null || !mounted) return;
-    _showSnack(assignSceneToBank(ref, bankId: bankId, sceneId: scene.id));
+    _showSnack(assignSceneToBank(ref, context.l10n, bankId: bankId, sceneId: scene.id));
   }
 
   Widget _sceneGrid(List<Scene> scenes, {String? bankId, bool draggable = false, bool reorderable = false}) {

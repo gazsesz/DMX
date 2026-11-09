@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/fixture_profile.dart';
 import '../../models/patched_fixture.dart';
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
 
 /// A quick type filter over the patched rig — what the generator used to
 /// offer as its only choice, now a way to tick a whole kind at once.
@@ -59,24 +60,24 @@ class FixtureChecklist extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                '${selected.length} of ${fixtures.length} fixtures',
+                context.l10n.wOfFixtures(selected.length, fixtures.length),
                 style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
               ),
             ),
             TextButton(
               onPressed: () => onChanged({...selected, for (final f in shown) f.id}),
-              child: const Text('All'),
+              child: Text(context.l10n.commonAll),
             ),
             TextButton(
               onPressed: () => onChanged(selected.difference({for (final f in shown) f.id})),
-              child: const Text('None'),
+              child: Text(context.l10n.wNone2),
             ),
           ],
         ),
         if (shown.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('No patched fixtures of this type', style: TextStyle(fontSize: 12, color: AppColors.textFaint)),
+            child: Text(context.l10n.wNoPatchedFixturesOf, style: TextStyle(fontSize: 12, color: AppColors.textFaint)),
           )
         else
           Wrap(
@@ -133,12 +134,12 @@ Future<List<PatchedFixture>?> showFixtureSelectDialog(
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
           FilledButton(
             onPressed: selected.isEmpty
                 ? null
                 : () => Navigator.pop(context, [for (final f in fixtures) if (selected.contains(f.id)) f]),
-            child: const Text('OK'),
+            child: Text(context.l10n.wOk),
           ),
         ],
       ),

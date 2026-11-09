@@ -22,6 +22,7 @@ import '../../state/playback_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/tempo_providers.dart';
 import '../layers/dropout_controls.dart';
+import '../../l10n/l10n.dart';
 
 class ChaseEditorScreen extends ConsumerStatefulWidget {
   final Chase existing;
@@ -106,7 +107,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     final options = asBank ? ref.read(banksProvider) : ref.read(scenesProvider);
     if (options.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Create a ${asBank ? 'bank' : 'scene'} first')),
+        SnackBar(content: Text(context.l10n.chaseCreateFirst(asBank ? 'bank' : 'scene'))),
       );
       return;
     }
@@ -114,7 +115,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       context: context,
       builder: (context) => SimpleDialog(
         backgroundColor: AppColors.panel,
-        title: Text('Add ${asBank ? 'Bank' : 'Scene'} Step'),
+        title: Text(context.l10n.chaseAddStep(asBank ? 'bank' : 'scene')),
         children: [
           for (final option in options)
             SimpleDialogOption(
@@ -209,7 +210,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.panel,
-          title: Text(isFx ? 'Movement Step' : 'Step Timing'),
+          title: Text(isFx ? context.l10n.wMovementStep : context.l10n.wStepTiming),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -218,9 +219,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
-                  title: const Text('Run until stopped'),
-                  subtitle: const Text(
-                    'The chase stays on this step; only the next lane or a Stop ends it',
+                  title: Text(context.l10n.wRunUntilStopped),
+                  subtitle: Text(
+                    context.l10n.wTheChaseStaysOn,
                     style: TextStyle(fontSize: 11),
                   ),
                   value: endless,
@@ -228,7 +229,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 ),
               if (!endless) ...[
                 Text(
-                  isFx ? 'Runs for: ${hold.toStringAsFixed(2)}s' : 'Hold: ${hold.toStringAsFixed(2)}s',
+                  isFx ? context.l10n.wRunsForS(hold.toStringAsFixed(2)) : context.l10n.wHoldS(hold.toStringAsFixed(2)),
                   style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
                 ),
                 Slider(
@@ -238,7 +239,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 const SizedBox(height: 8),
               ],
               Text(
-                isFx ? 'Glide onto the path: ${fade.toStringAsFixed(2)}s' : 'Fade: ${fade.toStringAsFixed(2)}s',
+                isFx ? context.l10n.wGlideOntoThePath(fade.toStringAsFixed(2)) : context.l10n.wFadeS(fade.toStringAsFixed(2)),
                 style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
               ),
               Slider(
@@ -249,9 +250,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   dense: true,
-                  title: const Text('Start the lap from the top'),
-                  subtitle: const Text(
-                    'Off: the path carries on from where the previous movement step was',
+                  title: Text(context.l10n.wStartTheLapFrom),
+                  subtitle: Text(
+                    context.l10n.wOffThePathCarries,
                     style: TextStyle(fontSize: 11),
                   ),
                   value: restart,
@@ -260,8 +261,8 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
           ],
         ),
       ),
@@ -318,7 +319,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     final service = ref.read(artNetServiceProvider);
     if (!service.isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Not connected — check Settings')),
+        SnackBar(content: Text(context.l10n.wNotConnectedCheckSettings)),
       );
       return;
     }
@@ -326,7 +327,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       final beatService = ref.read(activeBeatSourceProvider);
       if (!await beatService.start() && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${beatService.lastError ?? 'Microphone unavailable'} — falling back to timed steps')),
+          SnackBar(content: Text(context.l10n.chaseFallbackTimed(beatService.lastError ?? context.l10n.chaseMicUnavailable))),
         );
       }
     }
@@ -352,7 +353,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     // player quietly declines to run zero steps.
     if (started.isEmpty && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nothing to preview — add a step with a valid scene or bank first')),
+        SnackBar(content: Text(context.l10n.wNothingToPreviewAdd)),
       );
     }
     if (mounted) setState(() {});
@@ -383,14 +384,14 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   String _stepLabel(ChaseStep step) {
     if (step.sceneId != null) {
       final matches = ref.read(scenesProvider).where((s) => s.id == step.sceneId);
-      return matches.isEmpty ? 'Missing scene' : 'Scene: ${matches.first.name}';
+      return matches.isEmpty ? context.l10n.wMissingScene : context.l10n.wScene(matches.first.name);
     }
     if (step.bankId != null) {
       final matches = ref.read(banksProvider).where((b) => b.id == step.bankId);
-      if (matches.isEmpty) return 'Missing bank';
-      return matches.first.isMovementFx ? 'Movement: ${matches.first.name}' : 'Bank: ${matches.first.name}';
+      if (matches.isEmpty) return context.l10n.wMissingBank;
+      return matches.first.isMovementFx ? context.l10n.wMovement(matches.first.name) : context.l10n.wBank(matches.first.name);
     }
-    return 'Empty step';
+    return context.l10n.wEmptyStep;
   }
 
   /// Scene names in a bank's filled slots, in slot order — what a bank step
@@ -403,7 +404,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     for (final sceneId in bankMatches.first.sceneSlots) {
       if (sceneId == null) continue;
       final sceneMatches = scenes.where((s) => s.id == sceneId);
-      names.add(sceneMatches.isEmpty ? 'Missing scene' : sceneMatches.first.name);
+      names.add(sceneMatches.isEmpty ? context.l10n.wMissingScene : sceneMatches.first.name);
     }
     return names;
   }
@@ -421,7 +422,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
       for (final layer in shown) _layerGroup(layer, layers.indexOf(layer), layers),
       if (addable.isNotEmpty)
         PopupMenuButton<String>(
-          tooltip: 'Add a layer to this chase',
+          tooltip: context.l10n.wAddALayerTo,
           color: AppColors.panel2,
           onSelected: (id) => setState(() => _emptyGroups.add(id)),
           itemBuilder: (context) => [
@@ -443,11 +444,11 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
               border: Border.all(color: AppColors.border),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.add, size: 18, color: AppColors.textDim),
                 SizedBox(width: 8),
-                Text('Add a layer to this chase', style: TextStyle(fontSize: 12.5, color: AppColors.textDim, fontWeight: FontWeight.w700)),
+                Text(context.l10n.wAddALayerTo, style: TextStyle(fontSize: 12.5, color: AppColors.textDim, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
@@ -489,7 +490,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                   ),
                 ),
                 PopupMenuButton<LaneTiming>(
-                  tooltip: 'How this layer is clocked',
+                  tooltip: context.l10n.wHowThisLayerIs,
                   color: AppColors.panel2,
                   onSelected: (mode) {
                     setState(() => _laneTimings[layer.id] = mode);
@@ -527,16 +528,16 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 if (indices.isEmpty && layer.id != layer1Id)
                   IconButton(
                     icon: const Icon(Icons.close, size: 16),
-                    tooltip: 'Remove this empty layer from the chase',
+                    tooltip: context.l10n.wRemoveThisEmptyLayer,
                     onPressed: () => setState(() => _emptyGroups.remove(layer.id)),
                   ),
               ],
             ),
           ),
           if (indices.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text('No steps on this layer yet', style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
+              child: Text(context.l10n.wNoStepsOnThis, style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
             ),
           for (var position = 0; position < indices.length; position++)
             ..._stepTile(indices[position], position, layer.id, layers),
@@ -547,12 +548,12 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 TextButton.icon(
                   onPressed: () => _addStep(asBank: false, layerId: layer.id),
                   icon: Icon(Icons.add, size: 16, color: color),
-                  label: Text('Scene', style: TextStyle(color: color)),
+                  label: Text(context.l10n.wScene2, style: TextStyle(color: color)),
                 ),
                 TextButton.icon(
                   onPressed: () => _addStep(asBank: true, layerId: layer.id),
                   icon: Icon(Icons.add, size: 16, color: color),
-                  label: Text('Bank', style: TextStyle(color: color)),
+                  label: Text(context.l10n.navBank, style: TextStyle(color: color)),
                 ),
               ],
             ),
@@ -569,9 +570,12 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     final seconds = (step.hold.inMilliseconds / 1000).toStringAsFixed(2);
     final glide = (step.fade.inMilliseconds / 1000).toStringAsFixed(2);
     final timing = isFx
-        ? '${step.hold <= Duration.zero ? 'Runs until stopped' : 'Runs ${seconds}s'} · Glide ${glide}s'
-              '${step.fxRestart ? ' · restarts' : ''}'
-        : 'Hold ${seconds}s · Fade ${glide}s';
+        ? context.l10n.chaseMoveStepTiming(
+              step.hold <= Duration.zero ? context.l10n.chaseRunsUntilStopped : context.l10n.chaseRunsSeconds('$seconds'),
+              '$glide',
+              step.fxRestart ? context.l10n.chaseRestarts : '',
+            )
+        : context.l10n.wHoldSFadeS(seconds, glide);
     return [
       ListTile(
         onTap: isFx
@@ -589,7 +593,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
         ),
         title: Text(_stepLabel(step), style: const TextStyle(fontSize: 13)),
         subtitle: Text(
-          step.bankId != null && !isFx ? '$timing · tap to see scenes' : '$timing · tap to edit',
+          step.bankId != null && !isFx ? context.l10n.wTapToSeeScenes(timing) : context.l10n.wTapToEdit(timing),
           style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
         ),
         trailing: Row(
@@ -598,13 +602,13 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
             if (step.bankId != null && !isFx)
               IconButton(
                 icon: const Icon(Icons.schedule, size: 16),
-                tooltip: 'Edit timing',
+                tooltip: context.l10n.wEditTiming,
                 onPressed: () => _editStepTiming(i),
               ),
             if (layers.length > 1)
               PopupMenuButton<String>(
                 icon: const Icon(Icons.layers_outlined, size: 16),
-                tooltip: 'Move to another layer',
+                tooltip: context.l10n.wMoveToAnotherLayer,
                 color: AppColors.panel2,
                 onSelected: (id) => _moveToLayer(i, id),
                 itemBuilder: (context) => [
@@ -616,7 +620,7 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                           children: [
                             LayerBadge(index: l),
                             const SizedBox(width: 8),
-                            Text('Move to ${layers[l].name}'),
+                            Text(context.l10n.wMoveTo(layers[l].name)),
                           ],
                         ),
                       ),
@@ -643,8 +647,8 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                   ),
                 ),
               if (_bankSceneNames(step.bankId!).isEmpty)
-                const Text(
-                  'This bank has no scenes yet',
+                Text(
+                  context.l10n.wThisBankHasNo,
                   style: TextStyle(fontSize: 11.5, color: AppColors.textFaint, fontStyle: FontStyle.italic),
                 ),
             ],
@@ -663,26 +667,25 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
           decoration: const InputDecoration(border: InputBorder.none, isDense: true),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: 'Save'),
+          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: context.l10n.commonSave),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          const Text(
-            'STEPS BY LAYER',
+          Text(
+            context.l10n.wStepsByLayer,
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
-          const Text(
-            'Each layer is a lane: its steps play one after another, and the lanes play at the same time. '
-            'New steps land on Layer 1 unless added to another layer.',
+          Text(
+            context.l10n.wEachLayerIsA,
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           ..._layerGroups(),
           const SizedBox(height: 20),
-          const Text(
-            'SPEED & SYNC',
+          Text(
+            context.l10n.wSpeedSync,
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           Card(
@@ -691,13 +694,13 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'Applies to every step (and new ones) — override a single step by tapping it',
+                  Text(
+                    context.l10n.wAppliesToEveryStep,
                     style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    _beatSync ? 'Hold Time (synced to beat)' : 'Hold Time',
+                    _beatSync ? context.l10n.wHoldTimeSyncedTo : context.l10n.wHoldTime,
                     style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                   ),
                   Slider(
@@ -714,11 +717,11 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: Text('${_stepSeconds.toStringAsFixed(2)}s / step', style: appMonoStyle(fontSize: 11)),
+                    child: Text(context.l10n.wSStep(_stepSeconds.toStringAsFixed(2)), style: appMonoStyle(fontSize: 11)),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
-                    'Fade Time (still applies even when synced to beat)',
+                  Text(
+                    context.l10n.wFadeTimeStillApplies,
                     style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                   ),
                   Slider(
@@ -734,13 +737,13 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                   ),
                   Align(
                     alignment: Alignment.centerRight,
-                    child: Text('${_defaultFadeSeconds.toStringAsFixed(2)}s fade', style: appMonoStyle(fontSize: 11)),
+                    child: Text(context.l10n.wSFade(_defaultFadeSeconds.toStringAsFixed(2)), style: appMonoStyle(fontSize: 11)),
                   ),
                   const Divider(height: 24),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Sync to Beat (Mic)', style: TextStyle(fontWeight: FontWeight.w600)),
+                      Text(context.l10n.wSyncToBeatMic, style: TextStyle(fontWeight: FontWeight.w600)),
                       Switch(
                         value: _beatSync,
                         onChanged: (v) {
@@ -754,8 +757,8 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                     const SizedBox(height: 10),
                     BeatMeter(service: ref.read(beatDetectorProvider)),
                     const SizedBox(height: 10),
-                    const Text(
-                      'Sensitivity',
+                    Text(
+                      context.l10n.wSensitivity,
                       style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                     Slider(
@@ -768,11 +771,11 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                     ),
                     SilenceFloorSlider(service: ref.read(beatDetectorProvider)),
                     const SizedBox(height: 10),
-                    const Text(
-                      'React to',
+                    Text(
+                      context.l10n.wReactTo,
                       style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
-                    const SizedBox(height: 6),
+                    SizedBox(height: 6),
                     // Six bands of labelled segments are wider than a phone
                     // — and a SegmentedButton overflows rather than shrinks
                     // — so let the row scroll.
@@ -791,12 +794,12 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   SegmentedButton<ChaseDirection>(
-                    segments: const [
-                      ButtonSegment(value: ChaseDirection.forward, label: Text('Forward')),
-                      ButtonSegment(value: ChaseDirection.bounce, label: Text('Bounce')),
-                      ButtonSegment(value: ChaseDirection.random, label: Text('Random')),
+                    segments: [
+                      ButtonSegment(value: ChaseDirection.forward, label: Text(context.l10n.wForward)),
+                      ButtonSegment(value: ChaseDirection.bounce, label: Text(context.l10n.wBounce)),
+                      ButtonSegment(value: ChaseDirection.random, label: Text(context.l10n.wRandom)),
                     ],
                     selected: {_direction},
                     onSelectionChanged: (s) => setState(() => _direction = s.first),
@@ -814,10 +817,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 children: [
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Dimmer-bevágás', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                    subtitle: const Text(
-                      'Időnként (vagy ütemre) egy pillanatra sötét, amíg a chase fut — arra a rétegre, amelyiken játszik. '
-                      'Smart Programban is vele jön.',
+                    title: Text(context.l10n.dropoutTitle, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                    subtitle: Text(
+                      context.l10n.wGoesDarkForA,
                       style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                     value: _dropout.enabled,
@@ -840,11 +842,11 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _steps.isEmpty ? null : _togglePreview,
                   icon: Icon(_isThisPreviewing ? Icons.stop : Icons.play_arrow),
-                  label: Text(_isThisPreviewing ? 'Stop' : 'Preview'),
+                  label: Text(_isThisPreviewing ? context.l10n.commonStop : context.l10n.wPreview),
                 ),
               ),
               const SizedBox(width: 10),
-              Expanded(child: FilledButton(onPressed: _save, child: const Text('Save Chase'))),
+              Expanded(child: FilledButton(onPressed: _save, child: Text(context.l10n.wSaveChase))),
             ],
           ),
         ],

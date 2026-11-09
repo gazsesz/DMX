@@ -716,7 +716,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     }
     final bankId = await showBankPicker(context);
     if (bankId == null || !mounted) return;
-    final message = assignSceneToBank(ref, bankId: bankId, sceneId: widget.existing!.id);
+    final message = assignSceneToBank(ref, context.l10n, bankId: bankId, sceneId: widget.existing!.id);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     }

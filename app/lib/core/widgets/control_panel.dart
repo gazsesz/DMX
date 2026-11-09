@@ -23,6 +23,7 @@ import 'beat_meter.dart';
 import 'silence_floor_slider.dart';
 import 'log_scale.dart';
 import 'momentary_fx_buttons.dart';
+import '../../l10n/l10n.dart';
 
 /// Everything that used to be the Dashboard's "Tempo & Chase Speed" card,
 /// in one narrow column that the control dock can slide open over any tab.
@@ -200,18 +201,18 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
                 children: [
                   Text(
                     smartActive
-                        ? 'Step speed — the program follows the music'
+                        ? context.l10n.wStepSpeedTheProgram
                         : beatSync
-                            ? 'Step speed — synced to the beat'
+                            ? context.l10n.wStepSpeedSyncedTo
                             : tempo.overrideTiming
-                                ? 'Step speed — banks and chases'
-                                : 'Step speed — banks only',
+                                ? context.l10n.wStepSpeedBanksAnd
+                                : context.l10n.wStepSpeedBanksOnly,
                     style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                   ),
                   if (!beatSync && !smartActive)
                     SegmentedButton<bool>(
-                      segments: const [
-                        ButtonSegment(value: false, label: Text('Sec')),
+                      segments: [
+                        ButtonSegment(value: false, label: Text(context.l10n.wSec)),
                         ButtonSegment(value: true, label: Text('BPM')),
                       ],
                       selected: {_useBpm},
@@ -266,16 +267,16 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
                 ? null
                 : (_) => restartActiveTrigger(ref.read, timingOnly: true),
           ),
-        _readout('${tempo.stepSeconds.toStringAsFixed(2)}s / step · ${tempo.bpm.round()} BPM'),
+        _readout(context.l10n.wSStepBpm(tempo.stepSeconds.toStringAsFixed(2), tempo.bpm.round())),
 
         _label(
           smartActive
-              ? 'Fade — the ${_zoneWord()} zone of the running program'
+              ? context.l10n.wFadeTheZoneOf(_zoneWord())
               : flashActive
-                  ? 'Fade — off, Flash snaps'
+                  ? context.l10n.wFadeOffFlashSnaps
                   : tempo.autoFade
-                      ? 'Fade — following the tempo'
-                      : 'Fade',
+                      ? context.l10n.wFadeFollowingTheTempo
+                      : context.l10n.wFade,
         ),
         Slider(
           value: fadeTimeScale.positionOf(
@@ -299,18 +300,18 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
           onChangeEnd: smartActive ? null : (_) => restartActiveTrigger(ref.read, timingOnly: true),
         ),
         _readout(
-          '${(smartActive ? _runningZoneFadeSeconds() : tempo.effectiveFadeSeconds).toStringAsFixed(2)}s fade',
+          context.l10n.wSFade((smartActive ? _runningZoneFadeSeconds() : tempo.effectiveFadeSeconds).toStringAsFixed(2)),
         ),
 
         if (!smartActive) ...[
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,
-            title: const Text('Auto fade', style: TextStyle(fontSize: 13)),
+            title: Text(context.l10n.wAutoFade, style: TextStyle(fontSize: 13)),
             subtitle: Text(
               flashActive
-                  ? 'Not in play while Flash is the beat rate'
-                  : 'Slower music fades longer, faster snaps tighter',
+                  ? context.l10n.wNotInPlayWhile
+                  : context.l10n.wSlowerMusicFadesLonger,
               style: TextStyle(
                 fontSize: 10.5,
                 color: flashActive ? AppColors.accent : AppColors.textFaint,
@@ -325,16 +326,16 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
               activeColor: AppColors.accent2,
               onChanged: (v) => ref.read(tempoProvider.notifier).setAutoFadeAmount(v),
             ),
-            _readout('Amount ${(tempo.autoFadeAmount * 100).round()}%'),
+            _readout(context.l10n.wAmount((tempo.autoFadeAmount * 100).round())),
           ],
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,
-            title: const Text('Override saved timing', style: TextStyle(fontSize: 13)),
+            title: Text(context.l10n.wOverrideSavedTiming, style: TextStyle(fontSize: 13)),
             subtitle: Text(
               tempo.overrideTiming
-                  ? 'Chases run at the timing set here'
-                  : 'Chases keep their own; banks always follow this',
+                  ? context.l10n.wChasesRunAtThe
+                  : context.l10n.wChasesKeepTheirOwn,
               style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
             value: tempo.overrideTiming,
@@ -361,14 +362,14 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             size: 18,
             color: AppColors.textDim,
           ),
-          title: const Text('Beat sync', style: TextStyle(fontSize: 13)),
+          title: Text(context.l10n.wBeatSync, style: TextStyle(fontSize: 13)),
           subtitle: Text(beatSourceKind.label, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
           value: beatSync,
           onChanged: _setBeatSync,
         ),
 
         if (beatSync) ...[
-          _label('Steps per beat'),
+          _label(context.l10n.banksStepsPerBeat),
           SegmentedButton<BeatRate>(
             segments: [
               for (final rate in BeatRate.values) ButtonSegment(value: rate, label: Text(rate.label)),
@@ -382,7 +383,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             onSelectionChanged: (s) => ref.read(beatRateProvider.notifier).state = s.first,
           ),
           if (flashActive) ...[
-            _label('Flash length'),
+            _label(context.l10n.wFlashLength),
             Slider(
               value: ref.watch(flashLengthProvider).inMilliseconds.toDouble(),
               min: 20,
@@ -391,12 +392,12 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
               onChanged: (v) =>
                   ref.read(flashLengthProvider.notifier).state = Duration(milliseconds: v.round()),
             ),
-            _readout('${ref.watch(flashLengthProvider).inMilliseconds} ms'),
+            _readout(context.l10n.wMs(ref.watch(flashLengthProvider).inMilliseconds)),
           ],
           const SizedBox(height: 10),
           if (beatSourceKind == BeatSourceKind.mic) ...[
             BeatMeter(service: ref.read(beatDetectorProvider)),
-            _label('Sensitivity'),
+            _label(context.l10n.wSensitivity),
             Slider(
               value: _sensitivity,
               activeColor: AppColors.accent2,
@@ -406,7 +407,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
               },
             ),
             SilenceFloorSlider(service: ref.read(beatDetectorProvider)),
-            _label('Baseline memory'),
+            _label(context.l10n.wBaselineMemory),
             SegmentedButton<BeatAdaptSpeed>(
               segments: [
                 for (final speed in BeatAdaptSpeed.values)
@@ -423,7 +424,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
                 ref.read(beatDetectorProvider).adaptSpeed = s.first;
               },
             ),
-            _label('React to'),
+            _label(context.l10n.wReactTo),
             // Scrolls sideways: six bands of labelled segments don't fit a
             // phone's panel, and a SegmentedButton that doesn't fit doesn't
             // shrink — it overflows and takes the last band with it.
@@ -459,7 +460,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
         // them out entirely: three more tiles down it would push Blackout
         // off the bottom of a phone held sideways.
         const Divider(height: 22),
-        _label('Momentary — hold one, let go to drop back'),
+        _label(context.l10n.wMomentaryHoldOneLet),
         Row(
           children: [
             for (final entry in momentaryFxStyles.entries) ...[
@@ -471,9 +472,9 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           dense: true,
-          title: const Text('Dimmer-bevágás', style: TextStyle(fontSize: 13)),
-          subtitle: const Text(
-            'Beállítások: Layers képernyő',
+          title: Text(context.l10n.dropoutTitle, style: TextStyle(fontSize: 13)),
+          subtitle: Text(
+            context.l10n.wSettingsLayersScreen,
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           value: ref.watch(dimmerDropoutProvider).enabled,
@@ -482,7 +483,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             ref.read(dimmerDropoutProvider.notifier).update(settings.copyWith(enabled: on));
           },
         ),
-        _label('Strobe rate'),
+        _label(context.l10n.wStrobeRate),
         Slider(
           value: ref.watch(strobeRateProvider).clamp(minStrobeHz, maxStrobeHz),
           min: minStrobeHz,
@@ -490,7 +491,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
           activeColor: AppColors.accent,
           onChanged: (value) => ref.read(strobeRateProvider.notifier).state = value,
         ),
-        _readout('${ref.watch(strobeRateProvider).toStringAsFixed(1)} flashes a second'),
+        _readout(context.l10n.wFlashesASecond(ref.watch(strobeRateProvider).toStringAsFixed(1))),
       ],
     );
   }
@@ -574,19 +575,19 @@ class _MidiStatusRowState extends State<_MidiStatusRow> {
 
     final String message;
     if (device == null) {
-      message = 'No MIDI device — pick one in Setup';
+      message = context.l10n.wNoMidiDevicePick;
     } else if (!listening) {
-      message = '${widget.source.lastError ?? 'Not connected'} — check Setup';
+      message = context.l10n.panelCheckSetup(widget.source.lastError ?? context.l10n.panelNotConnected);
     } else if (beatIsCurrent) {
       message = _bpm == null
-          ? 'Clock from ${device.name}'
-          : 'Clock from ${device.name} — ${_bpm!.toStringAsFixed(1)} BPM';
+          ? context.l10n.wClockFrom(device.name)
+          : context.l10n.wClockFromBpm(device.name, _bpm!.toStringAsFixed(1));
     } else if (recentActivity) {
       // Bytes are arriving but never formed a beat: the device is talking,
       // just not clock — almost always Sync being off on the DAW's output.
-      message = 'Receiving from ${device.name}, but no clock — enable Sync on its output';
+      message = context.l10n.wReceivingFromButNo(device.name);
     } else {
-      message = 'Connected to ${device.name} — waiting for its clock';
+      message = context.l10n.wConnectedToWaitingFor(device.name);
     }
 
     return Row(
@@ -666,16 +667,16 @@ class _OscStatusRowState extends State<_OscStatusRow> {
     final String message;
     final bool ok;
     if (!listening) {
-      message = '${widget.source.lastError ?? 'Not listening'} — check Setup';
+      message = context.l10n.panelCheckSetup(widget.source.lastError ?? context.l10n.panelNotListening);
       ok = false;
     } else if (beatIsCurrent) {
-      message = bpm == null ? 'Beats from rkbx_link' : 'Beats from rkbx_link — ${bpm.toStringAsFixed(1)} BPM';
+      message = bpm == null ? context.l10n.wBeatsFromRkbxLink : context.l10n.wBeatsFromRkbxLink2(bpm.toStringAsFixed(1));
       ok = true;
     } else if (recentActivity) {
-      message = 'rkbx_link is sending, but no beats — is the master deck playing?';
+      message = context.l10n.wRkbxLinkIsSending;
       ok = false;
     } else {
-      message = 'Waiting for rkbx_link on port ${widget.source.port}';
+      message = context.l10n.wWaitingForRkbxLink(widget.source.port);
       ok = true;
     }
 
