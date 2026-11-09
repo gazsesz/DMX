@@ -1,0 +1,372 @@
+{
+  "@@locale": "en",
+  "navHome": "Home",
+  "navLive": "Live",
+  "navFiles": "Files",
+  "navFixture": "Fixture",
+  "navBank": "Bank",
+  "navLayers": "Layers",
+  "navChase": "Chase",
+  "navSetup": "Setup",
+  "commonCancel": "Cancel",
+  "commonSave": "Save",
+  "commonName": "Name",
+  "commonPort": "Port",
+  "settingsLanguageSection": "Language / Nyelv",
+  "settingsLanguageSystem": "System",
+  "settingsLanguageHint": "System follows the device language (Hungarian → Magyar, anything else → English).",
+  "settingsTitle": "Settings",
+  "settingsNoBatteryScreen": "This device has no such screen — look for Battery / App launch in system settings",
+  "settingsEditUniverse": "Edit Universe",
+  "settingsMidiConnectFailed": "Could not connect to {device}",
+  "@settingsMidiConnectFailed": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDisconnect": "Disconnect",
+  "settingsConnect": "Connect",
+  "settingsArtNetSection": "Art-Net Connection",
+  "settingsDeviceName": "Device Name",
+  "settingsHostIp": "Host / IP Address",
+  "settingsOutputProtocol": "OUTPUT PROTOCOL",
+  "settingsSacnHint": "sACN goes to 239.255.0.<universe+1> on port 5568 — the Host above is only used for Art-Net. Set the node to the same universe number.",
+  "settingsArtNetHint": "Art-Net is sent to the Host above. Switch to sACN if your node is set up for E1.31 instead.",
+  "settingsSacnPriorityHint": "sACN priority (0-200, default 100) — a higher number wins over another source on the same universe.",
+  "settingsPriority": "Priority",
+  "settingsDemoMode": "Demo Mode (no node)",
+  "settingsDemoModeOn": "Nothing is transmitted — program offline and watch the Live Stage view",
+  "settingsDemoModeOff": "Turn on to write shows with no node on the network",
+  "settingsTest": "Test",
+  "settingsRemoteSection": "Remote Control",
+  "settingsRemoteIntro": "Lets a phone, laptop or a MacroDroid macro on a watch fire triggers by name over Wi-Fi — no screen tapping, no coordinates. Everything on the node's network can reach it, so leave it off on public Wi-Fi.",
+  "settingsEnableEndpoint": "Enable endpoint",
+  "settingsPointMacroAt": "Point your macro at:",
+  "settingsNoWifiAddress": "No Wi-Fi address yet",
+  "settingsRemoteAlso": "Also: /status (what it answers to), /stop, /blackout. The name is whatever the tile is called, so renaming a bank is the only thing that can break a macro.",
+  "settingsRemoteLocal": "From a macro on this device: http://127.0.0.1:{port}/trigger?name=…",
+  "@settingsRemoteLocal": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsRemoteStartFailed": "Could not start: {error}",
+  "@settingsRemoteStartFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBatteryOptimized": "Android may still put this app to sleep. While the endpoint is on a notification keeps it alive, but some phones (Huawei especially) ignore that unless the app is also excluded from battery optimisation — triggers then stop landing once the screen is off.",
+  "settingsBatteryExcluded": "Excluded from battery optimisation — the endpoint stays reachable with the screen off.",
+  "settingsExcludeBattery": "Exclude from battery optimisation",
+  "settingsDockSection": "Control Dock",
+  "settingsDockIntro": "A strip of live controls (now playing, stop, beat sync, blackout) pinned outside the tabs, so it stays reachable from every screen. Show or hide it with the icon in any screen's top bar.",
+  "settingsOpenControlPanel": "Open the control panel",
+  "settingsOpenControlPanelHint": "Tempo, fade and beat sync — also on the Tempo button in the dock",
+  "settingsShowStageStrip": "Show the Live Stage strip",
+  "settingsShowStageStripHint": "The 2D rig along the bottom of every screen — pairs well with Demo Mode",
+  "settingsShowMovementStrip": "Show the Movement strip",
+  "settingsShowMovementStripHint": "Live Size, Speed, Shift and Smooth knobs for the running Movement FX, above the dock",
+  "settingsShowColourStrip": "Show the Colour strip",
+  "settingsShowColourStripHint": "Basic colours to override the scenes live, whole rig or one saved group, above the dock",
+  "settingsBeatSourceSection": "Beat Source",
+  "settingsBeatSourceIntro": "What drives beat sync everywhere in the app — the microphone listening to the room, an exact MIDI clock over USB from a mixer or controller, or Rekordbox's master deck over Wi-Fi via rkbx_link on the DJ laptop. Device-level, like the dock — not saved with the show.",
+  "settingsUsbMidiDevices": "USB MIDI devices",
+  "settingsRescan": "Rescan",
+  "settingsNoMidiDevices": "Nothing found. Plug the device in over USB-OTG, then rescan — needs a class-compliant USB MIDI interface; a plain data cable between two computers won't carry MIDI on its own.",
+  "settingsLastUsed": "Last used: {name}",
+  "@settingsLastUsed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRkbxTitle": "rkbx_link on the DJ laptop",
+  "settingsRkbxConfig": "Same Wi-Fi as this tablet. In rkbx_link's config file set:",
+  "settingsThisTabletIp": "<this tablet's IP>",
+  "settingsUniversesSection": "Universes",
+  "settingsUniversesActive": "{count} active",
+  "@settingsUniversesActive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsAddUniverse": "Add Universe",
+  "settingsDmxChannelMap": "DMX channel map",
+  "settingsAboutSection": "About & Diagnostics",
+  "settingsAppVersion": "App Version",
+  "settingsSendTestPulse": "Send Test DMX Pulse",
+  "settingsQlcAttribution": "The built-in fixture library contains definitions from the Q Light Controller Plus project (qlcplus.org), used under the Apache License 2.0. Find them under Fixtures, then Fixture library.",
+  "settingsMidiBeats": "Beats arriving from {device} — this is working.",
+  "@settingsMidiBeats": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMidiBeatsBpm": "Beats arriving from {device} — {bpm} BPM — this is working.",
+  "@settingsMidiBeatsBpm": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "bpm": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMidiNoClock": "Receiving data from {device}, but none of it is clock — enable \"Sync\" on that device's MIDI output (in your DAW/mixer's MIDI preferences), and make sure it's actually playing.",
+  "@settingsMidiNoClock": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMidiNothingYet": "Connected to {device}, but nothing has arrived yet.",
+  "@settingsMidiNothingYet": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOscNotListening": "Not listening — starts with Beat sync.",
+  "settingsListen": "Listen",
+  "settingsOscNoBeats": "Receiving from {sender}, but no beats — check the \"osc.msg.master/beat/trigger 1\" line, and that the master deck is playing.",
+  "@settingsOscNoBeats": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOscNothingYet": "Listening on port {port}, nothing has arrived yet — check the IP in rkbx_link's config, that it's running, and that both are on the same Wi-Fi.",
+  "@settingsOscNothingYet": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsTesting": "Testing…",
+  "settingsNotTested": "Not tested yet",
+  "settingsConnectedLatency": "Connected · {ms}ms",
+  "@settingsConnectedLatency": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNoReply": "No reply received",
+  "dashMovementSub": "movement · {shape}",
+  "@dashMovementSub": {
+    "placeholders": {
+      "shape": {
+        "type": "String"
+      }
+    }
+  },
+  "dashBankScenes": "{filled}/{total} scenes",
+  "@dashBankScenes": {
+    "placeholders": {
+      "filled": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "dashChaseSteps": "{count, plural, =1{1 step} other{{count} steps}}",
+  "@dashChaseSteps": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dashCreateFirst": "Create a bank or chase first",
+  "dashCustomizeTriggers": "Customize Quick Triggers",
+  "dashCustomizeTriggersHint": "Pick which banks/chases show up on the Dashboard",
+  "dashBanksHeader": "BANKS",
+  "dashChasesHeader": "CHASES",
+  "commonDone": "Done",
+  "dashTapToResume": "{layer} · tap to resume",
+  "@dashTapToResume": {
+    "placeholders": {
+      "layer": {
+        "type": "String"
+      }
+    }
+  },
+  "dashSitsZoneOut": "— (sits this zone out)",
+  "dashNoMusicSub": "{name} · No music",
+  "@dashNoMusicSub": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "commonEmpty": "Empty",
+  "dashSongShowsHeader": "SONG SHOWS",
+  "dashSongShowsHint": "Programs timed to one song — tap to play from the start",
+  "dashNoneYetChaseTab": "None yet — create one from the Chase tab",
+  "dashCueCount": "{count, plural, =1{1 cue} other{{count} cues}}",
+  "@dashCueCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dashSilent": "silent",
+  "dashSmartProgramsHeader": "SMART PROGRAMS",
+  "dashSmartProgramsHint": "Switches chases automatically as the live music tempo changes",
+  "commonNoMusic": "No music",
+  "dashBpmBase": "{bpm} BPM base",
+  "@dashBpmBase": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "dashQuickTriggersHeader": "QUICK TRIGGERS",
+  "dashAddRemoveTriggers": "Add / remove triggers",
+  "dashBoxSize": "Box size",
+  "dashMosaicView": "Mosaic view",
+  "dashListView": "List view",
+  "dashNoBanksOrChases": "No banks or chases yet — create some in the Bank/Chase tabs",
+  "dashNoTriggers": "No triggers yet — tap the pencil to add some",
+  "dashLayersHeader": "LAYERS",
+  "dashLayersHint": "What each playback layer is running right now",
+  "dashTitle": "Dashboard",
+  "dashLiveStageHeader": "LIVE STAGE",
+  "dashEditStageLayout": "Edit stage layout",
+  "stageNoFixtures": "No patched fixtures yet",
+  "stageHeader": "STAGE",
+  "filesSaveAsTitle": "Save Project As",
+  "filesSaved": "Saved \"{name}\"",
+  "@filesSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesLoaded": "Loaded \"{name}\"",
+  "@filesLoaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesNewProject": "New Project",
+  "filesUntitledProject": "Untitled Project",
+  "filesCurrentShow": "current show",
+  "filesDuplicateProject": "Duplicate Project",
+  "filesCopyName": "{name} Copy",
+  "@filesCopyName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesCreated": "Created \"{name}\"",
+  "@filesCreated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesExportDialogTitle": "Export project",
+  "filesImported": "Imported \"{name}\"",
+  "@filesImported": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesTitle": "Files",
+  "filesSaveAs": "Save As…",
+  "filesSavedProjectsHeader": "SAVED PROJECTS",
+  "filesNoSavedProjects": "No saved projects yet",
+  "filesDuplicate": "Duplicate…",
+  "filesImportExportHeader": "IMPORT / EXPORT",
+  "filesImport": "Import",
+  "filesExport": "Export",
+  "manualTitle": "Manual Control",
+  "manualLiveHeader": "LIVE",
+  "manualNoFixtures": "No patched fixtures — patch one in the Fixtures tab",
+  "manualAllUniverses": "All Universes",
+  "commonAll": "All",
+  "commonBlackout": "Blackout",
+  "dmxMapUsage": "{used} of {size} channels used · {fixtures} fixtures",
+  "@dmxMapUsage": {
+    "placeholders": {
+      "used": {
+        "type": "int"
+      },
+      "size": {
+        "type": "int"
+      },
+      "fixtures": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapFirstFree": " · first free: {channel}",
+  "@dmxMapFirstFree": {
+    "placeholders": {
+      "channel": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapOverlaps": "{count} channels overlap",
+  "@dmxMapOverlaps": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapFixtureLine": "{profile} · {universe} · channels {first}–{last} ({count})",
+  "@dmxMapFixtureLine": {
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      },
+      "universe": {
+        "type": "String"
+      },
+      "first": {
+        "type": "int"
+      },
+      "last": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapOverlap": "overlap"
+}

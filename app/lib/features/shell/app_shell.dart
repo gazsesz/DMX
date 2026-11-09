@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/widgets/control_dock.dart';
+import '../../l10n/l10n.dart';
 import '../../core/widgets/live_color_bar.dart';
 import '../../core/widgets/movement_live_bar.dart';
 import '../../models/control_dock_prefs.dart';
@@ -23,7 +24,7 @@ const _tabletBreakpoint = 700.0;
 
 
 class _NavSection {
-  final String label;
+  final String Function(AppLocalizations l) label;
   final IconData icon;
   final Widget screen;
 
@@ -31,14 +32,14 @@ class _NavSection {
 }
 
 final _sections = [
-  const _NavSection(label: 'Home', icon: Icons.dashboard_outlined, screen: DashboardScreen()),
-  const _NavSection(label: 'Live', icon: Icons.tune, screen: ManualControlScreen()),
-  const _NavSection(label: 'Files', icon: Icons.folder_outlined, screen: FilesScreen()),
-  const _NavSection(label: 'Fixture', icon: Icons.lightbulb_outline, screen: FixturesScreen()),
-  const _NavSection(label: 'Bank', icon: Icons.grid_view_outlined, screen: BanksScreen()),
-  const _NavSection(label: 'Layers', icon: Icons.layers_outlined, screen: LayersScreen()),
-  const _NavSection(label: 'Chase', icon: Icons.fast_forward_outlined, screen: ChasesScreen()),
-  const _NavSection(label: 'Setup', icon: Icons.settings_outlined, screen: SettingsScreen()),
+  _NavSection(label: (l) => l.navHome, icon: Icons.dashboard_outlined, screen: DashboardScreen()),
+  _NavSection(label: (l) => l.navLive, icon: Icons.tune, screen: ManualControlScreen()),
+  _NavSection(label: (l) => l.navFiles, icon: Icons.folder_outlined, screen: FilesScreen()),
+  _NavSection(label: (l) => l.navFixture, icon: Icons.lightbulb_outline, screen: FixturesScreen()),
+  _NavSection(label: (l) => l.navBank, icon: Icons.grid_view_outlined, screen: BanksScreen()),
+  _NavSection(label: (l) => l.navLayers, icon: Icons.layers_outlined, screen: LayersScreen()),
+  _NavSection(label: (l) => l.navChase, icon: Icons.fast_forward_outlined, screen: ChasesScreen()),
+  _NavSection(label: (l) => l.navSetup, icon: Icons.settings_outlined, screen: SettingsScreen()),
 ];
 
 class AppShell extends ConsumerStatefulWidget {
@@ -183,7 +184,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     for (final section in _sections)
                       NavigationRailDestination(
                         icon: Icon(section.icon),
-                        label: Text(section.label),
+                        label: Text(section.label(context.l10n)),
                       ),
                   ],
                 ),
@@ -225,7 +226,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             onDestinationSelected: _select,
             destinations: [
               for (final section in _sections)
-                NavigationDestination(icon: Icon(section.icon), label: section.label),
+                NavigationDestination(icon: Icon(section.icon), label: section.label(context.l10n)),
             ],
           ),
         );

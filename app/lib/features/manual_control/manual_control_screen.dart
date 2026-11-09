@@ -18,6 +18,7 @@ import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/playback_providers.dart';
 import '../scenes/widgets/wheel_pickers.dart';
+import '../../l10n/l10n.dart';
 
 /// A live "desk" view: every patched fixture with direct sliders, bypassing
 /// scenes entirely. Values shown are seeded from whatever is already
@@ -385,7 +386,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Manual Control'),
+        title: Text(context.l10n.manualTitle),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -393,17 +394,17 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               backgroundColor: Colors.transparent,
               side: const BorderSide(color: AppColors.danger, width: 1.5),
               avatar: const Icon(Icons.circle, size: 8, color: AppColors.danger),
-              label: const Text(
-                'LIVE',
-                style: TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800, fontSize: 10),
+              label: Text(
+                context.l10n.manualLiveHeader,
+                style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w800, fontSize: 10),
               ),
             ),
           ),
         ],
       ),
       body: fixtures.isEmpty
-          ? const Center(
-              child: Text('No patched fixtures — patch one in the Fixtures tab', style: TextStyle(color: AppColors.textFaint)),
+          ? Center(
+              child: Text(context.l10n.manualNoFixtures, style: TextStyle(color: AppColors.textFaint)),
             )
           : Column(
               children: [
@@ -416,7 +417,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                       Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: ChoiceChip(
-                          label: const Text('All Universes'),
+                          label: Text(context.l10n.manualAllUniverses),
                           selected: _universeFilter == null,
                           onSelected: (_) => setState(() => _universeFilter = null),
                         ),
@@ -444,7 +445,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
                             avatar: const Icon(Icons.grid_view_outlined, size: 16),
-                            label: const Text('All'),
+                            label: Text(context.l10n.commonAll),
                             selected: _liveTargetGroupId == null,
                             onSelected: (_) => setState(() => _liveTargetGroupId = null),
                           ),
@@ -498,7 +499,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'manual-control-fab',
         backgroundColor: AppColors.danger,
-        tooltip: 'Blackout',
+        tooltip: context.l10n.commonBlackout,
         onPressed: _blackout,
         child: const Icon(Icons.power_settings_new, color: Colors.white),
       ),

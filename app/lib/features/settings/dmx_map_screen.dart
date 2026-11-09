@@ -7,6 +7,7 @@ import '../../models/patched_fixture.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../l10n/l10n.dart';
 
 const _channelsPerRow = 32;
 const _universeSize = 512;
@@ -48,7 +49,7 @@ class _DmxMapScreenState extends ConsumerState<DmxMapScreen> {
     final layout = DmxMapLayout.of(inUniverse, fixtures);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('DMX channel map')),
+      appBar: AppBar(title: Text(context.l10n.settingsDmxChannelMap)),
       body: Column(
         children: [
           Padding(
@@ -57,14 +58,14 @@ class _DmxMapScreenState extends ConsumerState<DmxMapScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    '${layout.used} of $_universeSize channels used · ${inUniverse.length} fixtures'
-                    '${layout.firstFree == null ? '' : ' · first free: ${layout.firstFree}'}',
+                    context.l10n.dmxMapUsage(layout.used, _universeSize, inUniverse.length) +
+                        (layout.firstFree == null ? '' : context.l10n.dmxMapFirstFree(layout.firstFree!)),
                     style: appMonoStyle(fontSize: 11, color: AppColors.textFaint),
                   ),
                 ),
                 if (layout.conflicts > 0)
                   Text(
-                    '${layout.conflicts} channels overlap',
+                    context.l10n.dmxMapOverlaps(layout.conflicts),
                     style: const TextStyle(fontSize: 11, color: AppColors.danger, fontWeight: FontWeight.w700),
                   ),
               ],
@@ -132,8 +133,7 @@ class _DmxMapScreenState extends ConsumerState<DmxMapScreen> {
             Text(fixture.label, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             const SizedBox(height: 2),
             Text(
-              '${fixture.profile.name} · ${universe.name} · channels $first–$last '
-              '(${fixture.profile.channelCount})',
+              context.l10n.dmxMapFixtureLine(fixture.profile.name, universe.name, first, last, fixture.profile.channelCount),
               style: appMonoStyle(fontSize: 11, color: AppColors.textFaint),
             ),
             const SizedBox(height: 10),
@@ -277,7 +277,7 @@ class _MapGrid extends StatelessWidget {
               child: Row(
                 children: [
                   for (final segment in row)
-                    Expanded(flex: segment.length, child: _cell(segment)),
+                    Expanded(flex: segment.length, child: _cell(context, segment)),
                 ],
               ),
             ),
@@ -286,7 +286,7 @@ class _MapGrid extends StatelessWidget {
     );
   }
 
-  Widget _cell(MapSegment segment) {
+  Widget _cell(BuildContext context, MapSegment segment) {
     final fixture = segment.fixture;
     if (fixture == null) {
       return Container(
@@ -301,7 +301,7 @@ class _MapGrid extends StatelessWidget {
     final color = segment.conflict
         ? AppColors.danger
         : _fixtureColors[(layout.colorIndex[fixture.id] ?? 0) % _fixtureColors.length];
-    final label = segment.conflict ? 'overlap' : fixture.label;
+    final label = segment.conflict ? context.l10n.dmxMapOverlap : fixture.label;
     return InkWell(
       onTap: () => onTapFixture(fixture),
       child: Container(

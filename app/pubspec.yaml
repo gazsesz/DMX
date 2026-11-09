@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # Bump this on every release you build for the tablet — the Setup screen
 # reads it straight from here, so it's the single source of truth for
 # "which build is on the device?".
-version: 1.44.8+78
+version: 1.45.0+79
 
 environment:
   sdk: ^3.13.2
@@ -33,6 +33,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: any
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -72,6 +75,7 @@ dev_dependencies:
 
 # The following section is specific to Flutter packages.
 flutter:
+  generate: true
 
   # The following line ensures that the Material Icons font is
   # included with your application, so that you can use the icons in
