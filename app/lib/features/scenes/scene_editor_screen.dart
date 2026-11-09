@@ -116,10 +116,12 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   /// turning them the same way round from one drag to the next.
   final Map<String, Map<String, PanTilt>> _lastResolved = {};
 
+  bool _defaultNameSet = false;
+
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.existing?.name ?? context.l10n.scNewScene);
+    _nameController = TextEditingController(text: widget.existing?.name ?? '');
     final scene = widget.existing;
     if (scene != null) {
       final allFixtures = ref.read(patchedFixturesProvider);
@@ -190,6 +192,16 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         // that way.
         _clusterByValue(perFixtureValues.keys, perFixtureValues, perFixtureExcluded);
       }
+    }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The default name is localised, which can't be read in initState.
+    if (widget.existing == null && !_defaultNameSet) {
+      _defaultNameSet = true;
+      _nameController.text = context.l10n.scNewScene;
     }
   }
 

@@ -2204,5 +2204,260 @@
         "type": "int"
       }
     }
-  }
+  },
+  "songSections": "Sections",
+  "songImportASongShow": "Import a song show",
+  "songNewSongShow": "New song show",
+  "songAProgramTimedTo": "A program timed to one song: sections and cues placed on a timeline, played with the song",
+  "songNoSongShowsYet": "No song shows yet",
+  "songEndsBarBeat": "ends bar {v} · beat {v2}",
+  "@songEndsBarBeat": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "v2": {
+        "type": "Object"
+      }
+    }
+  },
+  "songCut": "Cut",
+  "songHowDoesItEnd": "How does it end?",
+  "songKeepTheLastLook": "Keep the last look",
+  "songTheBankSLast": "The bank's last scene, or the scene, stays on stage as it was.",
+  "songTheLightsFadeOut": "The lights fade out. Moving heads keep their position.",
+  "songFadeOutOver": "Fade out over",
+  "songLinkASongFile": "Link a song file in the editor first",
+  "songReplaceWhatIsOn": "Replace what is on the timeline?",
+  "songCuesAndSectionsAre": "{length} cues and {length2} sections are replaced by the generated ones.",
+  "@songCuesAndSectionsAre": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "length2": {
+        "type": "Object"
+      }
+    }
+  },
+  "songTheSectionsAreReplaced": "The sections are replaced by the detected ones. Your cues stay where they are.",
+  "songReplace": "Replace",
+  "songAutoProgram": "Auto program",
+  "songRetry": "Retry",
+  "songListeningToTheSong": "Listening to the song…",
+  "songTempoBeatGridAnd": "Tempo, beat grid and sections",
+  "songStyle": "STYLE",
+  "songRestlessness": "Restlessness",
+  "songSeed": "Seed {seed}",
+  "@songSeed": {
+    "placeholders": {
+      "seed": {
+        "type": "Object"
+      }
+    }
+  },
+  "songAnotherArrangement": "Another arrangement",
+  "songBanksToUse": "BANKS TO USE",
+  "songNoMovementFxBanks": "No Movement FX banks yet",
+  "songMovementBanks": "Movement banks",
+  "songSavedWithTheShow": "Saved with the show. None selected means every fixture. Limiting playback to these groups arrives with export and scope.",
+  "songTempoAndSectionsOnly": "Tempo and sections only",
+  "songGenerateShow": "Generate show",
+  "songBpmGridMsBars": "{v} BPM · grid {beatOffsetMs} ms · {bars} bars · {length} sections",
+  "@songBpmGridMsBars": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "beatOffsetMs": {
+        "type": "Object"
+      },
+      "bars": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "songNotSureAboutThe": "Not sure about the tempo — check it in the editor (double or half is the usual mistake).",
+  "songNoSectionsFoundThe": "No sections found — the song may be too short or too even.",
+  "songNewSection": "New section",
+  "songSection": "Section",
+  "songNameOptional": "Name (optional)",
+  "songLength": "Length",
+  "songBars": "{round} bars",
+  "@songBars": {
+    "placeholders": {
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "songPlayItsCues": "Play its cues",
+  "songExportSongShow": "Export song show",
+  "songTheSongFileIs": " The song file is not included — link it again after importing.",
+  "songExported": "Exported \"{name}\".{audioNote}",
+  "@songExported": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "audioNote": {
+        "type": "Object"
+      }
+    }
+  },
+  "songIsThisTheSame": "Is this the same song?",
+  "songIsLongButThis": "\"{name}\" is {inMilliseconds} long, but this show was made for \"{fileName}\" ({durationMs}). The cues would land in the wrong places.",
+  "@songIsLongButThis": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "inMilliseconds": {
+        "type": "Object"
+      },
+      "fileName": {
+        "type": "Object"
+      },
+      "durationMs": {
+        "type": "Object"
+      }
+    }
+  },
+  "songLinkAnyway": "Link anyway",
+  "songCouldNotRead": "Could not read {name}: {e}",
+  "@songCouldNotRead": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "e": {
+        "type": "Object"
+      }
+    }
+  },
+  "songPlayOnWhichFixtures": "Play on which fixtures?",
+  "songNoFixtureGroupsYet": "No fixture groups yet — make some on the Fixture tab, then limit the show to them.",
+  "songFixtures": "{length} fixtures",
+  "@songFixtures": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "songSongShowName": "Song show name",
+  "songStartABankScene": "Start a bank, scene or chase here",
+  "songPaste": "Paste: {songCueNameRefClip}",
+  "@songPaste": {
+    "placeholders": {
+      "songCueNameRefClip": {
+        "type": "Object"
+      }
+    }
+  },
+  "songStopThisLayerHere": "Stop this layer here",
+  "songTryItNow": "Try it now",
+  "songPlaysThisLookOn": "Plays this look on its layer, outside the song",
+  "songHowItEnds": "How it ends…",
+  "songBlackout": "Blackout, {stopFadeMs}",
+  "@songBlackout": {
+    "placeholders": {
+      "stopFadeMs": {
+        "type": "Object"
+      }
+    }
+  },
+  "songKeepsTheLastLook": "Keeps the last look",
+  "songStopThisLayerNow": "Stop this layer now",
+  "songChangeWhatItStarts": "Change what it starts",
+  "songStartSomethingInstead": "Start something instead",
+  "songCopy": "Copy",
+  "songThenTapALane": "Then tap a lane to paste it there",
+  "songDeleteCue": "Delete cue",
+  "songCopiedTapALane": "Copied \"{songCueNameRefCue}\" — tap a lane to paste it",
+  "@songCopiedTapALane": {
+    "placeholders": {
+      "songCueNameRefCue": {
+        "type": "Object"
+      }
+    }
+  },
+  "songItCannotEndThere": "It cannot end there — the next cue is too close",
+  "songThisSongShowNo": "This song show no longer exists",
+  "songPlayFromTheCursor": "Play from the cursor",
+  "songPickAudioFile": "Pick audio file",
+  "songGridMs": "Grid {beatOffsetMs} ms",
+  "@songGridMs": {
+    "placeholders": {
+      "beatOffsetMs": {
+        "type": "Object"
+      }
+    }
+  },
+  "songSnap": "Snap: {label}",
+  "@songSnap": {
+    "placeholders": {
+      "label": {
+        "type": "Object"
+      }
+    }
+  },
+  "songZoomOut": "Zoom out",
+  "songZoomIn": "Zoom in",
+  "songRecord": "Record",
+  "songNoAudioLinkedThe": "No audio linked — the timeline still works from the tempo, but playing needs a song file.",
+  "songTheSongFileIsn": "The song file isn't linked on this device — pick \"{fileName}\" to play it. The cues are kept.",
+  "@songTheSongFileIsn": {
+    "placeholders": {
+      "fileName": {
+        "type": "Object"
+      }
+    }
+  },
+  "songTapALaneTo": "Tap a lane to add a cue there. A cue plays until the next cue on its layer — add a Stop to end it, or hold the cue and drag its end. Tap the left end of a cue to change or delete it, drag it to move it.",
+  "songGrid10MsEarlier": "Grid 10 ms earlier",
+  "songGrid10MsLater": "Grid 10 ms later",
+  "songRecordingOn": "Recording on",
+  "songTempo": "Tempo",
+  "songTapTempo": "Tap tempo",
+  "songSet": "Set",
+  "songItsTimelineGoesWith": "Its timeline goes with it. The banks and chases it used stay in the project, and the song file is untouched.",
+  "songBarBeat": "bar {v} · beat {v2}",
+  "@songBarBeat": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "v2": {
+        "type": "Object"
+      }
+    }
+  },
+  "songPlay": "Play",
+  "songPlaying": "Playing · {barBeatBeat}",
+  "@songPlaying": {
+    "placeholders": {
+      "barBeatBeat": {
+        "type": "Object"
+      }
+    }
+  },
+  "songStartsFromTapThe": "Starts from {barBeatCursorBeat} (tap the ruler to move it)",
+  "@songStartsFromTapThe": {
+    "placeholders": {
+      "barBeatCursorBeat": {
+        "type": "Object"
+      }
+    }
+  },
+  "songNoSongFileLinked": "No song file linked: plays without sound, on the tempo",
+  "songStartWhat": "Start what?",
+  "songSearchByName": "Search by name",
+  "songNothingMatches": "Nothing matches",
+  "songScenes": "SCENES",
+  "songMakeACopyTo": "Make a copy to change",
+  "songDeleted": "(deleted)"
 }

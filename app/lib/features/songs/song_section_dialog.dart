@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/song_show.dart';
 import 'song_timeline.dart';
+import '../../l10n/l10n.dart';
 
 /// What the section dialog returns: an edited section, or a delete request.
 class SectionDialogResult {
@@ -56,7 +57,7 @@ class _SectionDialogState extends State<_SectionDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(widget.isNew ? 'New section' : 'Section'),
+    title: Text(widget.isNew ? context.l10n.songNewSection : context.l10n.songSection),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -76,18 +77,18 @@ class _SectionDialogState extends State<_SectionDialog> {
           ),
           TextField(
             controller: _label,
-            decoration: const InputDecoration(labelText: 'Name (optional)'),
+            decoration: InputDecoration(labelText: context.l10n.songNameOptional),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('Length'),
+              Text(context.l10n.songLength),
               IconButton(
                 key: const ValueKey('section-shorter'),
                 icon: const Icon(Icons.remove_circle_outline),
                 onPressed: _bars > 1 ? () => setState(() => _bars -= _bars > 8 ? 4 : 1) : null,
               ),
-              Text('${_bars.round()} bars'),
+              Text(context.l10n.songBars(_bars.round())),
               IconButton(
                 key: const ValueKey('section-longer'),
                 icon: const Icon(Icons.add_circle_outline),
@@ -97,7 +98,7 @@ class _SectionDialogState extends State<_SectionDialog> {
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Play its cues'),
+            title: Text(context.l10n.songPlayItsCues),
             value: _enabled,
             onChanged: (v) => setState(() => _enabled = v),
           ),
@@ -109,13 +110,13 @@ class _SectionDialogState extends State<_SectionDialog> {
         TextButton(
           key: const ValueKey('section-delete'),
           onPressed: () => Navigator.pop(context, const SectionDialogResult.remove()),
-          child: const Text('Delete'),
+          child: Text(context.l10n.scDelete),
         ),
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
       FilledButton(
         key: const ValueKey('section-save'),
         onPressed: () => Navigator.pop(context, SectionDialogResult.save(_result)),
-        child: const Text('Save'),
+        child: Text(context.l10n.commonSave),
       ),
     ],
   );

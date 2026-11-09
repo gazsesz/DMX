@@ -8,6 +8,7 @@ import '../../core/song/song_timeline_math.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/song_show.dart';
 import 'song_cue_block.dart';
+import '../../l10n/l10n.dart';
 
 /// One layer's lane on the timeline: its cue blocks, taps to add a cue, and
 /// a long press on a look that lets a finger drag where it ends.
@@ -195,7 +196,7 @@ class _ResizeMarker extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4)),
               child: Text(
-                'ends bar ${endBeat ~/ 4 + 1} · beat ${(endBeat % 4).floor() + 1}',
+                context.l10n.songEndsBarBeat(endBeat ~/ 4 + 1, (endBeat % 4).floor() + 1),
                 key: const ValueKey('resize-label'),
                 style: const TextStyle(fontSize: 10, color: Colors.black, fontWeight: FontWeight.w700),
               ),

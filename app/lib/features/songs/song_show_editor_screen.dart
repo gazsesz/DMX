@@ -28,6 +28,7 @@ import 'song_section_dialog.dart';
 import 'song_stop_dialog.dart';
 import 'song_target_picker.dart';
 import 'song_timeline.dart';
+import '../../l10n/l10n.dart';
 
 const _uuid = Uuid();
 
@@ -184,14 +185,13 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
         final proceed = await showDialog<bool>(
           context: context,
           builder: (context) => AlertDialog(
-            title: const Text('Is this the same song?'),
+            title: Text(context.l10n.songIsThisTheSame),
             content: Text(
-              '"${file.name}" is ${_clock(probe.length.inMilliseconds)} long, but this show was made for '
-              '"${previous.fileName}" (${_clock(previous.durationMs)}). The cues would land in the wrong places.',
+              context.l10n.songIsLongButThis(file.name, _clock(probe.length.inMilliseconds), previous.fileName, _clock(previous.durationMs)),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Link anyway')),
+              TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+              FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.songLinkAnyway)),
             ],
           ),
         );
@@ -206,7 +206,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
         _waveformPath = path;
       });
     } catch (e) {
-      _snackText('Could not read ${file.name}: $e');
+      _snackText(context.l10n.songCouldNotRead(file.name, e));
     }
   }
 
@@ -224,11 +224,11 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setLocal) => AlertDialog(
-          title: const Text('Play on which fixtures?'),
+          title: Text(context.l10n.songPlayOnWhichFixtures),
           content: SizedBox(
             width: 340,
             child: groups.isEmpty
-                ? const Text('No fixture groups yet — make some on the Fixture tab, then limit the show to them.')
+                ? Text(context.l10n.songNoFixtureGroupsYet)
                 : ListView(
                     shrinkWrap: true,
                     children: [
@@ -237,7 +237,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                           key: ValueKey('scope-${g.id}'),
                           dense: true,
                           title: Text(g.name),
-                          subtitle: Text('${g.fixtureIds.length} fixtures'),
+                          subtitle: Text(context.l10n.songFixtures(g.fixtureIds.length)),
                           value: chosen.contains(g.id),
                           onChanged: (v) => setLocal(() => v == true ? chosen.add(g.id) : chosen.remove(g.id)),
                         ),
@@ -245,11 +245,11 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                   ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, <String>[]), child: const Text('All fixtures')),
+            TextButton(onPressed: () => Navigator.pop(context, <String>[]), child: Text(context.l10n.wAllFixtures)),
             FilledButton(
               key: const ValueKey('scope-done'),
               onPressed: () => Navigator.pop(context, chosen.toList()),
-              child: const Text('Done'),
+              child: Text(context.l10n.commonDone),
             ),
           ],
         ),
@@ -279,11 +279,11 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Song show name'),
+        title: Text(context.l10n.songSongShowName),
         content: TextField(controller: controller, autofocus: true),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, controller.text.trim()), child: Text(context.l10n.commonSave)),
         ],
       ),
     );
@@ -322,20 +322,20 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
             ListTile(
               key: const ValueKey('add-start-cue'),
               leading: const Icon(Icons.play_arrow),
-              title: const Text('Start a bank, scene or chase here'),
+              title: Text(context.l10n.songStartABankScene),
               onTap: () => Navigator.pop(context, 'start'),
             ),
             if (clip != null)
               ListTile(
                 key: const ValueKey('paste-cue'),
                 leading: const Icon(Icons.content_paste),
-                title: Text('Paste: ${songCueName(ref, clip)}'),
+                title: Text(context.l10n.songPaste(songCueName(ref, clip, context.l10n))),
                 onTap: () => Navigator.pop(context, 'paste'),
               ),
             ListTile(
               key: const ValueKey('add-stop-cue'),
               leading: const Icon(Icons.stop),
-              title: const Text('Stop this layer here'),
+              title: Text(context.l10n.songStopThisLayerHere),
               onTap: () => Navigator.pop(context, 'stop'),
             ),
           ],
@@ -387,41 +387,41 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
               ListTile(
                 key: const ValueKey('cue-try'),
                 leading: const Icon(Icons.play_circle_outline),
-                title: const Text('Try it now'),
-                subtitle: const Text('Plays this look on its layer, outside the song'),
+                title: Text(context.l10n.songTryItNow),
+                subtitle: Text(context.l10n.songPlaysThisLookOn),
                 onTap: () => Navigator.pop(context, 'try'),
               ),
             if (!isStart)
               ListTile(
                 key: const ValueKey('cue-stop-mode'),
                 leading: const Icon(Icons.nights_stay_outlined),
-                title: const Text('How it ends…'),
-                subtitle: Text(cue.stopBlackout ? 'Blackout, ${stopFadeLabel(cue.stopFadeMs)}' : 'Keeps the last look'),
+                title: Text(context.l10n.songHowItEnds),
+                subtitle: Text(cue.stopBlackout ? context.l10n.songBlackout(stopFadeLabel(context, cue.stopFadeMs)) : context.l10n.songKeepsTheLastLook),
                 onTap: () => Navigator.pop(context, 'stop-mode'),
               ),
             ListTile(
               key: const ValueKey('cue-stop-layer'),
               leading: const Icon(Icons.stop_circle_outlined),
-              title: const Text('Stop this layer now'),
+              title: Text(context.l10n.songStopThisLayerNow),
               onTap: () => Navigator.pop(context, 'stop-layer'),
             ),
             ListTile(
               key: const ValueKey('cue-change'),
               leading: const Icon(Icons.swap_horiz),
-              title: Text(isStart ? 'Change what it starts' : 'Start something instead'),
+              title: Text(isStart ? context.l10n.songChangeWhatItStarts : context.l10n.songStartSomethingInstead),
               onTap: () => Navigator.pop(context, 'change'),
             ),
             ListTile(
               key: const ValueKey('cue-copy'),
               leading: const Icon(Icons.copy_outlined),
-              title: const Text('Copy'),
-              subtitle: const Text('Then tap a lane to paste it there'),
+              title: Text(context.l10n.songCopy),
+              subtitle: Text(context.l10n.songThenTapALane),
               onTap: () => Navigator.pop(context, 'copy'),
             ),
             ListTile(
               key: const ValueKey('cue-delete'),
               leading: const Icon(Icons.delete_outline),
-              title: const Text('Delete cue'),
+              title: Text(context.l10n.songDeleteCue),
               onTap: () => Navigator.pop(context, 'delete'),
             ),
           ],
@@ -436,7 +436,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
         setState(() => _selectedCueId = null);
       case 'copy':
         setState(() => _clipboard = cue);
-        _snackText('Copied "${songCueName(ref, cue)}" — tap a lane to paste it');
+        _snackText(context.l10n.songCopiedTapALane(songCueName(ref, cue, context.l10n)));
       case 'try':
         previewSongCue(ref.read, cue);
       case 'stop-mode':
@@ -467,7 +467,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     if (show == null) return;
     final cues = resizeCueEnd(show, cue, endBeat, newId: _uuid.v4);
     if (cues == null) {
-      _snackText('It cannot end there — the next cue is too close');
+      _snackText(context.l10n.songItCannotEndThere);
       return;
     }
     _save(show.copyWith(cues: cues));
@@ -537,7 +537,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     final stageVisible = ref.watch(controlDockProvider.select((d) => d.stageVisible));
     final matches = shows.where((s) => s.id == widget.showId);
     if (matches.isEmpty) {
-      return const Scaffold(body: Center(child: Text('This song show no longer exists')));
+      return Scaffold(body: Center(child: Text(context.l10n.songThisSongShowNo)));
     }
     final show = matches.first;
     final audio = show.audio;
@@ -546,10 +546,10 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
       appBar: AppBar(
         title: GestureDetector(onTap: _renameShow, child: Text(show.name)),
         actions: [
-          IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Rename', onPressed: _renameShow),
+          IconButton(icon: const Icon(Icons.edit_outlined), tooltip: context.l10n.scRename, onPressed: _renameShow),
           IconButton(
             key: const ValueKey('song-live-stage'),
-            tooltip: stageVisible ? 'Hide live stage' : 'Show live stage',
+            tooltip: stageVisible ? context.l10n.wHideLiveStage : context.l10n.wShowLiveStage,
             icon: Icon(
               stageVisible ? Icons.lightbulb : Icons.lightbulb_outline,
               color: stageVisible ? AppColors.accent2 : null,
@@ -559,7 +559,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
           IconButton(
             key: const ValueKey('song-play'),
             icon: Icon(playing ? Icons.stop_circle_outlined : Icons.play_circle_outline, size: 30),
-            tooltip: playing ? 'Stop' : 'Play from the cursor',
+            tooltip: playing ? context.l10n.commonStop : context.l10n.songPlayFromTheCursor,
             onPressed: _togglePlay,
           ),
         ],
@@ -577,7 +577,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                   key: const ValueKey('song-pick-audio'),
                   onPressed: _pickAudio,
                   icon: const Icon(Icons.audio_file_outlined, size: 18),
-                  label: Text(audio == null ? 'Pick audio file' : audio.fileName, overflow: TextOverflow.ellipsis),
+                  label: Text(audio == null ? context.l10n.songPickAudioFile : audio.fileName, overflow: TextOverflow.ellipsis),
                 ),
                 OutlinedButton(
                   key: const ValueKey('song-tempo'),
@@ -585,23 +585,23 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                   child: Text('${show.bpm.toStringAsFixed(show.bpm == show.bpm.roundToDouble() ? 0 : 1)} BPM'),
                 ),
                 _Nudge(
-                  label: 'Grid ${show.beatOffsetMs} ms',
+                  label: context.l10n.songGridMs(show.beatOffsetMs),
                   onMinus: () => _nudgeOffset(-10),
                   onPlus: () => _nudgeOffset(10),
                 ),
                 DropdownButton<SongSnap>(
                   value: _snap,
                   underline: const SizedBox.shrink(),
-                  items: [for (final s in SongSnap.values) DropdownMenuItem(value: s, child: Text('Snap: ${s.label}'))],
+                  items: [for (final s in SongSnap.values) DropdownMenuItem(value: s, child: Text(context.l10n.songSnap(s.label)))],
                   onChanged: (v) => setState(() => _snap = v ?? _snap),
                 ),
                 IconButton(
-                  tooltip: 'Zoom out',
+                  tooltip: context.l10n.songZoomOut,
                   icon: const Icon(Icons.zoom_out),
                   onPressed: () => _setScale(_scale.zoomed(0.7)),
                 ),
                 IconButton(
-                  tooltip: 'Zoom in',
+                  tooltip: context.l10n.songZoomIn,
                   icon: const Icon(Icons.zoom_in),
                   onPressed: () => _setScale(_scale.zoomed(1 / 0.7)),
                 ),
@@ -609,7 +609,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                   key: const ValueKey('song-scope'),
                   onPressed: _pickGroups,
                   icon: const Icon(Icons.lightbulb_outline, size: 18),
-                  label: Text(show.groupIds.isEmpty ? 'All fixtures' : '${show.groupIds.length} group${show.groupIds.length == 1 ? '' : 's'}'),
+                  label: Text(show.groupIds.isEmpty ? context.l10n.wAllFixtures : '${show.groupIds.length} group${show.groupIds.length == 1 ? '' : 's'}'),
                 ),
                 OutlinedButton.icon(
                   key: const ValueKey('song-auto'),
@@ -623,7 +623,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 ),
                 FilterChip(
                   key: const ValueKey('song-record'),
-                  label: const Text('Record'),
+                  label: Text(context.l10n.songRecord),
                   avatar: const Icon(Icons.fiber_manual_record, size: 14, color: AppColors.danger),
                   selected: _recording,
                   onSelected: (v) => setState(() => _recording = v && playing),
@@ -636,17 +636,16 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               child: Text(
                 audio == null
-                    ? 'No audio linked — the timeline still works from the tempo, but playing needs a song file.'
-                    : 'The song file isn\'t linked on this device — pick "${audio.fileName}" to play it. The cues are kept.',
+                    ? context.l10n.songNoAudioLinkedThe
+                    : context.l10n.songTheSongFileIsn(audio.fileName),
                 key: const ValueKey('audio-banner'),
                 style: TextStyle(fontSize: 11, color: audio == null ? AppColors.textFaint : AppColors.accent),
               ),
             ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(12, 2, 12, 4),
             child: Text(
-              'Tap a lane to add a cue there. A cue plays until the next cue on its layer — add a Stop to end it, or hold the cue and drag its end. '
-              'Tap the left end of a cue to change or delete it, drag it to move it.',
+              context.l10n.songTapALaneTo,
               key: ValueKey('timeline-hint'),
               style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
@@ -664,7 +663,7 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
                 playheadBeat: _playhead,
                 cursorBeat: _cursorBeat,
                 selectedCueId: _selectedCueId,
-                cueName: (c) => songCueName(ref, c),
+                cueName: (c) => songCueName(ref, c, context.l10n),
                 onTapRuler: _tapRuler,
                 onTapLane: _tapLane,
                 onTapCue: _tapCue,
@@ -706,9 +705,9 @@ class _Nudge extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: onMinus, tooltip: 'Grid 10 ms earlier'),
+      IconButton(icon: const Icon(Icons.remove_circle_outline), onPressed: onMinus, tooltip: context.l10n.songGrid10MsEarlier),
       Text(label, style: const TextStyle(fontSize: 12)),
-      IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: onPlus, tooltip: 'Grid 10 ms later'),
+      IconButton(icon: const Icon(Icons.add_circle_outline), onPressed: onPlus, tooltip: context.l10n.songGrid10MsLater),
     ],
   );
 }
@@ -736,7 +735,7 @@ class _RecordBar extends ConsumerWidget {
             children: [
               const Icon(Icons.fiber_manual_record, size: 14, color: AppColors.danger),
               const SizedBox(width: 6),
-              const Text('Recording on', style: TextStyle(fontSize: 12)),
+              Text(context.l10n.songRecordingOn, style: TextStyle(fontSize: 12)),
               const SizedBox(width: 8),
               for (final l in layers)
                 Padding(
@@ -769,7 +768,7 @@ class _RecordBar extends ConsumerWidget {
                   child: ActionChip(
                     key: const ValueKey('rec-stop'),
                     avatar: const Icon(Icons.stop, size: 16),
-                    label: const Text('Stop'),
+                    label: Text(context.l10n.commonStop),
                     onPressed: () => onPress(null),
                   ),
                 ),
@@ -810,7 +809,7 @@ class _TempoDialogState extends State<_TempoDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Tempo'),
+    title: Text(context.l10n.songTempo),
     content: Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -821,14 +820,14 @@ class _TempoDialogState extends State<_TempoDialog> {
           decoration: const InputDecoration(suffixText: 'BPM'),
         ),
         const SizedBox(height: 12),
-        FilledButton(onPressed: _tap, child: const Text('Tap tempo')),
+        FilledButton(onPressed: _tap, child: Text(context.l10n.songTapTempo)),
       ],
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
       FilledButton(
         onPressed: () => Navigator.pop(context, double.tryParse(_controller.text.replaceAll(',', '.'))),
-        child: const Text('Set'),
+        child: Text(context.l10n.songSet),
       ),
     ],
   );
@@ -837,8 +836,8 @@ class _TempoDialogState extends State<_TempoDialog> {
 /// Confirms and removes [show]; used by the list.
 Future<bool> confirmDeleteSongShow(BuildContext context, SongShow show) => confirmDelete(
   context,
-  title: 'Delete "${show.name}"?',
-  message: 'Its timeline goes with it. The banks and chases it used stay in the project, and the song file is untouched.',
+  title: context.l10n.layersDeleteTitle(show.name),
+  message: context.l10n.songItsTimelineGoesWith,
 );
 
 /// Play and Stop where the thumb is, with where in the song it is — editing
@@ -859,9 +858,9 @@ class _TransportBar extends StatelessWidget {
   final double cursorBeat;
   final VoidCallback onToggle;
 
-  static String barBeat(double beat) {
+  static String barBeat(BuildContext context, double beat) {
     final b = beat < 0 ? 0.0 : beat;
-    return 'bar ${b ~/ 4 + 1} · beat ${(b % 4).floor() + 1}';
+    return context.l10n.songBarBeat(b ~/ 4 + 1, (b % 4).floor() + 1);
   }
 
   @override
@@ -877,7 +876,7 @@ class _TransportBar extends StatelessWidget {
             onPressed: onToggle,
             style: playing ? FilledButton.styleFrom(backgroundColor: AppColors.danger) : null,
             icon: Icon(playing ? Icons.stop : Icons.play_arrow),
-            label: Text(playing ? 'Stop' : 'Play'),
+            label: Text(playing ? context.l10n.commonStop : context.l10n.songPlay),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -885,8 +884,8 @@ class _TransportBar extends StatelessWidget {
               valueListenable: playhead,
               builder: (context, beat, _) => Text(
                 playing && beat != null
-                    ? 'Playing · ${barBeat(beat)}'
-                    : 'Starts from ${barBeat(cursorBeat)} (tap the ruler to move it)',
+                    ? context.l10n.songPlaying(barBeat(context, beat))
+                    : context.l10n.songStartsFromTapThe(barBeat(context, cursorBeat)),
                 key: const ValueKey('transport-position'),
                 style: const TextStyle(fontSize: 12, color: AppColors.textDim),
                 overflow: TextOverflow.ellipsis,
@@ -894,8 +893,8 @@ class _TransportBar extends StatelessWidget {
             ),
           ),
           if (silent)
-            const Tooltip(
-              message: 'No song file linked: plays without sound, on the tempo',
+            Tooltip(
+              message: context.l10n.songNoSongFileLinked,
               child: Icon(Icons.volume_off, size: 18, color: AppColors.textFaint),
             ),
         ],

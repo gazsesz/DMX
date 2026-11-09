@@ -18,6 +18,7 @@ import '../../state/layer_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/song_show_providers.dart';
+import '../../l10n/l10n.dart';
 
 const _uuid = Uuid();
 
@@ -36,15 +37,15 @@ Future<void> exportSongShowToFile(BuildContext context, WidgetRef ref, SongShow 
   );
   final messenger = ScaffoldMessenger.of(context);
   final path = await FilePicker.saveFile(
-    dialogTitle: 'Export song show',
+    dialogTitle: context.l10n.songExportSongShow,
     fileName: export.suggestedFileName,
     bytes: Uint8List.fromList(utf8.encode(export.encode())),
     type: FileType.custom,
     allowedExtensions: ['json'],
   );
   if (path == null) return;
-  final audioNote = show.audio == null ? '' : ' The song file is not included — link it again after importing.';
-  messenger.showSnackBar(SnackBar(content: Text('Exported "${show.name}".$audioNote'), duration: const Duration(seconds: 6)));
+  final audioNote = show.audio == null ? '' : context.l10n.songTheSongFileIs;
+  messenger.showSnackBar(SnackBar(content: Text(context.l10n.songExported(show.name, audioNote)), duration: const Duration(seconds: 6)));
 }
 
 /// Reads a song show export the user picks and adds it to the project.
@@ -70,10 +71,10 @@ Future<SongShow?> importSongShowFromFile(BuildContext context, WidgetRef ref) as
       newId: _uuid.v4,
     );
   } on FormatException catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('Could not import: ${e.message}'), backgroundColor: AppColors.danger));
+    messenger.showSnackBar(SnackBar(content: Text(context.l10n.wCouldNotImport(e.message)), backgroundColor: AppColors.danger));
     return null;
   } catch (e) {
-    messenger.showSnackBar(SnackBar(content: Text('Could not import: $e'), backgroundColor: AppColors.danger));
+    messenger.showSnackBar(SnackBar(content: Text(context.l10n.scCouldNotImport(e)), backgroundColor: AppColors.danger));
     return null;
   }
 

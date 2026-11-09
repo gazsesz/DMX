@@ -26,11 +26,13 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
 
   bool get _isEditing => widget.existing != null;
 
+  bool _defaultNameSet = false;
+
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
-    _nameController = TextEditingController(text: existing?.name ?? context.l10n.scNewFixture);
+    _nameController = TextEditingController(text: widget.existing?.name ?? '');
     _category = existing?.category ?? FixtureCategory.generic;
     _panRangeController = TextEditingController(
       text: '${existing?.panRangeDeg ?? FixtureProfile.defaultPanRangeDeg}',
@@ -48,6 +50,16 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
                 capabilities: channel.capabilities,
               ),
           ];
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The default name is localised, which can't be read in initState.
+    if (widget.existing == null && !_defaultNameSet) {
+      _defaultNameSet = true;
+      _nameController.text = context.l10n.scNewFixture;
+    }
   }
 
   @override

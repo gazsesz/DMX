@@ -11,6 +11,7 @@ import '../../models/layer.dart';
 import '../../models/song_show.dart';
 import 'pinch_zoom.dart';
 import 'song_lane.dart';
+import '../../l10n/l10n.dart';
 
 const timelineLabelWidth = 88.0;
 const _rulerHeight = 24.0;
@@ -130,7 +131,7 @@ class SongTimeline extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: _rulerHeight + _waveHeight),
-              const _LabelCell(height: _sectionHeight, text: 'Sections'),
+              _LabelCell(height: _sectionHeight, text: context.l10n.songSections),
               for (var i = 0; i < layers.length; i++)
                 _LabelCell(height: _laneHeight, text: layers[i].name, color: layerColor(i)),
             ],
