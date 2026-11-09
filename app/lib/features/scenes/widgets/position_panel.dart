@@ -17,6 +17,7 @@ import '../../../models/stage_plan.dart';
 import '../../../state/fixture_providers.dart';
 import '../../../state/stage_providers.dart';
 import 'stage_aim_view.dart';
+import '../../../l10n/l10n.dart';
 
 /// The Scene editor's Position tab for one group of movers: an XY pad (or
 /// the stage-aim view), saved positions, the fan, and pan/tilt speed.
@@ -106,7 +107,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
     };
     if (matching.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('"${preset.name}" has no position saved for these fixtures')),
+        SnackBar(content: Text(context.l10n.scHasNoPositionSaved(preset.name))),
       );
       return;
     }
@@ -122,10 +123,10 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
   };
 
   Future<void> _saveAsPreset() async {
-    final name = await _askName(context, title: 'Save position', initial: '');
+    final name = await _askName(context, title: context.l10n.scSavePosition, initial: '');
     if (name == null || !mounted) return;
     ref.read(positionPresetsProvider.notifier).create(name: name, perFixture: _currentPositions);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved "$name"')));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesSaved(name))));
   }
 
   Future<void> _presetMenu(PositionPreset preset) async {
@@ -138,19 +139,19 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
           children: [
             ListTile(
               leading: const Icon(Icons.save_alt, color: AppColors.accent),
-              title: Text('Update "${preset.name}" with these positions'),
-              subtitle: const Text('Only these fixtures change; the rest of the preset is kept'),
+              title: Text(context.l10n.scUpdateWithThesePositions(preset.name)),
+              subtitle: Text(context.l10n.scOnlyTheseFixturesChange),
               onTap: () => Navigator.pop(context, 'update'),
             ),
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: const Text('Rename'),
+              title: Text(context.l10n.scRename),
               onTap: () => Navigator.pop(context, 'rename'),
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: AppColors.danger),
-              title: const Text('Delete', style: TextStyle(color: AppColors.danger)),
-              subtitle: const Text('Scenes that used it keep their positions'),
+              title: Text(context.l10n.scDelete, style: TextStyle(color: AppColors.danger)),
+              subtitle: Text(context.l10n.scScenesThatUsedIt),
               onTap: () => Navigator.pop(context, 'delete'),
             ),
           ],
@@ -163,7 +164,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
       case 'update':
         notifier.merge(preset.id, _currentPositions);
       case 'rename':
-        final name = await _askName(context, title: 'Rename position', initial: preset.name);
+        final name = await _askName(context, title: context.l10n.scRenamePosition, initial: preset.name);
         if (name != null) notifier.rename(preset.id, name);
       case 'delete':
         notifier.remove(preset.id);
@@ -204,12 +205,12 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
                 children: [
-                  const Text(
-                    'PER FIXTURE',
+                  Text(
+                    context.l10n.scPerFixture,
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                   ),
-                  const Text(
-                    'A head set here leaves the fan and keeps its own spot. The group pad still moves it along.',
+                  Text(
+                    context.l10n.scAHeadSetHere,
                     style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 8),
@@ -271,7 +272,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
           children: [
             Expanded(child: Text(fixture.label, style: const TextStyle(fontWeight: FontWeight.w700))),
             if (ownSpot)
-              TextButton(onPressed: onReset, child: const Text('Back to group')),
+              TextButton(onPressed: onReset, child: Text(context.l10n.scBackToGroup)),
           ],
         ),
         axis('Pan', value.pan, panRange, (v) => onChanged(PanTilt(v, value.tilt))),
@@ -299,8 +300,8 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                 children: [
                   Row(
                     children: [
-                      const Expanded(
-                        child: Text('Position', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                      Expanded(
+                        child: Text(context.l10n.scPosition, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
                       ),
                       _CoarseFineToggle(fine: fine, onChanged: (v) => setDialogState(() => fine = v)),
                       if (!fine) ...[
@@ -314,13 +315,13 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                         ),
                       ],
                       IconButton(
-                        tooltip: 'Done',
+                        tooltip: context.l10n.commonDone,
                         icon: const Icon(Icons.close_fullscreen),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Expanded(
                     child: Center(
                       child: LayoutBuilder(
@@ -376,9 +377,9 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                 SegmentedButton<PositionMode>(
                   showSelectedIcon: false,
                   style: _segmentStyle,
-                  segments: const [
-                    ButtonSegment(value: PositionMode.pad, label: Text('XY pad')),
-                    ButtonSegment(value: PositionMode.stage, label: Text('Stage')),
+                  segments: [
+                    ButtonSegment(value: PositionMode.pad, label: Text(context.l10n.scXyPad)),
+                    ButtonSegment(value: PositionMode.stage, label: Text(context.l10n.scStage)),
                   ],
                   selected: {widget.position.mode},
                   onSelectionChanged: (s) => _setMode(s.first),
@@ -387,7 +388,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                   _CoarseFineToggle(fine: _fine, onChanged: (v) => setState(() => _fine = v)),
                   if (!_fine) _SnapToggle(snap: _snap, onChanged: _setSnap),
                   IconButton(
-                    tooltip: 'Full screen',
+                    tooltip: context.l10n.scFullScreen,
                     visualDensity: VisualDensity.compact,
                     icon: const Icon(Icons.open_in_full, size: 18),
                     onPressed: _fullscreenPad,
@@ -422,9 +423,8 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
             ),
             if (isStage && _layoutLooksUnset) ...[
               const SizedBox(height: 6),
-              const Text(
-                'Tip: place these heads where they really hang in Fixtures → Stage Layout, '
-                'and set their height there, so the beams land where the plan shows.',
+              Text(
+                context.l10n.scTipPlaceTheseHeads,
                 style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
               ),
             ],
@@ -463,12 +463,12 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
             child: ActionChip(
               label: Text(preset.name, style: const TextStyle(fontSize: 11.5)),
               onPressed: () => _applyPreset(preset),
-              tooltip: 'Tap to recall · long-press for more',
+              tooltip: context.l10n.scTapToRecallLong,
             ),
           ),
         ActionChip(
           avatar: const Icon(Icons.add, size: 16, color: AppColors.accent),
-          label: const Text('Save current', style: TextStyle(fontSize: 11.5, color: AppColors.accent)),
+          label: Text(context.l10n.scSaveCurrent, style: TextStyle(fontSize: 11.5, color: AppColors.accent)),
           onPressed: _saveAsPreset,
         ),
       ],
@@ -482,20 +482,20 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        _label('POSITION PRESETS'),
+        _label(context.l10n.scPositionPresets),
         _presetChips(),
         if (multiple) ...[
           const SizedBox(height: 14),
-          _label('GROUP SPREAD'),
+          _label(context.l10n.scGroupSpread),
           _degreeSlider(
-            'Fan (pan)',
+            context.l10n.scFanPan,
             position.fanPanDeg,
             -60,
             60,
             (v) => widget.onReplace(widget.base, position.copyWith(fanPanDeg: v)),
           ),
           _degreeSlider(
-            'Fan (tilt)',
+            context.l10n.scFanTilt,
             position.fanTiltDeg,
             -30,
             30,
@@ -505,9 +505,9 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
             spacing: 6,
             children: [
               FilterChip(
-                label: const Text('Mirror left / right', style: TextStyle(fontSize: 11.5)),
+                label: Text(context.l10n.scMirrorLeftRight, style: TextStyle(fontSize: 11.5)),
                 selected: position.mirror,
-                tooltip: 'Heads on the right half of the stage pan the opposite way',
+                tooltip: context.l10n.scHeadsOnTheRight,
                 onSelected: (v) => widget.onReplace(widget.base, position.copyWith(mirror: v)),
               ),
             ],
@@ -516,16 +516,16 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(
-                '${position.manual.length} of ${widget.fixtures.length} heads have their own position and ignore the fan.',
+                context.l10n.scOfHeadsHaveTheir(position.manual.length, widget.fixtures.length),
                 style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
               ),
             ),
         ],
         if (widget.speed != null) ...[
           const SizedBox(height: 10),
-          _label('MOVEMENT'),
+          _label(context.l10n.scMovement),
           LabeledChannelSlider(
-            label: 'Pan/Tilt speed',
+            label: context.l10n.scPanTiltSpeed,
             value: widget.speed!,
             color: AppColors.accent2,
             capabilities: widget.speedCapabilities,
@@ -537,13 +537,13 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
           children: [
             if (multiple)
               Expanded(
-                child: OutlinedButton(onPressed: _perFixture, child: const Text('Per fixture…')),
+                child: OutlinedButton(onPressed: _perFixture, child: Text(context.l10n.scPerFixture2)),
               ),
             if (multiple) const SizedBox(width: 8),
             Expanded(
               child: OutlinedButton(
                 onPressed: () => widget.onReplace(PanTilt.center, const GroupPosition()),
-                child: const Text('Center all'),
+                child: Text(context.l10n.scCenterAll),
               ),
             ),
           ],
@@ -571,13 +571,11 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Text(
-              '${[for (final f in widget.fixtures) if (f.mounting.isDefault) f.label].join(', ')} still use the '
-              'default rigging: hanging, 3 m, not calibrated. Heads on stands will not aim right — '
-              'Tap its chip below: Standing, its height, which way pan centre faces, then calibrate.',
+              context.l10n.scDefaultRigging([for (final f in widget.fixtures) if (f.mounting.isDefault) f.label].join(', ')),
               style: const TextStyle(fontSize: 11, color: AppColors.textDim),
             ),
           ),
-        _label('RIGGING & CALIBRATION'),
+        _label(context.l10n.scRiggingCalibration),
         Wrap(
           spacing: 6,
           runSpacing: 6,
@@ -593,7 +591,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                   '${fixture.label} · ${fixture.mounting.mount.label}${fixture.mounting.isCalibrated ? ' · cal' : ''}',
                   style: const TextStyle(fontSize: 11.5),
                 ),
-                tooltip: 'Rigging, then calibrate this head on the spot you are aiming at',
+                tooltip: context.l10n.scRiggingThenCalibrateThis,
                 onPressed: () => showFixtureMountingSheet(
                   context,
                   fixture.id,
@@ -605,20 +603,20 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
           ],
         ),
         const SizedBox(height: 14),
-        _label('AIM AT'),
+        _label(context.l10n.scAimAt),
         Wrap(
           spacing: 6,
           runSpacing: 6,
           children: [
             ChoiceChip(
-              label: const Text('Floor', style: TextStyle(fontSize: 11.5)),
+              label: Text(context.l10n.scFloor, style: TextStyle(fontSize: 11.5)),
               selected: position.aimHeightM == 0,
               onSelected: (_) => replace(position.copyWith(aimHeightM: 0)),
             ),
             ChoiceChip(
-              label: const Text('Heads · 1.7 m', style: TextStyle(fontSize: 11.5)),
+              label: Text(context.l10n.scHeads17M, style: TextStyle(fontSize: 11.5)),
               selected: position.aimHeightM == 1.7,
-              tooltip: 'The audience\'s head height',
+              tooltip: context.l10n.scTheAudienceSHead,
               onSelected: (_) => replace(position.copyWith(aimHeightM: 1.7)),
             ),
             for (final target in stage.targets)
@@ -627,7 +625,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
                 child: ChoiceChip(
                   label: Text(target.name, style: const TextStyle(fontSize: 11.5)),
                   selected: position.handle == StagePoint(target.x, target.y) && position.aimHeightM == target.heightM,
-                  tooltip: '${target.heightM.toStringAsFixed(1)} m high · long-press to delete',
+                  tooltip: context.l10n.scMHighLongPress(target.heightM.toStringAsFixed(1)),
                   onSelected: (_) => replace(
                     position.copyWith(
                       handle: StagePoint(target.x, target.y),
@@ -640,8 +638,8 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
               ),
             ActionChip(
               avatar: const Icon(Icons.add_location_alt_outlined, size: 16, color: AppColors.accent),
-              label: const Text('Save spot', style: TextStyle(fontSize: 11.5, color: AppColors.accent)),
-              tooltip: 'Name the spot under the orange handle, e.g. a mirror ball',
+              label: Text(context.l10n.scSaveSpot, style: TextStyle(fontSize: 11.5, color: AppColors.accent)),
+              tooltip: context.l10n.scNameTheSpotUnder,
               onPressed: () => _saveTarget(position),
             ),
           ],
@@ -650,13 +648,13 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
           Padding(
             padding: const EdgeInsets.only(top: 4),
             child: Text(
-              'Aiming ${position.aimHeightM.toStringAsFixed(1)} m above the floor',
+              context.l10n.scAimingMAboveThe(position.aimHeightM.toStringAsFixed(1)),
               style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
           ),
         if (widget.fixtures.length > 1) ...[
           const SizedBox(height: 14),
-          _label('FORMATION'),
+          _label(context.l10n.scFormation),
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -671,7 +669,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
           ),
           if (position.formation != StageFormation.point)
             _meterSlider(
-              'Spread',
+              context.l10n.scSpread,
               position.spreadM,
               (v) => replace(position.copyWith(spreadM: v)),
             ),
@@ -680,7 +678,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
               alignment: Alignment.centerLeft,
               child: TextButton(
                 onPressed: () => replace(position.copyWith(aimOverrides: const {})),
-                child: Text('Back to the formation (${position.aimOverrides.length} moved on their own)'),
+                child: Text(context.l10n.scBackToTheFormation(position.aimOverrides.length)),
               ),
             ),
         ],
@@ -688,8 +686,7 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '$unreachable head${unreachable == 1 ? '' : 's'} can\'t turn far enough — shown red, '
-              'and left at the nearest spot it can reach.',
+              context.l10n.scUnreachable(unreachable),
               style: const TextStyle(fontSize: 11, color: AppColors.danger),
             ),
           ),
@@ -697,9 +694,9 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
         _aimReadout(),
         if (widget.speed != null) ...[
           const SizedBox(height: 10),
-          _label('MOVEMENT'),
+          _label(context.l10n.scMovement),
           LabeledChannelSlider(
-            label: 'Pan/Tilt speed',
+            label: context.l10n.scPanTiltSpeed,
             value: widget.speed!,
             color: AppColors.accent2,
             capabilities: widget.speedCapabilities,
@@ -753,29 +750,29 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: const Text('Save spot'),
+        title: Text(context.l10n.scSaveSpot),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'The spot under the orange handle, so any group can be sent there in one tap.',
+            Text(
+              context.l10n.scTheSpotUnderThe,
               style: TextStyle(fontSize: 11.5, color: AppColors.textFaint),
             ),
             TextField(
               controller: nameController,
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Name', hintText: 'Mirror ball'),
+              decoration: InputDecoration(labelText: context.l10n.commonName, hintText: context.l10n.scMirrorBall),
             ),
             TextField(
               controller: heightController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Height above the floor', suffixText: 'm'),
+              decoration: InputDecoration(labelText: context.l10n.scHeightAboveTheFloor, suffixText: 'm'),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
         ],
       ),
     );
@@ -796,14 +793,14 @@ class _PositionPanelState extends ConsumerState<PositionPanel> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: Text('Delete "${target.name}"?'),
-        content: const Text('Scenes already aimed there keep their positions.'),
+        title: Text(context.l10n.layersDeleteTitle(target.name)),
+        content: Text(context.l10n.scScenesAlreadyAimedThere),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.scDelete),
           ),
         ],
       ),
@@ -878,12 +875,12 @@ class _SnapToggle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: 'Snap to the grid: whole, half or quarter of a grid cell',
+      message: context.l10n.scSnapToTheGrid,
       child: SegmentedButton<PadSnap>(
         showSelectedIcon: false,
         style: _segmentStyle,
         segments: [
-          for (final s in PadSnap.values) ButtonSegment(value: s, label: Text(s == PadSnap.off ? 'Snap off' : s.label)),
+          for (final s in PadSnap.values) ButtonSegment(value: s, label: Text(s == PadSnap.off ? context.l10n.scSnapOff : s.label)),
         ],
         selected: {snap},
         onSelectionChanged: (s) => onChanged(s.first),
@@ -896,16 +893,16 @@ class _CoarseFineToggle extends StatelessWidget {
   final bool fine;
   final ValueChanged<bool> onChanged;
 
-  const _CoarseFineToggle({required this.fine, required this.onChanged});
+  _CoarseFineToggle({required this.fine, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
     return SegmentedButton<bool>(
       showSelectedIcon: false,
       style: _segmentStyle,
-      segments: const [
-        ButtonSegment(value: false, label: Text('Coarse')),
-        ButtonSegment(value: true, label: Text('Fine')),
+      segments: [
+        ButtonSegment(value: false, label: Text(context.l10n.scCoarse)),
+        ButtonSegment(value: true, label: Text(context.l10n.scFine)),
       ],
       selected: {fine},
       onSelectionChanged: (s) => onChanged(s.first),
@@ -923,12 +920,12 @@ Future<String?> _askName(BuildContext context, {required String title, required 
       content: TextField(
         controller: controller,
         autofocus: true,
-        decoration: const InputDecoration(labelText: 'Name', hintText: 'Audience'),
+        decoration: InputDecoration(labelText: context.l10n.commonName, hintText: context.l10n.scAudience2),
         onSubmitted: (v) => Navigator.pop(context, v),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-        FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Save')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
+        FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: Text(context.l10n.commonSave)),
       ],
     ),
   );

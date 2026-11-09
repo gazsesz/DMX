@@ -14,6 +14,7 @@ import '../../models/patched_fixture.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
+import '../../l10n/l10n.dart';
 
 /// Opens the rigging and calibration sheet for one moving head.
 Future<void> showFixtureMountingSheet(
@@ -112,7 +113,7 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
     final universe = ref.read(universesProvider).where((u) => u.id == fixture.universeId).firstOrNull;
     if (universe == null || !service.isConnected) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Connect to the Art-Net node first to see the beam')),
+        SnackBar(content: Text(context.l10n.scConnectToTheArt)),
       );
       return;
     }
@@ -165,11 +166,11 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
           children: [
             Text(fixture.label, style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
             Text(
-              '${fixture.profile.qualifiedName} · pan ${fixture.profile.panRangeDeg}° / tilt ${fixture.profile.tiltRangeDeg}°',
+              context.l10n.scPanTilt(fixture.profile.qualifiedName, fixture.profile.panRangeDeg, fixture.profile.tiltRangeDeg),
               style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
             ),
             const SizedBox(height: 16),
-            _label('MOUNTING'),
+            _label(context.l10n.scMounting),
             SegmentedButton<MountKind>(
               showSelectedIcon: false,
               segments: [for (final kind in MountKind.values) ButtonSegment(value: kind, label: Text(kind.label))],
@@ -192,7 +193,7 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
               controller: _heightController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
-                labelText: mounting.mount == MountKind.hanging ? 'Height of the head (truss trim)' : 'Height of the head',
+                labelText: mounting.mount == MountKind.hanging ? context.l10n.scHeightOfTheHead : context.l10n.scHeightOfTheHead2,
                 suffixText: 'm',
               ),
               onChanged: (text) {
@@ -201,12 +202,17 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
               },
             ),
             const SizedBox(height: 14),
-            _label('PAN CENTRE FACES'),
+            _label(context.l10n.scPanCentreFaces),
             Wrap(
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (final (deg, name) in [(0.0, 'Audience'), (90.0, 'Right'), (180.0, 'Upstage'), (270.0, 'Left')])
+                for (final (deg, name) in [
+                  (0.0, context.l10n.mountFacingAudience),
+                  (90.0, context.l10n.mountFacingRight),
+                  (180.0, context.l10n.mountFacingUpstage),
+                  (270.0, context.l10n.mountFacingLeft),
+                ])
                   ChoiceChip(
                     label: Text(name, style: const TextStyle(fontSize: 11.5)),
                     selected: mounting.facingDeg == deg,
@@ -230,45 +236,43 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
                 ),
               ],
             ),
-            const Text(
-              'Where the beam points on the plan with pan at the middle of its travel. '
-              'Right and left are as the audience sees the stage.',
+            Text(
+              context.l10n.scWhereTheBeamPoints,
               style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
             const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Invert pan'),
-              subtitle: const Text('The head turns the opposite way to the plan'),
+              title: Text(context.l10n.scInvertPan),
+              subtitle: Text(context.l10n.scTheHeadTurnsThe),
               value: mounting.invertPan,
               onChanged: (v) => _update((m) => m.copyWith(invertPan: v)),
             ),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               dense: true,
-              title: const Text('Invert tilt'),
-              subtitle: const Text('The beam lifts the wrong way'),
+              title: Text(context.l10n.scInvertTilt),
+              subtitle: Text(context.l10n.scTheBeamLiftsThe),
               value: mounting.invertTilt,
               onChanged: (v) => _update((m) => m.copyWith(invertTilt: v)),
             ),
             const SizedBox(height: 10),
-            _label('CALIBRATION'),
+            _label(context.l10n.scCalibration),
             Text(
-              '${widget.mark == null ? 'Put a mark on the floor in the middle of the stage' : 'Put something at the spot you are aiming at in the Scene editor'}'
-              ' '
-              '(${((widget.mark?.x ?? 0.5) * stage.widthM).toStringAsFixed(1)} m from the left edge, '
-              '${((widget.mark?.y ?? 0.5) * stage.depthM).toStringAsFixed(1)} m from the back'
-              '${widget.markHeightM > 0 ? ', ${widget.markHeightM.toStringAsFixed(1)} m up' : ''}). '
-              'Send the head there, nudge it until the beam sits on the mark, and you\'re done — '
-              'every nudge is saved as you go.',
+              context.l10n.mountCalibrationHint(
+                widget.mark == null ? context.l10n.mountMarkCentre : context.l10n.mountMarkAimSpot,
+                ((widget.mark?.x ?? 0.5) * stage.widthM).toStringAsFixed(1),
+                ((widget.mark?.y ?? 0.5) * stage.depthM).toStringAsFixed(1),
+                widget.markHeightM > 0 ? context.l10n.mountMarkUp(widget.markHeightM.toStringAsFixed(1)) : '',
+              ),
               style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),
             ),
             const SizedBox(height: 10),
             FilledButton.icon(
               onPressed: _sendToMark,
               icon: const Icon(Icons.my_location, size: 18),
-              label: Text(_calibrating ? 'Send to the mark again' : 'Aim at the mark'),
+              label: Text(_calibrating ? context.l10n.scSendToTheMark : context.l10n.scAimAtTheMark),
             ),
             const SizedBox(height: 10),
             _nudgeRow('Pan', (d) => _nudge(pan: d)),
@@ -277,14 +281,14 @@ class _FixtureMountingSheetState extends ConsumerState<_FixtureMountingSheet> {
               children: [
                 Expanded(
                   child: Text(
-                    'Offset: pan ${_signed(mounting.panOffsetDeg)}° · tilt ${_signed(mounting.tiltOffsetDeg)}°',
+                    context.l10n.scOffsetPanTilt(_signed(mounting.panOffsetDeg), _signed(mounting.tiltOffsetDeg)),
                     style: appMonoStyle(fontSize: 11.5, color: AppColors.textDim),
                   ),
                 ),
                 if (mounting.isCalibrated)
                   TextButton(
                     onPressed: () => _update((m) => m.copyWith(panOffsetDeg: 0, tiltOffsetDeg: 0)),
-                    child: const Text('Reset'),
+                    child: Text(context.l10n.scReset),
                   ),
               ],
             ),

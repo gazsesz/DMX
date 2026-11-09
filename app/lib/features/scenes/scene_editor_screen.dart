@@ -26,6 +26,7 @@ import '../../state/scene_providers.dart';
 import '../../state/stage_providers.dart';
 import 'widgets/position_panel.dart';
 import 'widgets/wheel_pickers.dart';
+import '../../l10n/l10n.dart';
 
 /// A set of fixtures within a scene that share one set of channel values —
 /// lets a scene mix looks, e.g. three fixtures purple and a fourth dark.
@@ -118,7 +119,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.existing?.name ?? 'New Scene');
+    _nameController = TextEditingController(text: widget.existing?.name ?? context.l10n.scNewScene);
     final scene = widget.existing;
     if (scene != null) {
       final allFixtures = ref.read(patchedFixturesProvider);
@@ -573,13 +574,13 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   String _describeGroup(_Group group) {
     final functions = _sharedFunctionsFor(group);
     final hasDimmer = functions.contains(ChannelFunction.dimmer);
-    if (hasDimmer && _valueForInGroup(group, ChannelFunction.dimmer) == 0) return 'Dark';
+    if (hasDimmer && _valueForInGroup(group, ChannelFunction.dimmer) == 0) return context.l10n.scLookDark;
     final hasColor = functions.any((f) => f.isColorMix);
     if (hasColor) {
       final r = _valueForInGroup(group, ChannelFunction.red);
       final g = _valueForInGroup(group, ChannelFunction.green);
       final b = _valueForInGroup(group, ChannelFunction.blue);
-      if (r < 8 && g < 8 && b < 8) return 'Dark';
+      if (r < 8 && g < 8 && b < 8) return context.l10n.scLookDark;
       String? best;
       var bestDist = double.infinity;
       for (final entry in colorPresets.entries) {
@@ -593,14 +594,14 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
           best = entry.key;
         }
       }
-      return best ?? 'Custom';
+      return best ?? context.l10n.scLookCustom;
     }
     if (functions.any((f) => f.isGobo)) {
       final value = _valueForInGroup(group, ChannelFunction.gobo);
       return 'Gobo: ${goboLabelFor(_capabilitiesFor(group, ChannelFunction.gobo), value)}';
     }
-    if (functions.any((f) => f.isPanTilt)) return 'Moving';
-    return 'Custom';
+    if (functions.any((f) => f.isPanTilt)) return context.l10n.scLookMoving;
+    return context.l10n.scLookCustom;
   }
 
   String get _summaryLine {
@@ -634,14 +635,14 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     final name = _nameController.text.trim().isEmpty ? 'Scene' : _nameController.text.trim();
     final notifier = ref.read(scenesProvider.notifier);
     final copy = notifier
-        .create('$name Copy', _buildFixtureValues())
+        .create(context.l10n.filesCopyName(name), _buildFixtureValues())
         .copyWith(fixtureGroups: _fixtureGroupsForSave, groupPositions: _groupPositionsForSave);
     notifier.upsert(copy);
 
     final bankId = widget.fromBankId;
     final slot = bankId == null ? null : ref.read(banksProvider.notifier).placeAfter(bankId, widget.fromSlot, copy.id);
     final bankName = bankId == null ? null : ref.read(banksProvider).where((b) => b.id == bankId).firstOrNull?.name;
-    final filed = slot == null ? '' : ' Added to $bankName, slot ${slot + 1}.';
+    final filed = slot == null ? '' : context.l10n.scAddedToSlot('$bankName', slot + 1);
 
     final messenger = ScaffoldMessenger.of(context);
     Navigator.of(context).pushReplacement(
@@ -653,7 +654,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     );
     messenger.showSnackBar(
       SnackBar(
-        content: Text('Saved as "${copy.name}" — you\'re editing the copy now. "$name" is unchanged.$filed'),
+        content: Text(context.l10n.scSavedAsYouRe(copy.name, name, filed)),
       ),
     );
   }
@@ -689,14 +690,14 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: Text('Delete "${existing.name}"?'),
-        content: const Text('This also removes it from any bank slots it\'s assigned to.'),
+        title: Text(context.l10n.layersDeleteTitle(existing.name)),
+        content: Text(context.l10n.scThisAlsoRemovesIt),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.scDelete),
           ),
         ],
       ),
@@ -709,7 +710,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
   Future<void> _assignToBank() async {
     if (widget.existing == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Save the scene first')),
+        SnackBar(content: Text(context.l10n.scSaveTheSceneFirst)),
       );
       return;
     }
@@ -746,7 +747,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Group ${index + 1} · ${_describeGroup(group)}',
+              context.l10n.scGroup(index + 1, _describeGroup(group)),
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 8),
@@ -764,8 +765,8 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
             ),
             if (availableGroups.length > 1) ...[
               const SizedBox(height: 10),
-              const Text(
-                'INCLUDES',
+              Text(
+                context.l10n.scIncludes,
                 style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w700, color: AppColors.textFaint),
               ),
               const SizedBox(height: 4),
@@ -779,8 +780,8 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                       selected: !group.excluded.contains(attributeGroup),
                       onSelected: (_) => _toggleAttributeGroup(group, attributeGroup),
                       tooltip: group.excluded.contains(attributeGroup)
-                          ? 'Left alone at playback — another program can drive it'
-                          : 'This scene sets it',
+                          ? context.l10n.scLeftAloneAtPlayback
+                          : context.l10n.scThisSceneSetsIt,
                     ),
                 ],
               ),
@@ -828,7 +829,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
             onTap: () => _applyColorToGroup(group, colour.rgb),
           ),
         Tooltip(
-          message: 'Mix a colour',
+          message: context.l10n.scMixAColour,
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
             onTap: () => _openColorPicker(group),
@@ -926,9 +927,9 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
     switch (tab) {
       case _MoverTab.position:
         final position = group.position;
-        if (position.mode == PositionMode.stage) return 'Stage';
-        if (position.manual.isNotEmpty) return 'Preset';
-        if (position.fanPanDeg != 0 || position.fanTiltDeg != 0) return 'Fan';
+        if (position.mode == PositionMode.stage) return context.l10n.scTabStage;
+        if (position.manual.isNotEmpty) return context.l10n.scTabPreset;
+        if (position.fanPanDeg != 0 || position.fanTiltDeg != 0) return context.l10n.fxFan;
         final range = _moversIn(group).firstOrNull?.profile.panRangeDeg ?? 540;
         return '${(_baseOf(group).pan / PanTilt.max * range).round()}°';
       case _MoverTab.color:
@@ -940,7 +941,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         return functions.contains(ChannelFunction.prism) ? nameOf(ChannelFunction.prism) : '';
       case _MoverTab.beam:
         if (!functions.contains(ChannelFunction.dimmer)) return '';
-        return 'Dim ${(_valueForInGroup(group, ChannelFunction.dimmer) / 255 * 100).round()}%';
+        return context.l10n.scTabDim((_valueForInGroup(group, ChannelFunction.dimmer) / 255 * 100).round());
       case _MoverTab.channels:
         return '${_slotsFor(group).length}';
     }
@@ -971,7 +972,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            '${attribute.label} is left out of this scene — turn it on under INCLUDES to set it here.',
+            context.l10n.scIsLeftOutOf(attribute.label),
             style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
@@ -989,7 +990,14 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
             children: [
               for (final tab in tabs)
                 _TabButton(
-                  label: tab.label,
+                  label: switch (tab) {
+                    _MoverTab.position => context.l10n.scTabPosition,
+                    _MoverTab.color => context.l10n.scTabColor,
+                    _MoverTab.gobo => tab.label,
+                    _MoverTab.prism => tab.label,
+                    _MoverTab.beam => tab.label,
+                    _MoverTab.channels => context.l10n.scTabChannels,
+                  },
                   summary: _tabSummary(group, tab, functions),
                   selected: tab == current,
                   onTap: () => setState(() => _tabs[group.id] = tab),
@@ -1049,7 +1057,7 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (functions.contains(ChannelFunction.colorWheel)) ...[
-          _sectionLabel('COLOR WHEEL'),
+          _sectionLabel(context.l10n.scColorWheel),
           if (wheelCaps.isEmpty)
             _sliderFor(group, functions, ChannelFunction.colorWheel)!
           else
@@ -1059,17 +1067,17 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
               onChanged: (v) => _setValueInGroup(group, ChannelFunction.colorWheel, v),
             ),
           if (wheelCaps.isNotEmpty && wheelCaps.every((c) => c.colorHex == null))
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 4),
               child: Text(
-                'Swatch colours are guessed from the range names. Set them exactly in Fixtures → edit → Ranges.',
+                context.l10n.scSwatchColoursAreGuessed,
                 style: TextStyle(fontSize: 10, color: AppColors.textFaint),
               ),
             ),
         ],
         if (hasRgb) ...[
           if (functions.contains(ChannelFunction.colorWheel)) const SizedBox(height: 14),
-          _sectionLabel('COLOR MIX'),
+          _sectionLabel(context.l10n.scColorMix),
           _rgbSwatches(group),
         ],
       ],
@@ -1156,23 +1164,23 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
             IconButton(
               icon: const Icon(Icons.copy_all_outlined),
               onPressed: _selectedFixtureIds.isEmpty ? null : _duplicate,
-              tooltip: 'Duplicate',
+              tooltip: context.l10n.scDuplicate,
             ),
             IconButton(
               icon: const Icon(Icons.delete_outline, color: AppColors.danger),
               onPressed: _delete,
-              tooltip: 'Delete',
+              tooltip: context.l10n.scDelete,
             ),
           ],
-          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: 'Save'),
+          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: context.l10n.commonSave),
         ],
       ),
       body: allFixtures.isEmpty
-          ? const Center(
+          ? Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 32),
                 child: Text(
-                  'No patched fixtures yet.\nGo to the Fixtures tab, pick a template (built-in or your own),\nand tap "+ Patch" to assign it a universe + channel.',
+                  context.l10n.scNoPatchedFixturesYet,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textFaint),
                 ),
@@ -1189,8 +1197,8 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                   const SizedBox(height: 10),
                 ],
                 if (savedGroups.isNotEmpty) ...[
-                  const Text(
-                    'ADD SAVED GROUP',
+                  Text(
+                    context.l10n.scAddSavedGroup,
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 8),
@@ -1213,12 +1221,12 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                   ),
                   const SizedBox(height: 16),
                 ],
-                const Text(
-                  'FIXTURES',
+                Text(
+                  context.l10n.scFixtures,
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                 ),
-                const Text(
-                  'Pick which fixtures are part of this scene. Fixtures start in their own group — merge them below to share a look.',
+                Text(
+                  context.l10n.scPickWhichFixturesAre,
                   style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                 ),
                 const SizedBox(height: 8),
@@ -1242,13 +1250,13 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                 ),
                 if (selected.isEmpty) ...[
                   const SizedBox(height: 40),
-                  const Center(
-                    child: Text('Select at least one fixture', style: TextStyle(color: AppColors.textFaint)),
+                  Center(
+                    child: Text(context.l10n.scSelectAtLeastOne, style: TextStyle(color: AppColors.textFaint)),
                   ),
                 ] else ...[
                   const SizedBox(height: 20),
-                  const Text(
-                    'GROUPS',
+                  Text(
+                    context.l10n.scGroups,
                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 4),
@@ -1272,8 +1280,8 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                                   dropdownColor: AppColors.panel2,
                                   items: [
                                     for (var i = 0; i < _groups.length; i++)
-                                      DropdownMenuItem(value: _groups[i].id, child: Text('Group ${i + 1}')),
-                                    const DropdownMenuItem(value: _newGroupSentinel, child: Text('+ New Group')),
+                                      DropdownMenuItem(value: _groups[i].id, child: Text(context.l10n.scGroup2(i + 1))),
+                                    DropdownMenuItem(value: _newGroupSentinel, child: Text(context.l10n.scNewGroup)),
                                   ],
                                   onChanged: (value) {
                                     if (value == null) return;
@@ -1292,11 +1300,11 @@ class _SceneEditorScreenState extends ConsumerState<SceneEditorScreen> {
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(onPressed: _assignToBank, child: const Text('Assign to Bank')),
+                      child: OutlinedButton(onPressed: _assignToBank, child: Text(context.l10n.scAssignToBank)),
                     ),
                     const SizedBox(width: 10),
                     Expanded(
-                      child: FilledButton(onPressed: _save, child: const Text('Save Scene')),
+                      child: FilledButton(onPressed: _save, child: Text(context.l10n.scSaveScene)),
                     ),
                   ],
                 ),

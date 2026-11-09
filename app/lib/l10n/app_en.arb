@@ -781,5 +781,611 @@
         "type": "int"
       }
     }
-  }
+  },
+  "scNewScene": "New Scene",
+  "scAddedToSlot": " Added to {bankName}, slot {v}.",
+  "@scAddedToSlot": {
+    "placeholders": {
+      "bankName": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSavedAsYouRe": "Saved as \"{name}\" — you're editing the copy now. \"{name2}\" is unchanged.{filed}",
+  "@scSavedAsYouRe": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "name2": {
+        "type": "Object"
+      },
+      "filed": {
+        "type": "Object"
+      }
+    }
+  },
+  "scThisAlsoRemovesIt": "This also removes it from any bank slots it's assigned to.",
+  "scDelete": "Delete",
+  "scSaveTheSceneFirst": "Save the scene first",
+  "scGroup": "Group {v} · {describeGroupGroup}",
+  "@scGroup": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "describeGroupGroup": {
+        "type": "Object"
+      }
+    }
+  },
+  "scIncludes": "INCLUDES",
+  "scLeftAloneAtPlayback": "Left alone at playback — another program can drive it",
+  "scThisSceneSetsIt": "This scene sets it",
+  "scMixAColour": "Mix a colour",
+  "scIsLeftOutOf": "{label} is left out of this scene — turn it on under INCLUDES to set it here.",
+  "@scIsLeftOutOf": {
+    "placeholders": {
+      "label": {
+        "type": "Object"
+      }
+    }
+  },
+  "scColorWheel": "COLOR WHEEL",
+  "scSwatchColoursAreGuessed": "Swatch colours are guessed from the range names. Set them exactly in Fixtures → edit → Ranges.",
+  "scColorMix": "COLOR MIX",
+  "scDuplicate": "Duplicate",
+  "scNoPatchedFixturesYet": "No patched fixtures yet.\nGo to the Fixtures tab, pick a template (built-in or your own),\nand tap \"+ Patch\" to assign it a universe + channel.",
+  "scAddSavedGroup": "ADD SAVED GROUP",
+  "scFixtures": "FIXTURES",
+  "scPickWhichFixturesAre": "Pick which fixtures are part of this scene. Fixtures start in their own group — merge them below to share a look.",
+  "scSelectAtLeastOne": "Select at least one fixture",
+  "scGroups": "GROUPS",
+  "scGroup2": "Group {v}",
+  "@scGroup2": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNewGroup": "+ New Group",
+  "scAssignToBank": "Assign to Bank",
+  "scSaveScene": "Save Scene",
+  "scThisAlsoRemovesThem": "This also removes them from any bank slots they're assigned to.",
+  "scSelectMulti": "Select (multi)",
+  "scAssignToBank2": "Assign to Bank…",
+  "scUngrouped": "Ungrouped",
+  "scRemovedFromBank": "Removed from bank",
+  "scAlreadyIn": "Already in {name}",
+  "@scAlreadyIn": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scIsFull": "{name} is full",
+  "@scIsFull": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scMovedTo": "Moved to {name}",
+  "@scMovedTo": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scActive": "Active",
+  "scFx": "{length} fx",
+  "@scFx": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scDropToAddHere": "Drop to add here",
+  "scEmptyDropAScene": "Empty — drop a scene here",
+  "scSelected": "{length} selected",
+  "@scSelected": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scScenes": "Scenes",
+  "scSort": "Sort",
+  "scManualOrder": "Manual order",
+  "scNameAZ": "Name (A-Z)",
+  "scGroup3": "Group",
+  "scNoGrouping": "No grouping",
+  "scGroupByBank": "Group by Bank",
+  "scNoScenesYetTap": "No scenes yet — tap + to create one",
+  "scLongPressAScene": "Long-press a scene to drag it into another bank",
+  "scUpstage": "UPSTAGE",
+  "scAudience": "AUDIENCE",
+  "scHasNoPositionSaved": "\"{name}\" has no position saved for these fixtures",
+  "@scHasNoPositionSaved": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSavePosition": "Save position",
+  "scUpdateWithThesePositions": "Update \"{name}\" with these positions",
+  "@scUpdateWithThesePositions": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scOnlyTheseFixturesChange": "Only these fixtures change; the rest of the preset is kept",
+  "scRename": "Rename",
+  "scScenesThatUsedIt": "Scenes that used it keep their positions",
+  "scRenamePosition": "Rename position",
+  "scPerFixture": "PER FIXTURE",
+  "scAHeadSetHere": "A head set here leaves the fan and keeps its own spot. The group pad still moves it along.",
+  "scBackToGroup": "Back to group",
+  "scPosition": "Position",
+  "scXyPad": "XY pad",
+  "scStage": "Stage",
+  "scFullScreen": "Full screen",
+  "scTipPlaceTheseHeads": "Tip: place these heads where they really hang in Fixtures → Stage Layout, and set their height there, so the beams land where the plan shows.",
+  "scTapToRecallLong": "Tap to recall · long-press for more",
+  "scSaveCurrent": "Save current",
+  "scPositionPresets": "POSITION PRESETS",
+  "scGroupSpread": "GROUP SPREAD",
+  "scFanPan": "Fan (pan)",
+  "scFanTilt": "Fan (tilt)",
+  "scMirrorLeftRight": "Mirror left / right",
+  "scHeadsOnTheRight": "Heads on the right half of the stage pan the opposite way",
+  "scOfHeadsHaveTheir": "{length} of {length2} heads have their own position and ignore the fan.",
+  "@scOfHeadsHaveTheir": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "length2": {
+        "type": "Object"
+      }
+    }
+  },
+  "scMovement": "MOVEMENT",
+  "scPanTiltSpeed": "Pan/Tilt speed",
+  "scPerFixture2": "Per fixture…",
+  "scCenterAll": "Center all",
+  "scRiggingCalibration": "RIGGING & CALIBRATION",
+  "scRiggingThenCalibrateThis": "Rigging, then calibrate this head on the spot you are aiming at",
+  "scAimAt": "AIM AT",
+  "scFloor": "Floor",
+  "scHeads17M": "Heads · 1.7 m",
+  "scTheAudienceSHead": "The audience's head height",
+  "scMHighLongPress": "{v} m high · long-press to delete",
+  "@scMHighLongPress": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSaveSpot": "Save spot",
+  "scNameTheSpotUnder": "Name the spot under the orange handle, e.g. a mirror ball",
+  "scAimingMAboveThe": "Aiming {v} m above the floor",
+  "@scAimingMAboveThe": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scFormation": "FORMATION",
+  "scSpread": "Spread",
+  "scBackToTheFormation": "Back to the formation ({length} moved on their own)",
+  "@scBackToTheFormation": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scTheSpotUnderThe": "The spot under the orange handle, so any group can be sent there in one tap.",
+  "scMirrorBall": "Mirror ball",
+  "scHeightAboveTheFloor": "Height above the floor",
+  "scScenesAlreadyAimedThere": "Scenes already aimed there keep their positions.",
+  "scSnapToTheGrid": "Snap to the grid: whole, half or quarter of a grid cell",
+  "scSnapOff": "Snap off",
+  "scCoarse": "Coarse",
+  "scFine": "Fine",
+  "scAudience2": "Audience",
+  "scGroups2": "Groups",
+  "scNoSavedGroupsYet": "No saved groups yet.\nBuild one from fixtures you always control together — \"Front\", \"Back\", \"Moving\" — and it shows up as a one-tap shortcut in every scene.",
+  "scFixtures2": "{liveCount} fixtures",
+  "@scFixtures2": {
+    "placeholders": {
+      "liveCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scOfFixturesStillPatched": "{liveCount} of {length} fixtures still patched",
+  "@scOfFixturesStillPatched": {
+    "placeholders": {
+      "liveCount": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNewGroup2": "New group",
+  "scEditGroup": "Edit group",
+  "scNoPatchedFixturesYet2": "No patched fixtures yet — patch some in the Fixtures tab first.",
+  "scEGFront": "e.g. Front",
+  "scIcon": "ICON",
+  "scSearchFixtures": "Search fixtures…",
+  "scStageSize": "Stage size",
+  "scTheRealSizeOf": "The real size of the area this plan shows, so the Scene editor can aim the moving heads in metres.",
+  "scWidthLeftToRight": "Width (left to right)",
+  "scDepthBackToThe": "Depth (back to the audience)",
+  "scStageLayout": "Stage Layout",
+  "scArrangeInAGrid": "Arrange in a grid",
+  "scNoPatchedFixturesYet3": "No patched fixtures yet — patch one in the Templates tab",
+  "scDragEachFixtureTo": "Drag each fixture to where it hangs. Tap a moving head to set its height, which way it faces, and to calibrate it.",
+  "scNewFixture": "New Fixture",
+  "scDiscardChanges": "Discard changes?",
+  "scDiscardFixture": "Discard fixture?",
+  "scYourEditsHaveNot": "Your edits have not been saved.",
+  "scThisFixtureHasNot": "This fixture has not been saved yet.",
+  "scKeepEditing": "Keep Editing",
+  "scDiscard": "Discard",
+  "scEditFixture": "Edit Fixture",
+  "scFixtureName": "Fixture Name",
+  "scFixtureType": "FIXTURE TYPE",
+  "scMovingHead": "Moving Head",
+  "scRgbPar": "RGB / Par",
+  "scGeneric": "Generic",
+  "scChannelMap": "CHANNEL MAP",
+  "scChannels": "{length} channels",
+  "@scChannels": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scChangingTheChannelCount": "Changing the channel count/order updates every patched instance of this fixture — existing scenes may need re-checking.",
+  "scRanges": "Ranges",
+  "scRanges2": "{length} ranges",
+  "@scRanges2": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scAddChannel": "Add Channel",
+  "scMovementRange": "MOVEMENT RANGE",
+  "scHowFarTheHead": "How far the head turns over the whole pan and tilt channel — from the fixture's spec sheet. Sets the degree scale on the position pad and how the stage view aims it.",
+  "scPanRange": "Pan range",
+  "scTiltRange": "Tilt range",
+  "scSaveChanges": "Save Changes",
+  "scSaveFixture": "Save Fixture",
+  "scSplitIntoEqualSlots": "Split into equal slots",
+  "scHowManySlots": "How many slots?",
+  "scSplit": "Split",
+  "scSlot": "Slot {v}",
+  "@scSlot": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSwatchColour": "Swatch colour",
+  "scGuessFromTheName": "Guess from the name",
+  "scGoboPicture": "Gobo picture",
+  "scFrom": "From",
+  "scTo": "To",
+  "scValueRanges": "{channelLabel} — value ranges",
+  "@scValueRanges": {
+    "placeholders": {
+      "channelLabel": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNameWhatEachPart": "Name what each part of this channel's 0-255 span does. Use \"Range\" for a continuous span you fine-tune (strobe speed, fade speed), \"Slot\" for a fixed choice (a gobo, a colour), and \"Off\" for the inactive end.",
+  "scNoRangesThisChannel": "No ranges — this channel stays a plain 0-255 fader.",
+  "scAddRange": "Add range",
+  "scStrobeTemplate": "Strobe template",
+  "scSplitEvenly": "Split evenly…",
+  "scClear": "Clear",
+  "scConnectToTheArt": "Connect to the Art-Net node first to see the beam",
+  "scPanTilt": "{qualifiedName} · pan {panRangeDeg}° / tilt {tiltRangeDeg}°",
+  "@scPanTilt": {
+    "placeholders": {
+      "qualifiedName": {
+        "type": "Object"
+      },
+      "panRangeDeg": {
+        "type": "Object"
+      },
+      "tiltRangeDeg": {
+        "type": "Object"
+      }
+    }
+  },
+  "scMounting": "MOUNTING",
+  "scHeightOfTheHead": "Height of the head (truss trim)",
+  "scHeightOfTheHead2": "Height of the head",
+  "scPanCentreFaces": "PAN CENTRE FACES",
+  "scWhereTheBeamPoints": "Where the beam points on the plan with pan at the middle of its travel. Right and left are as the audience sees the stage.",
+  "scInvertPan": "Invert pan",
+  "scTheHeadTurnsThe": "The head turns the opposite way to the plan",
+  "scInvertTilt": "Invert tilt",
+  "scTheBeamLiftsThe": "The beam lifts the wrong way",
+  "scCalibration": "CALIBRATION",
+  "scSendToTheMark": "Send to the mark again",
+  "scAimAtTheMark": "Aim at the mark",
+  "scOffsetPanTilt": "Offset: pan {panOffsetDeg}° · tilt {tiltOffsetDeg}°",
+  "@scOffsetPanTilt": {
+    "placeholders": {
+      "panOffsetDeg": {
+        "type": "Object"
+      },
+      "tiltOffsetDeg": {
+        "type": "Object"
+      }
+    }
+  },
+  "scReset": "Reset",
+  "scPickTheDmxMode": "Pick the DMX mode the fixture itself is set to — the channel layout differs between modes.",
+  "scChannelsWithNamedRanges": "{channelCount} channels · {length} with named ranges",
+  "@scChannelsWithNamedRanges": {
+    "placeholders": {
+      "channelCount": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scChannels2": "{channelCount} channels",
+  "@scChannels2": {
+    "placeholders": {
+      "channelCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scModesChannels": "{length} modes · {b}-{b2} channels",
+  "@scModesChannels": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "b": {
+        "type": "Object"
+      },
+      "b2": {
+        "type": "Object"
+      }
+    }
+  },
+  "scCouldNotReadThe": "Could not read the bundled library.\n{error}",
+  "@scCouldNotReadThe": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNothingMatched": "Nothing matched",
+  "scSearch": "Search",
+  "scFixtureLibrary": "Fixture Library",
+  "scSearchAllManufacturersAnd": "Search all manufacturers and models",
+  "scFixtureDefinitionsFromThe": "Fixture definitions from the Q Light Controller Plus project, used under the Apache License 2.0.",
+  "scLabel": "Label",
+  "scStartChannel0Based": "Start Channel (0-based)",
+  "scPatch": "Patch: {name}",
+  "@scPatch": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scPatch2": "Patch",
+  "scEdit": "Edit: {label}",
+  "@scEdit": {
+    "placeholders": {
+      "label": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSavedScrollDownTo": "Saved \"{name}\" — scroll down to find it in Templates",
+  "@scSavedScrollDownTo": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scAddedTapItIn": "Added \"{name}\" — tap it in Templates to patch it",
+  "@scAddedTapItIn": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scCouldNotImport": "Could not import: {e}",
+  "@scCouldNotImport": {
+    "placeholders": {
+      "e": {
+        "type": "Object"
+      }
+    }
+  },
+  "scImportedFixtures": "Imported {length} fixtures",
+  "@scImportedFixtures": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNoCustomFixturesTo": "No custom fixtures to export yet",
+  "scExportFixtures": "Export fixtures",
+  "scQlcFilesHoldOne": "QLC+ files hold one fixture each — exported \"{name}\". Use JSON or CSV to export all {length} at once.",
+  "@scQlcFilesHoldOne": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scUpdated": "Updated \"{name}\"",
+  "@scUpdated": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scFixtures3": "Fixtures",
+  "sc2dStageLayout": "2D Stage Layout",
+  "scFixtureLibraryImportAnd": "Fixture library, import and export",
+  "scFixtureLibrary2": "Fixture library…",
+  "scImportFromFile": "Import from file…",
+  "scExportFixturesAsJson": "Export fixtures as JSON…",
+  "scExportAsQlcQxf": "Export as QLC+ (.qxf)…",
+  "scExportAsCsv": "Export as CSV…",
+  "scTemplates": "Templates",
+  "scPatched": "Patched ({length})",
+  "@scPatched": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scCreateCustomFixture": "Create Custom Fixture",
+  "scCh": "{channelCount} ch",
+  "@scCh": {
+    "placeholders": {
+      "channelCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scPatch3": "+ Patch",
+  "scNoFixturesPatchedYet": "No fixtures patched yet",
+  "scCh2": "{name} · {universeName} · Ch {v}-{channelCount}",
+  "@scCh2": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "universeName": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      },
+      "channelCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scEditLabelChannel": "Edit label / channel",
+  "scDeleteScenes": "{count, plural, =1{Delete 1 scene?} other{Delete {count} scenes?}}",
+  "@scDeleteScenes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scDefaultRigging": "{names} still use the default rigging: hanging, 3 m, not calibrated. Heads on stands will not aim right — Tap its chip below: Standing, its height, which way pan centre faces, then calibrate.",
+  "@scDefaultRigging": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "scUnreachable": "{count, plural, =1{1 head can't turn far enough — shown red, and left at the nearest spot it can reach.} other{{count} heads can't turn far enough — shown red, and left at the nearest spot they can reach.}}",
+  "@scUnreachable": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mountCalibrationHint": "{what} ({x} m from the left edge, {y} m from the back{up}). Send the head there, nudge it until the beam sits on the mark, and you're done — every nudge is saved as you go.",
+  "@mountCalibrationHint": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "x": {
+        "type": "String"
+      },
+      "y": {
+        "type": "String"
+      },
+      "up": {
+        "type": "String"
+      }
+    }
+  },
+  "mountMarkCentre": "Put a mark on the floor in the middle of the stage",
+  "mountMarkAimSpot": "Put something at the spot you are aiming at in the Scene editor",
+  "mountMarkUp": ", {m} m up",
+  "@mountMarkUp": {
+    "placeholders": {
+      "m": {
+        "type": "String"
+      }
+    }
+  },
+  "scLookDark": "Dark",
+  "scLookCustom": "Custom",
+  "scLookMoving": "Moving",
+  "scTabStage": "Stage",
+  "scTabPreset": "Preset",
+  "scTabDim": "Dim {percent}%",
+  "@scTabDim": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "scTabPosition": "Position",
+  "scTabColor": "Color",
+  "scTabChannels": "Channels",
+  "mountFacingAudience": "Audience",
+  "mountFacingRight": "Right",
+  "mountFacingUpstage": "Upstage",
+  "mountFacingLeft": "Left"
 }

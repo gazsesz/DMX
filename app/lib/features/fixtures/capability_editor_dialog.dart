@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/wheel_looks.dart';
 import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
+import '../../l10n/l10n.dart';
 
 /// Edits the labelled value spans of a single channel.
 ///
@@ -121,19 +122,19 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: const Text('Split into equal slots'),
+        title: Text(context.l10n.scSplitIntoEqualSlots),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(labelText: 'How many slots?'),
+          decoration: InputDecoration(labelText: context.l10n.scHowManySlots),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
           FilledButton(
             onPressed: () => Navigator.pop(context, int.tryParse(controller.text.trim())),
-            child: const Text('Split'),
+            child: Text(context.l10n.scSplit),
           ),
         ],
       ),
@@ -145,7 +146,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
         ChannelCapability(
           min: (i * step).floor(),
           max: ((i + 1) * step).floor() - 1,
-          label: 'Slot ${i + 1}',
+          label: context.l10n.scSlot(i + 1),
         ),
     ]);
   }
@@ -155,11 +156,11 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
   Widget _colorButton(_Row row) {
     final preview = row.toCapability();
     return PopupMenuButton<String>(
-      tooltip: 'Swatch colour',
+      tooltip: context.l10n.scSwatchColour,
       color: AppColors.panel2,
       onSelected: (hex) => setState(() => row.colorHex = hex.isEmpty ? null : hex),
       itemBuilder: (context) => [
-        const PopupMenuItem(value: '', child: Text('Guess from the name')),
+        PopupMenuItem(value: '', child: Text(context.l10n.scGuessFromTheName)),
         for (final entry in wheelColorChoices.entries)
           PopupMenuItem(
             value: entry.value,
@@ -183,11 +184,11 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
   Widget _glyphButton(_Row row) {
     final preview = row.toCapability();
     return PopupMenuButton<String>(
-      tooltip: 'Gobo picture',
+      tooltip: context.l10n.scGoboPicture,
       color: AppColors.panel2,
       onSelected: (name) => setState(() => row.glyph = name.isEmpty ? null : name),
       itemBuilder: (context) => [
-        const PopupMenuItem(value: '', child: Text('Guess from the name')),
+        PopupMenuItem(value: '', child: Text(context.l10n.scGuessFromTheName)),
         for (final name in goboGlyphNames)
           PopupMenuItem(
             value: name,
@@ -221,7 +222,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: appMonoStyle(fontSize: 12),
-              decoration: const InputDecoration(isDense: true, labelText: 'From'),
+              decoration: InputDecoration(isDense: true, labelText: context.l10n.scFrom),
             ),
           ),
           const SizedBox(width: 6),
@@ -232,7 +233,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
               keyboardType: TextInputType.number,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               style: appMonoStyle(fontSize: 12),
-              decoration: const InputDecoration(isDense: true, labelText: 'To'),
+              decoration: InputDecoration(isDense: true, labelText: context.l10n.scTo),
             ),
           ),
           const SizedBox(width: 8),
@@ -240,7 +241,7 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
             child: TextField(
               controller: row.label,
               style: const TextStyle(fontSize: 12.5),
-              decoration: const InputDecoration(isDense: true, labelText: 'Name'),
+              decoration: InputDecoration(isDense: true, labelText: context.l10n.commonName),
             ),
           ),
           const SizedBox(width: 6),
@@ -275,18 +276,15 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor: AppColors.panel,
-      title: Text('${widget.channelLabel} — value ranges'),
+      title: Text(context.l10n.scValueRanges(widget.channelLabel)),
       content: SizedBox(
         width: 560,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Name what each part of this channel\'s 0-255 span does. '
-              'Use "Range" for a continuous span you fine-tune (strobe speed, '
-              'fade speed), "Slot" for a fixed choice (a gobo, a colour), and '
-              '"Off" for the inactive end.',
+            Text(
+              context.l10n.scNameWhatEachPart,
               style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
             const SizedBox(height: 10),
@@ -295,10 +293,10 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
                 child: Column(
                   children: [
                     if (_rows.isEmpty)
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.symmetric(vertical: 14),
                         child: Text(
-                          'No ranges — this channel stays a plain 0-255 fader.',
+                          context.l10n.scNoRangesThisChannel,
                           style: TextStyle(fontSize: 12, color: AppColors.textFaint),
                         ),
                       )
@@ -316,23 +314,23 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
                 TextButton.icon(
                   onPressed: _add,
                   icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Add range'),
+                  label: Text(context.l10n.scAddRange),
                 ),
                 TextButton.icon(
                   onPressed: () => _replaceAll(_strobeTemplate),
                   icon: const Icon(Icons.flash_on, size: 16),
-                  label: const Text('Strobe template'),
+                  label: Text(context.l10n.scStrobeTemplate),
                 ),
                 TextButton.icon(
                   onPressed: _splitEvenly,
                   icon: const Icon(Icons.grid_on, size: 16),
-                  label: const Text('Split evenly…'),
+                  label: Text(context.l10n.scSplitEvenly),
                 ),
                 if (_rows.isNotEmpty)
                   TextButton.icon(
                     onPressed: () => _replaceAll(const []),
                     icon: const Icon(Icons.clear_all, size: 16),
-                    label: const Text('Clear'),
+                    label: Text(context.l10n.scClear),
                   ),
               ],
             ),
@@ -340,13 +338,13 @@ class _CapabilityEditorDialogState extends State<_CapabilityEditorDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
         FilledButton(
           onPressed: () => Navigator.pop(
             context,
             normalizeCapabilities([for (final row in _rows) row.toCapability()]),
           ),
-          child: const Text('Done'),
+          child: Text(context.l10n.commonDone),
         ),
       ],
     );
