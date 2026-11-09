@@ -4,6 +4,7 @@ import '../../core/playback/dimmer_dropout.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/layer.dart';
 import '../../models/patched_fixture.dart';
+import '../../l10n/l10n.dart';
 
 /// The dimmer dropout's settings, edited in place: which layers (and
 /// optionally lamps) it cuts, how long the dark lasts, and whether it comes on
@@ -42,12 +43,12 @@ class DropoutControls extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (layerList != null) ...[
-          const _Label('Melyik rétegre'),
+          _Label(context.l10n.dropoutWhichLayer),
           Wrap(
             spacing: 6,
             children: [
               ChoiceChip(
-                label: const Text('Mind'),
+                label: Text(context.l10n.commonAll),
                 selected: liveTargets.isEmpty,
                 onSelected: (_) => onChanged(settings.copyWith(targetLayerIds: const {})),
               ),
@@ -69,14 +70,14 @@ class DropoutControls extends StatelessWidget {
           ),
         ],
         if (lamps != null && lamps.isNotEmpty) ...[
-          const _Label('Melyik lámpákra'),
+          _Label(context.l10n.dropoutWhichFixtures),
           Wrap(
             spacing: 6,
             children: [
               ChoiceChip(
-                label: const Text('Mind'),
+                label: Text(context.l10n.commonAll),
                 selected: settings.fixtureIds.isEmpty,
-                onSelected: (_) => onChanged(settings.copyWith(fixtureIds: const {})),
+                onSelected: (_) => onChanged(settings.copyWith(fixtureIds: {})),
               ),
               for (final fixture in lamps)
                 FilterChip(
@@ -95,39 +96,38 @@ class DropoutControls extends StatelessWidget {
             ],
           ),
         ],
-        const _Label('Mikor'),
+        _Label(context.l10n.dropoutWhen),
         SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: false, label: Text('Időközönként')),
-            ButtonSegment(value: true, label: Text('Ütemre')),
+          segments: [
+            ButtonSegment(value: false, label: Text(context.l10n.dropoutAtIntervals)),
+            ButtonSegment(value: true, label: Text(context.l10n.dropoutOnBeat)),
           ],
           selected: {settings.onBeat},
           onSelectionChanged: (s) => onChanged(settings.copyWith(onBeat: s.first)),
         ),
         if (settings.onBeat) ...[
-          const _Label('Hányadik ütemre'),
+          _Label(context.l10n.dropoutWhichBeat),
           Wrap(
             spacing: 6,
             children: [
               for (final n in DropoutSettings.beatDivisions)
                 ChoiceChip(
-                  label: Text(n == 1 ? 'Minden' : 'Minden $n.'),
+                  label: Text(context.l10n.dropoutEveryNthBeat(n)),
                   selected: settings.beatEvery == n,
                   onSelected: (_) => onChanged(settings.copyWith(beatEvery: n)),
                 ),
             ],
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.only(top: 4),
             child: Text(
-              'A zenét a dock Beat Sync-je (vagy egy futó Smart Program) hallgatja. '
-              'Amíg nincs ütem, időközönként megy tovább.',
+              context.l10n.dropoutBeatHint,
               style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
           ),
         ],
         _SliderRow(
-          label: 'Sötét hossza',
+          label: context.l10n.dropoutDarkLength,
           value: settings.lengthMs.toDouble(),
           min: DropoutSettings.minLengthMs.toDouble(),
           max: DropoutSettings.maxLengthMs.toDouble(),
@@ -139,7 +139,7 @@ class DropoutControls extends StatelessWidget {
           value: settings.fadeOutMs.toDouble(),
           min: 0,
           max: DropoutSettings.maxFadeOutMs.toDouble(),
-          text: settings.fadeOutMs == 0 ? 'azonnal' : '${settings.fadeOutMs} ms',
+          text: settings.fadeOutMs == 0 ? context.l10n.dropoutInstant : '${settings.fadeOutMs} ms',
           onChanged: (v) => onChanged(settings.copyWith(fadeOutMs: v.round())),
         ),
         _SliderRow(
@@ -147,11 +147,11 @@ class DropoutControls extends StatelessWidget {
           value: settings.fadeInMs.toDouble(),
           min: 0,
           max: DropoutSettings.maxFadeInMs.toDouble(),
-          text: settings.fadeInMs == 0 ? 'azonnal' : '${settings.fadeInMs} ms',
+          text: settings.fadeInMs == 0 ? context.l10n.dropoutInstant : '${settings.fadeInMs} ms',
           onChanged: (v) => onChanged(settings.copyWith(fadeInMs: v.round())),
         ),
         _SliderRow(
-          label: settings.onBeat ? 'Köz (ütem nélkül)' : 'Átlagos köz',
+          label: settings.onBeat ? context.l10n.dropoutGapNoBeat : context.l10n.dropoutAverageGap,
           value: settings.intervalMs.toDouble(),
           min: DropoutSettings.minIntervalMs.toDouble(),
           max: DropoutSettings.maxIntervalMs.toDouble(),
@@ -160,7 +160,7 @@ class DropoutControls extends StatelessWidget {
         ),
         if (!settings.onBeat)
           _SliderRow(
-            label: 'Szabálytalanság',
+            label: context.l10n.dropoutIrregularity,
             value: settings.jitter,
             min: 0,
             max: 1,

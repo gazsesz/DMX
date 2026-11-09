@@ -15,6 +15,7 @@ import '../../models/movement_fx.dart';
 import '../../state/bank_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../l10n/l10n.dart';
 
 const _lapScale = LogScale(min: 0.5, max: 60.0, inverted: true);
 
@@ -45,7 +46,7 @@ class MovementFxEditor extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _label('Shape'),
+          _label(context.l10n.fxShape),
           Wrap(
             spacing: 8,
             runSpacing: 4,
@@ -65,15 +66,15 @@ class MovementFxEditor extends ConsumerWidget {
             child: _PathPreview(fx: fx, heads: movers.isEmpty ? 3 : math.min(movers.length, 6)),
           ),
           const SizedBox(height: 8),
-          _label('Speed'),
+          _label(context.l10n.fxSpeed),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
             dense: true,
-            title: const Text('Lock to the beat'),
+            title: Text(context.l10n.fxLockToBeat),
             subtitle: Text(
               fx.beatLocked
-                  ? 'One lap every ${_beats(fx.beats)} beats; without a beat it carries on at the last tempo'
-                  : 'Free running at its own pace',
+                  ? context.l10n.fxLockedHint(_beats(fx.beats))
+                  : context.l10n.fxFreeRunning,
               style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
             ),
             value: fx.beatLocked,
@@ -85,7 +86,7 @@ class MovementFxEditor extends ConsumerWidget {
               children: [
                 for (final beats in MovementFx.beatChoices)
                   ChoiceChip(
-                    label: Text('${_beats(beats)} beats'),
+                    label: Text(context.l10n.fxBeats(_beats(beats))),
                     selected: fx.beats == beats,
                     visualDensity: VisualDensity.compact,
                     onSelected: (_) => update(fx.copyWith(beats: beats)),
@@ -94,7 +95,7 @@ class MovementFxEditor extends ConsumerWidget {
             )
           else
             _slider(
-              'Lap time',
+              context.l10n.fxLapTime,
               _lapScale.positionOf(fx.periodSec),
               '${fx.periodSec.toStringAsFixed(fx.periodSec < 10 ? 1 : 0)} s',
               // Right is faster, as on the dock's step speed.
@@ -112,27 +113,27 @@ class MovementFxEditor extends ConsumerWidget {
             spacing: 16,
             children: [
               _toggle(
-                'Reverse',
+                context.l10n.fxReverse,
                 fx.reverse,
                 (v) => update(fx.copyWith(reverse: v)),
               ),
               _toggle(
-                'Mirror left/right',
+                context.l10n.fxMirror,
                 fx.mirror,
                 (v) => update(fx.copyWith(mirror: v)),
               ),
             ],
           ),
           _slider(
-            'Wave across heads',
+            context.l10n.fxWave,
             fx.phaseSpread,
             fx.phaseSpread == 0
-                ? 'together'
-                : '${(fx.phaseSpread * 100).round()}% of a lap',
+                ? context.l10n.fxTogether
+                : context.l10n.fxPercentOfLap((fx.phaseSpread * 100).round()),
             (v) => update(fx.copyWith(phaseSpread: v)),
           ),
           const SizedBox(height: 4),
-          _label('Path'),
+          _label(context.l10n.fxPath),
           SegmentedButton<MovementSpace>(
             segments: [
               for (final space in MovementSpace.values)
@@ -146,18 +147,18 @@ class MovementFxEditor extends ConsumerWidget {
           const SizedBox(height: 4),
           if (fx.space == MovementSpace.panTilt) ...[
             _slider(
-              'Width',
+              context.l10n.fxWidth,
               fx.sizePanDeg / 180,
               '±${fx.sizePanDeg.round()}°',
               (v) => update(fx.copyWith(sizePanDeg: v * 180)),
             ),
             _slider(
-              'Height',
+              context.l10n.fxHeight,
               fx.sizeTiltDeg / 90,
               '±${fx.sizeTiltDeg.round()}°',
               (v) => update(fx.copyWith(sizeTiltDeg: v * 90)),
             ),
-            _label('Centre'),
+            _label(context.l10n.fxCentre),
             Center(
               child: SizedBox(
                 width: 220,
@@ -171,27 +172,27 @@ class MovementFxEditor extends ConsumerWidget {
               ),
             ),
           ] else ...[
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(bottom: 4),
               child: Text(
-                'Drawn on the stage plan, so every head aims at its own point of the shape.',
+                context.l10n.fxStagePlanHint,
                 style: TextStyle(fontSize: 11, color: AppColors.textFaint),
               ),
             ),
             _slider(
-              'Width',
+              context.l10n.fxWidth,
               fx.sizeXM / 10,
               '±${fx.sizeXM.toStringAsFixed(1)} m',
               (v) => update(fx.copyWith(sizeXM: v * 10)),
             ),
             _slider(
-              'Depth',
+              context.l10n.fxDepth,
               fx.sizeYM / 10,
               '±${fx.sizeYM.toStringAsFixed(1)} m',
               (v) => update(fx.copyWith(sizeYM: v * 10)),
             ),
             _slider(
-              'Centre across',
+              context.l10n.fxCentreAcross,
               fx.stageCenter.x,
               '${(fx.stageCenter.x * 100).round()}%',
               (v) => update(
@@ -199,7 +200,7 @@ class MovementFxEditor extends ConsumerWidget {
               ),
             ),
             _slider(
-              'Centre depth',
+              context.l10n.fxCentreDepth,
               fx.stageCenter.y,
               '${(fx.stageCenter.y * 100).round()}%',
               (v) => update(
@@ -207,14 +208,14 @@ class MovementFxEditor extends ConsumerWidget {
               ),
             ),
             _slider(
-              'Height of the plane',
+              context.l10n.fxPlaneHeight,
               fx.aimHeightM / 5,
               '${fx.aimHeightM.toStringAsFixed(1)} m',
               (v) => update(fx.copyWith(aimHeightM: v * 5)),
             ),
           ],
           _slider(
-            'Rotate',
+            context.l10n.fxRotate,
             (fx.rotationDeg + 180) / 360,
             '${fx.rotationDeg.round()}°',
             (v) => update(
@@ -223,27 +224,27 @@ class MovementFxEditor extends ConsumerWidget {
           ),
           if (fx.space == MovementSpace.panTilt)
             _slider(
-              'Fan',
+              context.l10n.fxFan,
               fx.fanPanDeg / 90,
-              fx.fanPanDeg == 0 ? 'off' : '${fx.fanPanDeg.round()}° per head',
+              fx.fanPanDeg == 0 ? context.l10n.commonOff : context.l10n.fxFanDeg(fx.fanPanDeg.round()),
               (v) => update(fx.copyWith(fanPanDeg: (v * 90).roundToDouble())),
             )
           else
             _slider(
-              'Fan',
+              context.l10n.fxFan,
               fx.fanXM / 5,
-              fx.fanXM == 0 ? 'off' : '${fx.fanXM.toStringAsFixed(1)} m per head',
+              fx.fanXM == 0 ? context.l10n.commonOff : context.l10n.fxFanM(fx.fanXM.toStringAsFixed(1)),
               (v) => update(fx.copyWith(fanXM: double.parse((v * 5).toStringAsFixed(1)))),
             ),
           const SizedBox(height: 4),
-          _label('Look'),
+          _label(context.l10n.fxLook),
           _LookSection(fx: fx, banks: ref.watch(banksProvider), onChanged: update),
           const SizedBox(height: 4),
-          _label('Heads'),
+          _label(context.l10n.fxHeads),
           Text(
             fx.groupIds.isEmpty && fx.fixtureIds.isEmpty
-                ? 'Every moving head (${movers.length})'
-                : 'Only the ones picked below',
+                ? context.l10n.fxEveryHead(movers.length)
+                : context.l10n.fxOnlyPicked,
             style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
           ),
           const SizedBox(height: 4),
@@ -275,10 +276,10 @@ class MovementFxEditor extends ConsumerWidget {
             ],
           ),
           if (movers.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 8),
               child: Text(
-                'No moving heads in the patch (a fixture needs pan and tilt channels).',
+                context.l10n.fxNoMovers,
                 style: TextStyle(fontSize: 11, color: AppColors.accent),
               ),
             ),
@@ -496,18 +497,18 @@ class _LookSection extends StatelessWidget {
         child: ListView(
           shrinkWrap: true,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text('Look bank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: Text(context.l10n.fxLookBank, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
             if (candidates.isEmpty)
-              const ListTile(title: Text('No scene banks yet — make one on the Banks screen')),
+              ListTile(title: Text(context.l10n.fxNoSceneBanks)),
             for (final bank in candidates)
               ListTile(
                 dense: true,
                 leading: const Icon(Icons.palette_outlined, color: AppColors.accent2),
                 title: Text(bank.name),
-                subtitle: Text('${bank.sceneSlots.where((s) => s != null).length} scenes'),
+                subtitle: Text(context.l10n.fxScenesCount(bank.sceneSlots.where((s) => s != null).length)),
                 selected: bank.id == fx.lookBankId,
                 onTap: () => Navigator.pop(context, bank.id),
               ),
@@ -529,32 +530,32 @@ class _LookSection extends StatelessWidget {
             Expanded(
               child: Text(
                 fx.lookBankId == null
-                    ? 'None — the colours come from whatever else is playing'
+                    ? context.l10n.fxLookNone
                     : bank == null
-                        ? 'The look bank is gone'
+                        ? context.l10n.fxLookGone
                         : bank.name,
                 style: TextStyle(fontSize: 12, color: bank == null ? AppColors.textFaint : AppColors.text),
               ),
             ),
-            TextButton(onPressed: () => _pick(context), child: Text(fx.lookBankId == null ? 'Pick bank' : 'Change')),
+            TextButton(onPressed: () => _pick(context), child: Text(fx.lookBankId == null ? context.l10n.fxPickBank : context.l10n.fxChange)),
             if (fx.lookBankId != null)
               IconButton(
                 icon: const Icon(Icons.close, size: 16),
-                tooltip: 'No look',
+                tooltip: context.l10n.fxNoLook,
                 onPressed: () => onChanged(fx.copyWith(clearLook: true)),
               ),
           ],
         ),
         if (fx.lookBankId != null) ...[
-          const Text(
-            'Its pan/tilt is ignored for the heads the path moves.',
-            style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+          Text(
+            context.l10n.fxLookPanTiltIgnored,
+            style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           SegmentedButton<bool>(
-            segments: const [
-              ButtonSegment(value: false, label: Text('Dock Hold/Fade')),
-              ButtonSegment(value: true, label: Text('Own timing')),
+            segments: [
+              ButtonSegment(value: false, label: Text(context.l10n.fxDockHoldFade)),
+              ButtonSegment(value: true, label: Text(context.l10n.fxOwnTiming)),
             ],
             selected: {fx.lookOwnTiming},
             showSelectedIcon: false,
@@ -562,22 +563,22 @@ class _LookSection extends StatelessWidget {
             onSelectionChanged: (s) => onChanged(fx.copyWith(lookOwnTiming: s.first)),
           ),
           if (!fx.lookOwnTiming)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 4),
               child: Text(
-                'Follows the dock: its Hold and Fade, and the beat when Beat Sync is on.',
+                context.l10n.fxLookFollowsDock,
                 style: TextStyle(fontSize: 11, color: AppColors.textFaint),
               ),
             )
           else ...[
             MovementFxEditor._slider(
-              'Look hold',
+              context.l10n.fxLookHold,
               holdTimeScale.positionOf(fx.lookHoldMs / 1000),
               '${(fx.lookHoldMs / 1000).toStringAsFixed(2)} s',
               (v) => onChanged(fx.copyWith(lookHoldMs: (holdTimeScale.valueAt(v) * 1000).round().clamp(20, 60000))),
             ),
             MovementFxEditor._slider(
-              'Look fade',
+              context.l10n.fxLookFade,
               fadeTimeScale.positionOf(fx.lookFadeMs / 1000),
               '${(fx.lookFadeMs / 1000).toStringAsFixed(2)} s',
               (v) => onChanged(fx.copyWith(lookFadeMs: (fadeTimeScale.valueAt(v) * 1000).round().clamp(0, 120000))),

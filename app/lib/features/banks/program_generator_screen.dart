@@ -11,6 +11,7 @@ import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
+import '../../l10n/l10n.dart';
 
 const _uuid = Uuid();
 
@@ -65,7 +66,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
     final targets = _targetFixtures();
     if (targets.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('No fixtures selected — tick at least one under Apply To')));
+          .showSnackBar(SnackBar(content: Text(context.l10n.genNoFixtures)));
       return;
     }
     final colors = [for (final i in _selectedColors) _palette[i].value];
@@ -121,7 +122,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
 
     Navigator.of(context).pop();
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Generated ${scenes.length} scenes into a bank${_alsoCreateChase ? ' + chase' : ''}')),
+      SnackBar(content: Text(_alsoCreateChase ? context.l10n.genGeneratedWithChase(scenes.length) : context.l10n.genGenerated(scenes.length))),
     );
   }
 
@@ -152,13 +153,13 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
     final banks = ref.watch(banksProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Generate Program')),
+      appBar: AppBar(title: Text(context.l10n.banksGenerateProgram)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          const Text(
-            'BASE COLORS (pick up to 4)',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          Text(
+            context.l10n.genBaseColors,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           Card(
@@ -194,9 +195,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'COLOR FX',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          Text(
+            context.l10n.genColorFx,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -212,19 +213,19 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             ],
           ),
           const SizedBox(height: 20),
-          const Text(
-            'Beam movement (circles, sweeps, swim…) now lives in Banks → Movement FX, where it runs live on the heads.',
-            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          Text(
+            context.l10n.genMovementMoved,
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 20),
           if (_isRunningStrobe) ...[
-            const Text(
-              'RUNNING STROBE',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            Text(
+              context.l10n.genRunningStrobe,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
             ),
-            const Text(
-              'A strobe hit walking along the lamps, in the order they\'re patched',
-              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            Text(
+              context.l10n.genRunningStrobeHint,
+              style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
             const SizedBox(height: 8),
             Card(
@@ -233,7 +234,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Lamps at once', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(context.l10n.genLampsAtOnce, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     SegmentedButton<int>(
                       segments: const [
@@ -246,7 +247,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                       onSelectionChanged: (s) => setState(() => _strobeGroupSize = s.first),
                     ),
                     const SizedBox(height: 12),
-                    const Text('Direction', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                    Text(context.l10n.genDirection, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     const SizedBox(height: 6),
                     SegmentedButton<StrobeDirection>(
                       segments: [for (final d in StrobeDirection.values) ButtonSegment(value: d, label: Text(d.label))],
@@ -255,10 +256,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                       onSelectionChanged: (s) => setState(() => _strobeDirection = s.first),
                     ),
                     const SizedBox(height: 8),
-                    const Text(
-                      'Each flash is followed by a dark step. Hold sets the strobe speed; '
-                      'with Beat Sync each step lands on a beat.',
-                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    Text(
+                      context.l10n.genStrobeHint,
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                   ],
                 ),
@@ -266,7 +266,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             ),
           ] else ...[
             Text(
-              'SHAPE (Shift staggers the palette)',
+              context.l10n.genShape,
               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
             ),
             const SizedBox(height: 8),
@@ -278,8 +278,8 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                     _shapeSlider(
                       label: 'Shift',
                       hint: _effect == GeneratorEffect.rainbowWave
-                          ? 'How far apart the lamps sit on the colour wheel (0 = the full wheel)'
-                          : 'Staggers the palette across the fixtures',
+                          ? context.l10n.genShiftWheelHint
+                          : context.l10n.genShiftHint,
                       value: _shift,
                       onChanged: (v) => setState(() => _shift = v),
                     ),
@@ -288,13 +288,13 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
               ),
             ),
             const SizedBox(height: 20),
-            const Text(
-              'FIXTURE PATTERN',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+            Text(
+              context.l10n.genFixturePattern,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
             ),
-            const Text(
-              'Which fixtures light up each scene — not always all of them at once',
-              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            Text(
+              context.l10n.genFixturePatternHint,
+              style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
             const SizedBox(height: 8),
             Wrap(
@@ -311,9 +311,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             ),
           ],
           const SizedBox(height: 20),
-          const Text(
-            'APPLY TO',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          Text(
+            context.l10n.genApplyTo,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           Card(
@@ -333,9 +333,9 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
             ),
           ),
           const SizedBox(height: 20),
-          const Text(
-            'OUTPUT',
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          Text(
+            context.l10n.genOutput,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           Card(
@@ -345,12 +345,12 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                 children: [
                   ListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Destination Bank'),
+                    title: Text(context.l10n.genDestinationBank),
                     trailing: DropdownButton<String?>(
                       value: _destinationBankId,
                       underline: const SizedBox.shrink(),
                       items: [
-                        const DropdownMenuItem(value: null, child: Text('+ New Bank')),
+                        DropdownMenuItem(value: null, child: Text(context.l10n.genNewBank)),
                         for (final bank in banks) DropdownMenuItem(value: bank.id, child: Text(bank.name)),
                       ],
                       onChanged: (v) => setState(() => _destinationBankId = v),
@@ -360,7 +360,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                     const Divider(height: 1),
                     ListTile(
                       contentPadding: EdgeInsets.zero,
-                      title: const Text('Number of Scenes'),
+                      title: Text(context.l10n.genNumberOfScenes),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -380,7 +380,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
                   const Divider(height: 1),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Also Create Chase'),
+                    title: Text(context.l10n.genAlsoCreateChase),
                     value: _alsoCreateChase,
                     onChanged: (v) => setState(() => _alsoCreateChase = v),
                   ),
@@ -392,7 +392,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
           FilledButton.icon(
             onPressed: _generate,
             icon: const Icon(Icons.auto_awesome),
-            label: Text('Generate $_plannedSceneCount Scenes'),
+            label: Text(context.l10n.genGenerateButton(_plannedSceneCount)),
           ),
         ],
       ),

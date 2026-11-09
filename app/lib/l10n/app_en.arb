@@ -368,5 +368,418 @@
       }
     }
   },
-  "dmxMapOverlap": "overlap"
+  "dmxMapOverlap": "overlap",
+  "dropoutTitle": "Dimmer dropout",
+  "dropoutSubtitle": "Goes dark for a moment now and then, while everything else (movement, colour) keeps running",
+  "dropoutWhichLayer": "Which layer",
+  "dropoutWhichFixtures": "Which fixtures",
+  "dropoutWhen": "When",
+  "dropoutAtIntervals": "At intervals",
+  "dropoutOnBeat": "On the beat",
+  "dropoutWhichBeat": "Every how many beats",
+  "dropoutEveryNthBeat": "{n, plural, =1{Every beat} other{Every {n}th}}",
+  "@dropoutEveryNthBeat": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "dropoutBeatHint": "The music is heard by the dock's Beat Sync (or a running Smart Program). While there is no beat, it keeps going at intervals.",
+  "dropoutDarkLength": "Dark length",
+  "dropoutInstant": "instant",
+  "dropoutGapNoBeat": "Gap (without beat)",
+  "dropoutAverageGap": "Average gap",
+  "dropoutIrregularity": "Irregularity",
+  "layersNew": "New Layer",
+  "layersRename": "Rename Layer",
+  "layersMergeHint": "Merge hint (informational)",
+  "layersDeleteTitle": "Delete \"{name}\"?",
+  "@layersDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "layersDeleteEmpty": "This layer is currently empty.",
+  "layersDeleteRunning": "This will stop \"{name}\", currently running on this layer.",
+  "@layersDeleteRunning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "layersTitle": "Layers",
+  "layersSubtitle": "Programs running at the same time",
+  "layersAdd": "Add layer",
+  "layersMergeRule": "Channel merge: dimmer → HTP · pan/tilt, colour → LTP (priority)",
+  "layersRunningBadge": "LIVE",
+  "layersLastPlayed": "Last: {name}",
+  "@layersLastPlayed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "layersNothingRunning": "Nothing running",
+  "layersPriority": "Priority {priority}",
+  "@layersPriority": {
+    "placeholders": {
+      "priority": {
+        "type": "int"
+      }
+    }
+  },
+  "layersResume": "Resume \"{name}\"",
+  "@layersResume": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "commonStop": "Stop",
+  "layersDelete": "Delete layer",
+  "layersEdit": "Edit layer",
+  "fxPresetCircle": "Slow round and round",
+  "fxPresetSwim": "Figure of eight, heads a half lap apart",
+  "fxPresetFloat": "Wanders, never repeats the same shape",
+  "fxPresetLightRider": "A scanner bar, easing at each end",
+  "fxPresetPanSweep": "Left and right",
+  "fxPresetTiltSweep": "Up and down",
+  "fxPresetSquare": "Round the corners of a square",
+  "fxPresetDiamond": "Round the corners of a diamond",
+  "fxPresetRandom": "Wanders between random spots",
+  "fxPresetRandomJump": "Jumps to a new random spot on the beat",
+  "fxPresetHold": "Stays at the centre — move it with the pad",
+  "banksSearch": "Search banks",
+  "banksNoMatch": "No bank by that name",
+  "banksTimingTitle": "{name} — Timing",
+  "@banksTimingTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksOwnTiming": "Own timing for this bank",
+  "banksOwnTimingOn": "Plays at the Hold/Fade below, wherever it runs",
+  "banksFollowsDock": "Follows the dock: {timing}",
+  "@banksFollowsDock": {
+    "placeholders": {
+      "timing": {
+        "type": "String"
+      }
+    }
+  },
+  "banksHoldBeatSync": "Hold {hold} — Beat Sync is on, steps follow the beat",
+  "@banksHoldBeatSync": {
+    "placeholders": {
+      "hold": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepsOwnTiming": "{count, plural, =1{1 step has its own timing, which wins over this} other{{count} steps have their own timing, which wins over this}}",
+  "@banksStepsOwnTiming": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "banksResetAllSteps": "Reset all steps",
+  "banksAppWideTiming": "App-wide timing (dock)",
+  "banksBeatFlashColours": "Beat Flash colours",
+  "banksPickColour": "Pick colour…",
+  "banksFlashesBeforeRepeat": "Flashes before it repeats",
+  "commonNext": "Next",
+  "banksNewMovementFx": "New Movement FX bank",
+  "banksNoFixtures": "No patched fixtures — patch your lamps first",
+  "banksWhichFixturesFlash": "Which fixtures flash?",
+  "banksBeatFlashReady": "\"{name}\" ready — hit Run Bank and it flashes on every beat",
+  "@banksBeatFlashReady": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepTimingTitle": "Step {step} · {scene} — Timing",
+  "@banksStepTimingTitle": {
+    "placeholders": {
+      "step": {
+        "type": "int"
+      },
+      "scene": {
+        "type": "String"
+      }
+    }
+  },
+  "banksOwnStepTiming": "Own timing for this step",
+  "banksStepWins": "Wins over {bank}'s and the dock's timing, wherever the bank plays",
+  "@banksStepWins": {
+    "placeholders": {
+      "bank": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepFollows": "{from, select, bank{Follows the bank} other{Follows the dock}}: {timing}",
+  "@banksStepFollows": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "timing": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepReset": "{from, select, bank{Reset — follow the bank again} other{Reset — follow the dock again}}",
+  "@banksStepReset": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      }
+    }
+  },
+  "banksSlotTitle": "Slot {n}",
+  "@banksSlotTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "banksNewScene": "New scene…",
+  "banksDuplicateScene": "Duplicate scene into the next free slot",
+  "banksDuplicateShift": "Duplicate into the next step, shift the rest",
+  "banksStepTiming": "Step timing…",
+  "banksStepTimingValue": "Step timing · {hold} / {fade}",
+  "@banksStepTimingValue": {
+    "placeholders": {
+      "hold": {
+        "type": "String"
+      },
+      "fade": {
+        "type": "String"
+      }
+    }
+  },
+  "banksClearSlot": "Clear slot",
+  "banksDeleteEmptySlot": "Delete this empty slot",
+  "banksRenameTitle": "Rename Bank",
+  "banksSizeTitle": "Bank Size",
+  "banksNumberOfSlots": "Number of slots",
+  "banksTitle": "Banks",
+  "banksNoBanks": "No banks yet",
+  "banksSceneLibrary": "Scene library",
+  "banksImport": "Import banks / chases",
+  "banksGenerateProgram": "Generate Program",
+  "banksRemoveFromDashboard": "Remove from Dashboard",
+  "banksAddToDashboard": "Add to Dashboard",
+  "banksRemovedFromDashboard": "Removed \"{name}\" from Dashboard",
+  "@banksRemovedFromDashboard": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksAddedToDashboard": "Added \"{name}\" to Dashboard",
+  "@banksAddedToDashboard": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksRenameBank": "Rename bank",
+  "banksAllBanks": "All banks ({count})",
+  "@banksAllBanks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "banksFindByName": "Find a bank by name",
+  "commonNew": "New",
+  "banksBeatFlashTooltip": "Every lamp, full, on every beat",
+  "banksMovementFxTooltip": "Circle, swim, sweep… for the moving heads — set by shape and speed, not by steps",
+  "banksSizeLine": "Bank Size: {count} slots",
+  "@banksSizeLine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "banksFlashBankTooltip": "Plays its slots as dark/lit pairs: 1 dark, 2 lit, 3 dark… The lit step only stays up for the flash length — on the beat or on the timer.",
+  "banksFlashBank": "Flash bank",
+  "banksEditSize": "Edit Size",
+  "banksEditSlotsTooltip": "On: tap a slot to pick its scene and timing; hold and drag a scene to move it",
+  "banksEditSlots": "Edit slots",
+  "banksRunBank": "Run Bank",
+  "banksRunOnLayer": "Run on another layer…",
+  "banksBeatSyncOn": "Beat Sync on — steps wait for the beat",
+  "banksBeatSyncOff": "Beat Sync off — steps on the timer",
+  "banksBeatFlashAlways": "A Beat Flash bank always flashes on the beat, whatever the app-wide rate",
+  "banksStepsPerBeat": "Steps per beat",
+  "banksFlashFadeTooltip": "How long the lit → dark step takes at the Flash rate. 0 is a hard cut; a little more gives the flash a short decay.",
+  "banksFlashFadeOut": "Flash Fade Out",
+  "banksSlotMenuTooltip": "Change scene, step timing…",
+  "banksOwnTimingTooltip": "Own timing: {timing}",
+  "@banksOwnTimingTooltip": {
+    "placeholders": {
+      "timing": {
+        "type": "String"
+      }
+    }
+  },
+  "banksDuplicate": "Duplicate Bank",
+  "banksExport": "Export Bank",
+  "banksDelete": "Delete Bank",
+  "fxShape": "Shape",
+  "fxSpeed": "Speed",
+  "fxLockToBeat": "Lock to the beat",
+  "fxLockedHint": "One lap every {beats} beats; without a beat it carries on at the last tempo",
+  "@fxLockedHint": {
+    "placeholders": {
+      "beats": {
+        "type": "String"
+      }
+    }
+  },
+  "fxFreeRunning": "Free running at its own pace",
+  "fxBeats": "{beats} beats",
+  "@fxBeats": {
+    "placeholders": {
+      "beats": {
+        "type": "String"
+      }
+    }
+  },
+  "fxLapTime": "Lap time",
+  "fxReverse": "Reverse",
+  "fxMirror": "Mirror left/right",
+  "fxWave": "Wave across heads",
+  "fxTogether": "together",
+  "fxPercentOfLap": "{percent}% of a lap",
+  "@fxPercentOfLap": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "fxPath": "Path",
+  "fxWidth": "Width",
+  "fxHeight": "Height",
+  "fxCentre": "Centre",
+  "fxStagePlanHint": "Drawn on the stage plan, so every head aims at its own point of the shape.",
+  "fxDepth": "Depth",
+  "fxCentreAcross": "Centre across",
+  "fxCentreDepth": "Centre depth",
+  "fxPlaneHeight": "Height of the plane",
+  "fxRotate": "Rotate",
+  "fxFan": "Fan",
+  "fxFanDeg": "{deg}° per head",
+  "@fxFanDeg": {
+    "placeholders": {
+      "deg": {
+        "type": "int"
+      }
+    }
+  },
+  "fxFanM": "{m} m per head",
+  "@fxFanM": {
+    "placeholders": {
+      "m": {
+        "type": "String"
+      }
+    }
+  },
+  "commonOff": "off",
+  "fxLook": "Look",
+  "fxHeads": "Heads",
+  "fxEveryHead": "Every moving head ({count})",
+  "@fxEveryHead": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fxOnlyPicked": "Only the ones picked below",
+  "fxNoMovers": "No moving heads in the patch (a fixture needs pan and tilt channels).",
+  "fxLookBank": "Look bank",
+  "fxNoSceneBanks": "No scene banks yet — make one on the Banks screen",
+  "fxScenesCount": "{count} scenes",
+  "@fxScenesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fxLookNone": "None — the colours come from whatever else is playing",
+  "fxLookGone": "The look bank is gone",
+  "fxPickBank": "Pick bank",
+  "fxChange": "Change",
+  "fxNoLook": "No look",
+  "fxLookPanTiltIgnored": "Its pan/tilt is ignored for the heads the path moves.",
+  "fxDockHoldFade": "Dock Hold/Fade",
+  "fxOwnTiming": "Own timing",
+  "fxLookFollowsDock": "Follows the dock: its Hold and Fade, and the beat when Beat Sync is on.",
+  "fxLookHold": "Look hold",
+  "fxLookFade": "Look fade",
+  "genNoFixtures": "No fixtures selected — tick at least one under Apply To",
+  "genGenerated": "{count} scenes generated into a bank",
+  "@genGenerated": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genGeneratedWithChase": "{count} scenes generated into a bank + chase",
+  "@genGeneratedWithChase": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genBaseColors": "BASE COLORS (pick up to 4)",
+  "genColorFx": "COLOR FX",
+  "genMovementMoved": "Beam movement (circles, sweeps, swim…) now lives in Banks → Movement FX, where it runs live on the heads.",
+  "genRunningStrobe": "RUNNING STROBE",
+  "genRunningStrobeHint": "A strobe hit walking along the lamps, in the order they're patched",
+  "genLampsAtOnce": "Lamps at once",
+  "genDirection": "Direction",
+  "genStrobeHint": "Each flash is followed by a dark step. Hold sets the strobe speed; with Beat Sync each step lands on a beat.",
+  "genShape": "SHAPE (Shift staggers the palette)",
+  "genShiftWheelHint": "How far apart the lamps sit on the colour wheel (0 = the full wheel)",
+  "genShiftHint": "Staggers the palette across the fixtures",
+  "genFixturePattern": "FIXTURE PATTERN",
+  "genFixturePatternHint": "Which fixtures light up each scene — not always all of them at once",
+  "genApplyTo": "APPLY TO",
+  "genOutput": "OUTPUT",
+  "genDestinationBank": "Destination Bank",
+  "genNewBank": "+ New Bank",
+  "genNumberOfScenes": "Number of Scenes",
+  "genAlsoCreateChase": "Also Create Chase",
+  "genGenerateButton": "Generate {count} Scenes",
+  "@genGenerateButton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
 }

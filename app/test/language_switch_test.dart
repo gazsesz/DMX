@@ -1,4 +1,5 @@
 import 'package:dmx_controller/app.dart';
+import 'package:dmx_controller/features/layers/layers_screen.dart';
 import 'package:dmx_controller/features/settings/settings_screen.dart';
 import 'package:dmx_controller/features/shell/app_shell.dart';
 import 'package:dmx_controller/state/locale_providers.dart';
@@ -57,6 +58,30 @@ void main() {
       await tester.pump();
       expect(find.text('Beállítások'), findsOneWidget);
       expect(find.text('Magyar'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
+
+  // The Layers screen used to be hard-coded in Hungarian: in English it must
+  // now read English, and the Hungarian wording is kept for Magyar.
+  for (final (lang, title, all) in const [
+    (AppLanguage.en, 'Dimmer dropout', 'Programs running at the same time'),
+    (AppLanguage.hu, 'Dimmer-bevágás', 'Egyszerre futó programok'),
+  ]) {
+    testWidgets('Layers screen follows the language (${lang.name})', (tester) async {
+      tester.view.physicalSize = const Size(1340, 1600);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final container = ProviderContainer(
+        overrides: [appLanguageProvider.overrideWith((ref) => AppLanguageNotifier(lang))],
+      );
+      addTearDown(container.dispose);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(container: container, child: const DmxControllerApp(home: LayersScreen())),
+      );
+      await tester.pump();
+      expect(find.text(title), findsOneWidget);
+      expect(find.text(all), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
   }

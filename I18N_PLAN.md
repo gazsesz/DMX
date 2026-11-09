@@ -1,6 +1,6 @@
 # Kétnyelvűsítés (EN + HU) — felmérés és terv
 
-_Készült: 2026-10-09 · alap: v1.30.1 · **frissítve: 2026-11-09, alap: v1.44.8** · státusz: **1–2. lépés kész** (v1.45.0, ág: `claude/i18n-foundation`), a 3. lépés következik._
+_Készült: 2026-10-09 · alap: v1.30.1 · **frissítve: 2026-11-09, alap: v1.44.8** · státusz: **1–3. lépés kész** (v1.45.1, ág: `claude/i18n-foundation`), a 4. lépés (Scenes + Fixtures) következik._
 
 Cél: az app angol és magyar nyelven fusson; a nyelv a **Setup** oldalon váltható, azonnal (újraindítás nélkül), és megmarad az újraindítás után.
 
@@ -75,7 +75,7 @@ Cél: az app angol és magyar nyelven fusson; a nyelv a **Setup** oldalon válth
 |---|---|---|
 | 1 | Alap + Setup nyelvválasztó | kész (2026-11-09, v1.45.0) |
 | 2 | Shell, Setup, Dashboard, Files, Manual, DMX térkép | kész (2026-11-09, v1.45.0) — az enum-címkék (pl. `OutputProtocol`, `BeatSourceKind`, `ControlDockPosition`) és a `zoneLabel` még angolok, ezek a 6. lépésben jönnek |
-| 3 | Banks + Layers | — |
+| 3 | Banks + Layers (+ Movement FX szerkesztő, Program generátor) | kész (2026-11-09, v1.45.1) — a Layers korábbi beégetett magyar szövegei most angolul is megvannak |
 | 4 | Scenes + Fixtures | — |
 | 5 | Chases, Smart Program, core/widgets | — |
 | 5b | Song Show | — |

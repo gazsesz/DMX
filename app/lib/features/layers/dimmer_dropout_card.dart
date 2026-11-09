@@ -6,6 +6,7 @@ import '../../state/dimmer_dropout_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
 import 'dropout_controls.dart';
+import '../../l10n/l10n.dart';
 
 /// The dimmer dropout's controls on the Layers screen. It sits here because
 /// its target is a layer — it cuts what that layer is lighting, not the rig.
@@ -27,10 +28,10 @@ class DimmerDropoutCard extends ConsumerWidget {
           children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Dimmer-bevágás', style: TextStyle(fontWeight: FontWeight.w700)),
-              subtitle: const Text(
-                'Időnként egy pillanatra sötét, a többi (pásztázás, szín) közben megy tovább',
-                style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+              title: Text(context.l10n.dropoutTitle, style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                context.l10n.dropoutSubtitle,
+                style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
               ),
               value: settings.enabled,
               onChanged: (on) => controller.update(settings.copyWith(enabled: on)),
