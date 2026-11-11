@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../storage/project_snapshot.dart';
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// What the New Project / Duplicate dialog came back with.
 class NewProjectChoice {
@@ -76,11 +78,11 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
             TextField(
               controller: _nameController,
               autofocus: true,
-              decoration: const InputDecoration(labelText: 'Project name'),
+              decoration: InputDecoration(labelText: context.l10n.wProjectName),
             ),
             const SizedBox(height: 16),
             Text(
-              'BRING OVER FROM "${widget.sourceName.toUpperCase()}"',
+              context.l10n.wBringOverFrom(widget.sourceName.toUpperCase()),
               style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
             ),
             const SizedBox(height: 8),
@@ -113,7 +115,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                option.label,
+                                option.tr(context.l10n),
                                 style: TextStyle(
                                   fontWeight: FontWeight.w700,
                                   fontSize: 13,
@@ -122,7 +124,7 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                option.description,
+                                option.trDescription(context.l10n),
                                 style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                               ),
                             ],
@@ -137,14 +139,14 @@ class _NewProjectDialogState extends State<_NewProjectDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+        TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
         FilledButton(
           onPressed: () {
             final name = _nameController.text.trim();
             if (name.isEmpty) return;
             Navigator.pop(context, NewProjectChoice(name: name, carryOver: _carryOver));
           },
-          child: const Text('Create'),
+          child: Text(context.l10n.wCreate),
         ),
       ],
     );

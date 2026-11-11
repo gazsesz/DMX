@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../models/song_show.dart';
+import '../../l10n/l10n.dart';
 
 /// How a Stop cue ends the layer.
 class StopChoice {
@@ -14,7 +15,7 @@ class StopChoice {
 /// The fade lengths offered for a blackout, in milliseconds.
 const stopFadeChoices = [0, 500, 1000, 2000, 4000];
 
-String stopFadeLabel(int ms) => ms == 0 ? 'Cut' : '${ms / 1000} s';
+String stopFadeLabel(BuildContext context, int ms) => ms == 0 ? context.l10n.songCut : '${ms / 1000} s';
 
 /// Asks how a Stop should end: keep the last look on stage as it was (the
 /// bank's last scene, or the scene), or fade the lights out. Returns null when
@@ -40,7 +41,7 @@ class _StopDialogState extends State<_StopDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('How does it end?'),
+    title: Text(context.l10n.songHowDoesItEnd),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -49,27 +50,27 @@ class _StopDialogState extends State<_StopDialog> {
           _Option(
             key: const ValueKey('stop-mode-hold'),
             selected: !_blackout,
-            title: 'Keep the last look',
-            subtitle: 'The bank\'s last scene, or the scene, stays on stage as it was.',
+            title: context.l10n.songKeepTheLastLook,
+            subtitle: context.l10n.songTheBankSLast,
             onTap: () => setState(() => _blackout = false),
           ),
           _Option(
             key: const ValueKey('stop-mode-blackout'),
             selected: _blackout,
-            title: 'Blackout',
-            subtitle: 'The lights fade out. Moving heads keep their position.',
+            title: context.l10n.commonBlackout,
+            subtitle: context.l10n.songTheLightsFadeOut,
             onTap: () => setState(() => _blackout = true),
           ),
           if (_blackout) ...[
             const SizedBox(height: 8),
-            const Text('Fade out over', style: TextStyle(fontSize: 12, color: AppColors.textDim)),
+            Text(context.l10n.songFadeOutOver, style: TextStyle(fontSize: 12, color: AppColors.textDim)),
             Wrap(
               spacing: 6,
               children: [
                 for (final ms in stopFadeChoices)
                   ChoiceChip(
                     key: ValueKey('stop-fade-$ms'),
-                    label: Text(stopFadeLabel(ms)),
+                    label: Text(stopFadeLabel(context, ms)),
                     selected: ms == _fadeMs,
                     onSelected: (_) => setState(() => _fadeMs = ms),
                   ),
@@ -80,11 +81,11 @@ class _StopDialogState extends State<_StopDialog> {
       ),
     ),
     actions: [
-      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+      TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
       FilledButton(
         key: const ValueKey('stop-mode-ok'),
         onPressed: () => Navigator.pop(context, StopChoice(blackout: _blackout, fadeMs: _fadeMs)),
-        child: const Text('OK'),
+        child: Text(context.l10n.wOk),
       ),
     ],
   );

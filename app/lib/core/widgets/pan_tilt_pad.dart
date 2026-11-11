@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/pan_tilt.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../../l10n/l10n.dart';
 
 /// Whether a coarse drag lands anywhere or jumps to the pad's grid — whole
 /// 45° cells, halves of them, or quarters. Fine mode ignores it.
@@ -144,7 +145,7 @@ class _PanTiltPadState extends State<PanTiltPad> {
             ),
           },
           child: Semantics(
-            label: 'Pan and tilt pad',
+            label: context.l10n.wPanAndTiltPad,
             value: 'pan ${_panDegrees(widget.value.pan).round()}°, tilt ${_tiltDegrees(widget.value.tilt).round()}°',
             child: SizedBox(
               width: width,

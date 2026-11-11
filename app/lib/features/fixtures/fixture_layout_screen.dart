@@ -10,6 +10,7 @@ import '../../models/patched_fixture.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
 import 'fixture_mounting_sheet.dart';
+import '../../l10n/l10n.dart';
 
 /// A 2D stage plot seen from above: drag each patched fixture's icon to
 /// where it physically sits on the truss/stage. Upstage is at the top, the
@@ -29,29 +30,29 @@ class FixtureLayoutScreen extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: const Text('Stage size'),
+        title: Text(context.l10n.scStageSize),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text(
-              'The real size of the area this plan shows, so the Scene editor can aim the moving heads in metres.',
+            Text(
+              context.l10n.scTheRealSizeOf,
               style: TextStyle(fontSize: 11.5, color: AppColors.textFaint),
             ),
             TextField(
               controller: width,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Width (left to right)', suffixText: 'm'),
+              decoration: InputDecoration(labelText: context.l10n.scWidthLeftToRight, suffixText: 'm'),
             ),
             TextField(
               controller: depth,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'Depth (back to the audience)', suffixText: 'm'),
+              decoration: InputDecoration(labelText: context.l10n.scDepthBackToThe, suffixText: 'm'),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
         ],
       ),
     );
@@ -70,7 +71,7 @@ class FixtureLayoutScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Stage Layout'),
+        title: Text(context.l10n.scStageLayout),
         actions: [
           TextButton.icon(
             onPressed: () => _editStageSize(context, ref),
@@ -79,7 +80,7 @@ class FixtureLayoutScreen extends ConsumerWidget {
           ),
           if (fixtures.isNotEmpty)
             IconButton(
-              tooltip: 'Arrange in a grid',
+              tooltip: context.l10n.scArrangeInAGrid,
               icon: const Icon(Icons.auto_fix_high),
               onPressed: () {
                 final notifier = ref.read(patchedFixturesProvider.notifier);
@@ -97,17 +98,16 @@ class FixtureLayoutScreen extends ConsumerWidget {
         ],
       ),
       body: fixtures.isEmpty
-          ? const Center(
-              child: Text('No patched fixtures yet — patch one in the Templates tab', style: TextStyle(color: AppColors.textFaint)),
+          ? Center(
+              child: Text(context.l10n.scNoPatchedFixturesYet3, style: TextStyle(color: AppColors.textFaint)),
             )
           : Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text(
-                    'Drag each fixture to where it hangs. Tap a moving head to set its height, '
-                    'which way it faces, and to calibrate it.',
+                  Text(
+                    context.l10n.scDragEachFixtureTo,
                     style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 10),
@@ -128,7 +128,7 @@ class FixtureLayoutScreen extends ConsumerWidget {
                             children: [
                               Center(
                                 child: Text(
-                                  'STAGE',
+                                  context.l10n.stageHeader,
                                   style: TextStyle(
                                     fontSize: 40,
                                     fontWeight: FontWeight.w900,
@@ -137,17 +137,17 @@ class FixtureLayoutScreen extends ConsumerWidget {
                                   ),
                                 ),
                               ),
-                              const Positioned(
+                              Positioned(
                                 top: 8,
                                 left: 0,
                                 right: 0,
-                                child: Center(child: _EdgeLabel('UPSTAGE')),
+                                child: Center(child: _EdgeLabel(context.l10n.scUpstage)),
                               ),
-                              const Positioned(
+                              Positioned(
                                 bottom: 8,
                                 left: 0,
                                 right: 0,
-                                child: Center(child: _EdgeLabel('AUDIENCE')),
+                                child: Center(child: _EdgeLabel(context.l10n.scAudience)),
                               ),
                               for (final fixture in fixtures)
                                 _DraggableFixtureIcon(

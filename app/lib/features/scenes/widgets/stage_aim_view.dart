@@ -7,6 +7,7 @@ import '../../../core/theme/app_theme.dart';
 import '../../../models/group_position.dart';
 import '../../../models/patched_fixture.dart';
 import '../../../models/stage_plan.dart';
+import '../../../l10n/l10n.dart';
 
 /// The stage plan seen from above, for aiming a group of movers: each head
 /// sits where the Stage Layout put it and throws a beam to its own
@@ -127,6 +128,8 @@ class _StageAimViewState extends State<StageAimView> {
                 position: widget.position,
                 resolved: widget.resolved,
                 dragging: _draggingFixture,
+                upstageLabel: context.l10n.scUpstage,
+                audienceLabel: context.l10n.scAudience,
               ),
             ),
           ),
@@ -143,6 +146,8 @@ class _StagePainter extends CustomPainter {
   final GroupPosition position;
   final Map<String, ResolvedPosition> resolved;
   final String? dragging;
+  final String upstageLabel;
+  final String audienceLabel;
 
   _StagePainter({
     required this.fixtures,
@@ -151,6 +156,8 @@ class _StagePainter extends CustomPainter {
     required this.position,
     required this.resolved,
     required this.dragging,
+    required this.upstageLabel,
+    required this.audienceLabel,
   });
 
   @override
@@ -173,8 +180,8 @@ class _StagePainter extends CustomPainter {
       final y = m / stage.depthM * size.height;
       canvas.drawLine(Offset(0, y), Offset(size.width, y), grid);
     }
-    _text(canvas, 'UPSTAGE', Offset(size.width / 2, 8), AppColors.textFaint, 9, centered: true);
-    _text(canvas, 'AUDIENCE', Offset(size.width / 2, size.height - 18), AppColors.textFaint, 9, centered: true);
+    _text(canvas, upstageLabel, Offset(size.width / 2, 8), AppColors.textFaint, 9, centered: true);
+    _text(canvas, audienceLabel, Offset(size.width / 2, size.height - 18), AppColors.textFaint, 9, centered: true);
     _text(
       canvas,
       '${stage.widthM.toStringAsFixed(stage.widthM % 1 == 0 ? 0 : 1)} × ${stage.depthM.toStringAsFixed(stage.depthM % 1 == 0 ? 0 : 1)} m',

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import '../audio/beat_detector.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// Live microphone levels — one bar per frequency band, with the band
 /// detection is actually following marked as active.
@@ -99,7 +101,7 @@ class _BeatMeterState extends State<BeatMeter> {
           SizedBox(
             width: 58,
             child: Text(
-              band.label,
+              band.tr(context.l10n),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -154,7 +156,7 @@ class _BeatMeterState extends State<BeatMeter> {
           SizedBox(
             width: 26,
             child: Text(
-              active ? 'WATCH' : '',
+              active ? context.l10n.wWatch : '',
               textAlign: TextAlign.right,
               style: appMonoStyle(fontSize: 7.5, color: color).copyWith(fontWeight: FontWeight.w800),
             ),
@@ -175,8 +177,8 @@ class _BeatMeterState extends State<BeatMeter> {
     final floor = sample?.silenceFloor;
     final present = sample?.musicPresent;
     final (tag, tagColor) = switch (present) {
-      true => ('MUSIC', AppColors.success),
-      false => ('QUIET', AppColors.danger),
+      true => (context.l10n.wMusic, AppColors.success),
+      false => (context.l10n.wQuiet, AppColors.danger),
       null => (floor == null ? '' : '…', AppColors.textFaint),
     };
     return Padding(
@@ -187,7 +189,7 @@ class _BeatMeterState extends State<BeatMeter> {
           SizedBox(
             width: 58,
             child: Text(
-              'Level',
+              context.l10n.wLevel,
               style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.text),
             ),
           ),
@@ -262,10 +264,13 @@ class _BeatMeterState extends State<BeatMeter> {
         const SizedBox(height: 2),
         Text(
           sample == null
-              ? 'Waiting for the microphone…'
-              : 'Watching ${activeBand.label} · needs +${sample.requiredRise.toStringAsFixed(1)}dB above its average to trigger'
-                  ' · level ${sample.level <= -150 ? '–' : '${sample.level.round()} dB'}'
-                  '${sample.silenceFloor == null ? '' : ' · floor ${sample.silenceFloor!.round()} dB'}',
+              ? context.l10n.wWaitingForTheMicrophone
+              : context.l10n.beatMeterWatching(
+                    activeBand.tr(context.l10n),
+                    sample.requiredRise.toStringAsFixed(1),
+                    sample.level <= -150 ? '–' : '${sample.level.round()} dB',
+                    sample.silenceFloor == null ? '' : context.l10n.beatMeterFloor(sample.silenceFloor!.round()),
+                  ),
           style: appMonoStyle(fontSize: 9, color: AppColors.textFaint),
         ),
       ],

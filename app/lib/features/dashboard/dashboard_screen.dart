@@ -29,6 +29,8 @@ import '../../state/smart_program_providers.dart';
 import '../../state/song_show_providers.dart';
 import '../fixtures/fixture_layout_screen.dart';
 import 'live_stage_view.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 class _DashboardTrigger {
   final String id;
@@ -104,8 +106,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             kind: TriggerKind.bank,
             name: bank.name,
             sub: bank.isMovementFx
-                ? 'movement · ${bank.fx!.shape.label.toLowerCase()}'
-                : '${bank.sceneSlots.where((s) => s != null).length}/${bank.sceneSlots.length} scenes',
+                ? context.l10n.dashMovementSub(bank.fx!.shape.label.toLowerCase())
+                : context.l10n.dashBankScenes(bank.sceneSlots.where((s) => s != null).length, bank.sceneSlots.length),
           ),
         );
       } else {
@@ -117,7 +119,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             id: chase.id,
             kind: TriggerKind.chase,
             name: chase.name,
-            sub: '${chase.steps.length} steps',
+            sub: context.l10n.dashChaseSteps(chase.steps.length),
           ),
         );
       }
@@ -130,7 +132,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final chases = ref.read(chasesProvider);
     if (banks.isEmpty && chases.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Create a bank or chase first')),
+        SnackBar(content: Text(context.l10n.dashCreateFirst)),
       );
       return;
     }
@@ -151,14 +153,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Customize Quick Triggers',
-                      style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                    Text(
+                      context.l10n.dashCustomizeTriggers,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
                     ),
                     const SizedBox(height: 4),
-                    const Text(
-                      'Pick which banks/chases show up on the Dashboard',
-                      style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                    Text(
+                      context.l10n.dashCustomizeTriggersHint,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                     const SizedBox(height: 12),
                     Flexible(
@@ -166,9 +168,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         shrinkWrap: true,
                         children: [
                           if (banks.isNotEmpty) ...[
-                            const Text(
-                              'BANKS',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+                            Text(
+                              context.l10n.dashBanksHeader,
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                             ),
                             for (final bank in banks)
                               CheckboxListTile(
@@ -183,9 +185,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ],
                           if (chases.isNotEmpty) ...[
                             const SizedBox(height: 8),
-                            const Text(
-                              'CHASES',
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+                            Text(
+                              context.l10n.dashChasesHeader,
+                              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                             ),
                             for (final chase in chases)
                               CheckboxListTile(
@@ -206,7 +208,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       width: double.infinity,
                       child: FilledButton(
                         onPressed: () => Navigator.of(sheetContext).pop(),
-                        child: const Text('Done'),
+                        child: Text(context.l10n.commonDone),
                       ),
                     ),
                   ],
@@ -244,7 +246,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   void _reportIfProblem(String message) {
     if (!mounted) return;
     if (message.startsWith('Started') || message.startsWith('Stopped')) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
 
@@ -369,7 +371,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     // instead of sending the user back to Banks mid-show to re-pick it.
     final lastPlayed = isPlaying ? null : ref.watch(lastPlayedForLayerProvider(layer.id));
     String? title = nowPlaying?.name ?? lastPlayed?.name;
-    var subtitle = lastPlayed != null && nowPlaying == null ? '${layer.name} · tap to resume' : layer.name;
+    var subtitle = lastPlayed != null && nowPlaying == null ? context.l10n.dashTapToResume(layer.name) : layer.name;
     if (isSmart && isPlaying) {
       final programs = ref.watch(smartProgramsProvider).where((p) => p.id == nowPlaying!.id);
       final zone = _smartStatus?.zone ?? _smartPlayer.currentZone;
@@ -382,9 +384,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               chases: ref.watch(chasesProvider),
               banks: ref.watch(banksProvider),
             ).where((l) => l.layer.id == layer.id).firstOrNull;
-      title = line?.targetName ?? '— (sits this zone out)';
+      title = line?.targetName ?? context.l10n.dashSitsZoneOut;
       subtitle = _smartStatus?.isSilent == true
-          ? '${nowPlaying!.name} · No music'
+          ? context.l10n.dashNoMusicSub(nowPlaying!.name)
           : '${nowPlaying!.name} · ${zoneLabel(line?.sourceZone ?? zone)}';
     }
     return Card(
@@ -405,7 +407,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ),
         ),
         title: Text(
-          title ?? 'Empty',
+          title ?? context.l10n.commonEmpty,
           style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: isPlaying ? AppColors.accent2 : null),
         ),
         subtitle: Text(subtitle, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
@@ -492,20 +494,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     }
 
     return [
-      const Text(
-        'SONG SHOWS',
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: AppColors.textFaint),
+      Text(
+        context.l10n.dashSongShowsHeader,
+        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 1, color: AppColors.textFaint),
       ),
-      const Text(
-        'Programs timed to one song — tap to play from the start',
-        style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+      Text(
+        context.l10n.dashSongShowsHint,
+        style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
       ),
       const SizedBox(height: 8),
       if (shows.isEmpty)
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(vertical: 4),
           child: Text(
-            'None yet — create one from the Chase tab',
+            context.l10n.dashNoneYetChaseTab,
             style: TextStyle(color: AppColors.textFaint, fontSize: 12),
           ),
         )
@@ -525,8 +527,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   if (audio != null && audio.durationMs > 0) clock(audio.durationMs),
                 ].join(' · ');
                 final detail = [
-                  '${show.cues.length} ${show.cues.length == 1 ? 'cue' : 'cues'}',
-                  if (audio?.path == null) 'silent',
+                  context.l10n.dashCueCount(show.cues.length),
+                  if (audio?.path == null) context.l10n.dashSilent,
                 ].join(' · ');
                 return mosaic
                     ? _buildMosaicTile(
@@ -613,25 +615,25 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final activeTriggerIds = {for (final t in triggers) if (layersPlaying(ref.read, t.id).isNotEmpty) t.id};
 
     final smartSection = <Widget>[
-              const Text(
-                'SMART PROGRAMS',
-                style: TextStyle(
+              Text(
+                context.l10n.dashSmartProgramsHeader,
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1,
                   color: AppColors.textFaint,
                 ),
               ),
-              const Text(
-                'Switches chases automatically as the live music tempo changes',
-                style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              Text(
+                context.l10n.dashSmartProgramsHint,
+                style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
               ),
               const SizedBox(height: 8),
               if (smartPrograms.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(vertical: 4),
                   child: Text(
-                    'None yet — create one from the Chase tab',
+                    context.l10n.dashNoneYetChaseTab,
                     style: TextStyle(color: AppColors.textFaint, fontSize: 12),
                   ),
                 )
@@ -647,10 +649,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         final active = _smartPlayer.isRunning && _smartPlayer.activeProgramId == program.id;
                         final status = active ? _smartStatus : null;
                         final zone = active ? (status?.zone ?? _smartPlayer.currentZone) : null;
-                        final zoneText = status?.isSilent == true ? 'No music' : zoneLabel(zone ?? SmartProgramZone.base);
+                        final zoneText = status?.isSilent == true ? context.l10n.commonNoMusic : zoneLabel(zone ?? SmartProgramZone.base);
                         final sub = active
                             ? '$zoneText${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM' : ''}'
-                            : '${program.baseBpm.round()} BPM base';
+                            : context.l10n.dashBpmBase(program.baseBpm.round());
                         // Layer by layer, what's playing (or what each
                         // layer starts on, while the program is idle).
                         final layersLine = smartLayerSummary(
@@ -689,9 +691,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'QUICK TRIGGERS',
-                    style: TextStyle(
+                  Text(
+                    context.l10n.dashQuickTriggersHeader,
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
@@ -701,13 +703,13 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Row(
                     children: [
                       IconButton(
-                        tooltip: 'Add / remove triggers',
+                        tooltip: context.l10n.dashAddRemoveTriggers,
                         icon: const Icon(Icons.edit_outlined, size: 18, color: AppColors.textFaint),
                         onPressed: _manageTriggers,
                       ),
                       if (layout == TriggerLayout.mosaic)
                         PopupMenuButton<DashboardBoxSize>(
-                          tooltip: 'Box size',
+                          tooltip: context.l10n.dashBoxSize,
                           initialValue: boxSize,
                           onSelected: setBoxSize,
                           color: AppColors.panel2,
@@ -728,7 +730,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                           ),
                         ),
                       IconButton(
-                        tooltip: 'Mosaic view',
+                        tooltip: context.l10n.dashMosaicView,
                         icon: Icon(
                           Icons.grid_view,
                           size: 18,
@@ -737,7 +739,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                         onPressed: () => setLayout(TriggerLayout.mosaic),
                       ),
                       IconButton(
-                        tooltip: 'List view',
+                        tooltip: context.l10n.dashListView,
                         icon: Icon(
                           Icons.view_list,
                           size: 18,
@@ -755,8 +757,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Text(
                     ref.watch(banksProvider).isEmpty && ref.watch(chasesProvider).isEmpty
-                        ? 'No banks or chases yet — create some in the Bank/Chase tabs'
-                        : 'No triggers yet — tap the pencil to add some',
+                        ? context.l10n.dashNoBanksOrChases
+                        : context.l10n.dashNoTriggers,
                     style: const TextStyle(color: AppColors.textFaint),
                   ),
                 )
@@ -797,18 +799,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 ),
     ];
     final layersSection = <Widget>[
-              const Text(
-                'LAYERS',
-                style: TextStyle(
+              Text(
+                context.l10n.dashLayersHeader,
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 1,
                   color: AppColors.textFaint,
                 ),
               ),
-              const Text(
-                'What each playback layer is running right now',
-                style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              Text(
+                context.l10n.dashLayersHint,
+                style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
               ),
               const SizedBox(height: 8),
               for (final entry in ref.watch(layersProvider).indexed) _buildLayerRow(entry.$1, entry.$2),
@@ -817,7 +819,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dashboard'),
+        title: Text(context.l10n.dashTitle),
         actions: [
           // Which node is configured, and how many universes — a label, not
           // a status. It used to carry a hardcoded green dot that claimed
@@ -860,9 +862,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
-                      'LIVE STAGE',
-                      style: TextStyle(
+                    Text(
+                      context.l10n.dashLiveStageHeader,
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1,
@@ -870,7 +872,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                       ),
                     ),
                     IconButton(
-                      tooltip: 'Edit stage layout',
+                      tooltip: context.l10n.dashEditStageLayout,
                       icon: const Icon(Icons.open_in_full, size: 16, color: AppColors.textFaint),
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(builder: (_) => const FixtureLayoutScreen()),

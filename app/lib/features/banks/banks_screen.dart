@@ -37,6 +37,9 @@ import '../scenes/scene_editor_screen.dart';
 import '../scenes/scenes_screen.dart';
 import 'movement_fx_editor.dart';
 import 'program_generator_screen.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
 
 const _uuid = Uuid();
 
@@ -90,7 +93,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
                       child: TextField(
                         autofocus: false,
-                        decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search banks'),
+                        decoration: InputDecoration(prefixIcon: Icon(Icons.search), hintText: context.l10n.banksSearch),
                         onChanged: (v) => setSheetState(() => query = v),
                       ),
                     ),
@@ -108,15 +111,15 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                               ),
                               title: Text(bank.name),
                               subtitle: Text(
-                                '${bank.sceneSlots.where((s) => s != null).length}/${bank.sceneSlots.length} scenes',
+                                context.l10n.dashBankScenes(bank.sceneSlots.where((s) => s != null).length, bank.sceneSlots.length),
                                 style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                               ),
                               onTap: () => Navigator.pop(context, bank.id),
                             ),
                           if (shown.isEmpty)
-                            const Padding(
+                            Padding(
                               padding: EdgeInsets.all(24),
-                              child: Text('No bank by that name', style: TextStyle(color: AppColors.textFaint)),
+                              child: Text(context.l10n.banksNoMatch, style: TextStyle(color: AppColors.textFaint)),
                             ),
                         ],
                       ),
@@ -159,7 +162,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     // plays the same wherever it's fired from.
     final error = runBankOnLayer(ref.read, bank: bank, layerId: layer1Id);
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
       return;
     }
     setState(() => _manualSlot = null);
@@ -171,7 +174,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   Future<void> _setBeatSync(bool value) async {
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
     }
   }
 
@@ -197,15 +200,15 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text('${bank.name} — Timing', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+                  Text(context.l10n.banksTimingTitle(bank.name), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Own timing for this bank'),
+                    title: Text(context.l10n.banksOwnTiming),
                     subtitle: Text(
                       bank.ownTiming
-                          ? 'Plays at the Hold/Fade below, wherever it runs'
-                          : 'Follows the dock: Hold ${tempo.stepSeconds.toStringAsFixed(2)}s · '
-                                'Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s${tempo.autoFade ? ' (auto)' : ''}',
+                          ? context.l10n.banksOwnTimingOn
+                          : context.l10n.banksFollowsDock('Hold ${tempo.stepSeconds.toStringAsFixed(2)}s · '
+                                'Fade ${tempo.effectiveFadeSeconds.toStringAsFixed(2)}s${tempo.autoFade ? ' (auto)' : ''}'),
                       style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
                     ),
                     value: bank.ownTiming,
@@ -216,7 +219,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   ),
                   if (bank.ownTiming) ...[
                     Text(
-                      beatSync ? 'Hold ${_seconds(bank.holdMs)} — Beat Sync is on, steps follow the beat' : 'Hold ${_seconds(bank.holdMs)}',
+                      beatSync ? context.l10n.banksHoldBeatSync(_seconds(bank.holdMs)) : 'Hold ${_seconds(bank.holdMs)}',
                       style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
                     ),
                     Slider(
@@ -240,14 +243,13 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '${bank.slotTimings.where((t) => t != null).length} step(s) have their own timing, '
-                            'which wins over this',
+                            context.l10n.banksStepsOwnTiming(bank.slotTimings.where((t) => t != null).length),
                             style: const TextStyle(fontSize: 11.5, color: AppColors.textDim),
                           ),
                         ),
                         TextButton(
                           onPressed: () => notifier.clearSlotTimings(bankId),
-                          child: const Text('Reset all steps'),
+                          child: Text(context.l10n.banksResetAllSteps),
                         ),
                       ],
                     ),
@@ -257,7 +259,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     alignment: Alignment.centerLeft,
                     child: TextButton.icon(
                       icon: const Icon(Icons.tune, size: 16),
-                      label: const Text('App-wide timing (dock)'),
+                      label: Text(context.l10n.banksAppWideTiming),
                       onPressed: () {
                         Navigator.pop(context);
                         ref.read(controlDockProvider.notifier).toggleExpanded();
@@ -298,7 +300,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.panel,
-          title: const Text('Beat Flash colours'),
+          title: Text(context.l10n.banksBeatFlashColours),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -314,7 +316,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         contentPadding: EdgeInsets.zero,
                         dense: true,
                         value: m,
-                        title: Text(m.label),
+                        title: Text(m.tr(context.l10n)),
                       ),
                   ],
                 ),
@@ -338,14 +340,14 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         final picked = await showColorPickerDialog(context, initial: color);
                         if (picked != null) setDialogState(() => color = picked);
                       },
-                      child: const Text('Pick colour…'),
+                      child: Text(context.l10n.banksPickColour),
                     ),
                   ],
                 )
               else
                 Row(
                   children: [
-                    const Expanded(child: Text('Flashes before it repeats')),
+                    Expanded(child: Text(context.l10n.banksFlashesBeforeRepeat)),
                     IconButton(
                       icon: const Icon(Icons.remove_circle_outline, size: 20),
                       onPressed: flashCount > 2 ? () => setDialogState(() => flashCount--) : null,
@@ -360,10 +362,10 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
             FilledButton(
               onPressed: () => Navigator.pop(context, (mode: mode, color: color, flashCount: flashCount)),
-              child: const Text('Next'),
+              child: Text(context.l10n.commonNext),
             ),
           ],
         ),
@@ -374,18 +376,19 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
   /// A new Movement FX bank from a one-tap starting point; the editor below
   /// takes it from there.
   Future<void> _addMovementFxBank() async {
-    const presets = [
-      (MovementShape.circle, Icons.panorama_fish_eye, 'Slow round and round'),
-      (MovementShape.swim, Icons.waves, 'Figure of eight, heads a half lap apart'),
-      (MovementShape.float, Icons.air, 'Wanders, never repeats the same shape'),
-      (MovementShape.lightRider, Icons.swap_horiz, 'A scanner bar, easing at each end'),
-      (MovementShape.panSweep, Icons.east, 'Left and right'),
-      (MovementShape.tiltSweep, Icons.unfold_more, 'Up and down'),
-      (MovementShape.square, Icons.crop_square, 'Round the corners of a square'),
-      (MovementShape.diamond, Icons.diamond_outlined, 'Round the corners of a diamond'),
-      (MovementShape.random, Icons.casino_outlined, 'Wanders between random spots'),
-      (MovementShape.randomJump, Icons.shuffle, 'Jumps to a new random spot on the beat'),
-      (MovementShape.hold, Icons.gps_fixed, 'Stays at the centre — move it with the pad'),
+    final l = context.l10n;
+    final presets = [
+      (MovementShape.circle, Icons.panorama_fish_eye, l.fxPresetCircle),
+      (MovementShape.swim, Icons.waves, l.fxPresetSwim),
+      (MovementShape.float, Icons.air, l.fxPresetFloat),
+      (MovementShape.lightRider, Icons.swap_horiz, l.fxPresetLightRider),
+      (MovementShape.panSweep, Icons.east, l.fxPresetPanSweep),
+      (MovementShape.tiltSweep, Icons.unfold_more, l.fxPresetTiltSweep),
+      (MovementShape.square, Icons.crop_square, l.fxPresetSquare),
+      (MovementShape.diamond, Icons.diamond_outlined, l.fxPresetDiamond),
+      (MovementShape.random, Icons.casino_outlined, l.fxPresetRandom),
+      (MovementShape.randomJump, Icons.shuffle, l.fxPresetRandomJump),
+      (MovementShape.hold, Icons.gps_fixed, l.fxPresetHold),
     ];
     final shape = await showModalBottomSheet<MovementShape>(
       context: context,
@@ -395,9 +398,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
         child: ListView(
           shrinkWrap: true,
           children: [
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(20, 0, 20, 8),
-              child: Text('New Movement FX bank', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+              child: Text(context.l10n.banksNewMovementFx, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
             ),
             for (final (shape, icon, hint) in presets)
               ListTile(
@@ -425,7 +428,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final fixtures = ref.read(patchedFixturesProvider);
     if (fixtures.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No patched fixtures — patch your lamps first')),
+        SnackBar(content: Text(context.l10n.banksNoFixtures)),
       );
       return;
     }
@@ -434,7 +437,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     if (options == null || !mounted) return;
     // Which lamps flash — the rest of the rig is left to whatever else is
     // playing, instead of being blacked out on every beat.
-    final chosen = await showFixtureSelectDialog(context, fixtures: fixtures, title: 'Which fixtures flash?');
+    final chosen = await showFixtureSelectDialog(context, fixtures: fixtures, title: context.l10n.banksWhichFixturesFlash);
     if (chosen == null || !mounted) return;
 
     final List<Scene> scenes;
@@ -478,7 +481,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     await _setBeatSync(true);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('"$name" ready — hit Run Bank and it flashes on every beat')),
+      SnackBar(content: Text(context.l10n.banksBeatFlashReady(name))),
     );
   }
 
@@ -505,9 +508,9 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
           final own = bank.timingAt(slotIndex);
           final inheritedHoldMs = bank.ownTiming ? bank.holdMs : (tempo.stepSeconds * 1000).round();
           final inheritedFadeMs = bank.ownTiming ? bank.fadeMs : (tempo.effectiveFadeSeconds * 1000).round();
-          final inheritedFrom = bank.ownTiming ? 'the bank' : 'the dock';
+          final inheritedFrom = bank.ownTiming ? 'bank' : 'dock';
           final sceneName =
-              ref.watch(scenesProvider).where((s) => s.id == bank.sceneSlots[slotIndex]).firstOrNull?.name ?? 'Empty';
+              ref.watch(scenesProvider).where((s) => s.id == bank.sceneSlots[slotIndex]).firstOrNull?.name ?? context.l10n.commonEmpty;
           return SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -516,16 +519,16 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Text(
-                    'Step ${slotIndex + 1} · $sceneName — Timing',
+                    context.l10n.banksStepTimingTitle(slotIndex + 1, sceneName),
                     style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Own timing for this step'),
+                    title: Text(context.l10n.banksOwnStepTiming),
                     subtitle: Text(
                       own != null
-                          ? 'Wins over ${bank.name}\'s and the dock\'s timing, wherever the bank plays'
-                          : 'Follows $inheritedFrom: Hold ${_seconds(inheritedHoldMs)} · Fade ${_seconds(inheritedFadeMs)}',
+                          ? context.l10n.banksStepWins(bank.name)
+                          : context.l10n.banksStepFollows(inheritedFrom, 'Hold ${_seconds(inheritedHoldMs)} · Fade ${_seconds(inheritedFadeMs)}'),
                       style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
                     ),
                     value: own != null,
@@ -538,7 +541,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   if (own != null) ...[
                     Text(
                       beatSync
-                          ? 'Hold ${_seconds(own.holdMs)} — Beat Sync is on, steps follow the beat'
+                          ? context.l10n.banksHoldBeatSync(_seconds(own.holdMs))
                           : 'Hold ${_seconds(own.holdMs)}',
                       style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
                     ),
@@ -564,7 +567,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
                         icon: const Icon(Icons.restart_alt, size: 16),
-                        label: Text('Reset — follow $inheritedFrom again'),
+                        label: Text(context.l10n.banksStepReset(inheritedFrom)),
                         onPressed: () => notifier.setSlotTiming(bankId, slotIndex, null),
                       ),
                     ),
@@ -589,37 +592,37 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       context: context,
       builder: (context) => SimpleDialog(
         backgroundColor: AppColors.panel,
-        title: Text('Slot ${slotIndex + 1}'),
+        title: Text(context.l10n.banksSlotTitle(slotIndex + 1)),
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(context, _newSceneSentinel),
-            child: const Row(
+            child: Row(
               children: [
                 Icon(Icons.add, size: 18, color: AppColors.accent),
                 SizedBox(width: 8),
-                Text('New scene…', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
+                Text(context.l10n.banksNewScene, style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
               ],
             ),
           ),
           if (bank.sceneSlots[slotIndex] != null)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, _duplicateSceneSentinel),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.copy_outlined, size: 18, color: AppColors.textDim),
                   SizedBox(width: 8),
-                  Text('Duplicate scene into the next free slot'),
+                  Text(context.l10n.banksDuplicateScene),
                 ],
               ),
             ),
           if (bank.sceneSlots[slotIndex] != null)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, _duplicateShiftSentinel),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.keyboard_double_arrow_right, size: 18, color: AppColors.textDim),
                   SizedBox(width: 8),
-                  Expanded(child: Text('Duplicate into the next step, shift the rest')),
+                  Expanded(child: Text(context.l10n.banksDuplicateShift)),
                 ],
               ),
             ),
@@ -636,8 +639,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   const SizedBox(width: 8),
                   Text(
                     bank.timingAt(slotIndex) == null
-                        ? 'Step timing…'
-                        : 'Step timing · ${_seconds(bank.timingAt(slotIndex)!.holdMs)} / ${_seconds(bank.timingAt(slotIndex)!.fadeMs)}',
+                        ? context.l10n.banksStepTiming
+                        : context.l10n.banksStepTimingValue(_seconds(bank.timingAt(slotIndex)!.holdMs), _seconds(bank.timingAt(slotIndex)!.fadeMs)),
                   ),
                 ],
               ),
@@ -645,17 +648,17 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
           if (bank.sceneSlots[slotIndex] != null)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, ''),
-              child: const Text('Clear slot', style: TextStyle(color: AppColors.danger)),
+              child: Text(context.l10n.banksClearSlot, style: const TextStyle(color: AppColors.danger)),
             ),
           if (bank.sceneSlots[slotIndex] == null && bank.sceneSlots.length > 1)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(context, _deleteSlotSentinel),
-              child: const Row(
+              child: Row(
                 children: [
                   Icon(Icons.remove_circle_outline, size: 18, color: AppColors.danger),
                   SizedBox(width: 8),
                   Expanded(
-                    child: Text('Delete this empty slot', style: TextStyle(color: AppColors.danger)),
+                    child: Text(context.l10n.banksDeleteEmptySlot, style: TextStyle(color: AppColors.danger)),
                   ),
                 ],
               ),
@@ -795,11 +798,11 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: const Text('Rename Bank'),
+        title: Text(context.l10n.banksRenameTitle),
         content: TextField(controller: controller, autofocus: true),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
         ],
       ),
     );
@@ -814,15 +817,15 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: const Text('Bank Size'),
+        title: Text(context.l10n.banksSizeTitle),
         content: TextField(
           controller: controller,
           keyboardType: TextInputType.number,
-          decoration: const InputDecoration(labelText: 'Number of slots'),
+          decoration: InputDecoration(labelText: context.l10n.banksNumberOfSlots),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
         ],
       ),
     );
@@ -838,8 +841,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
     final scenes = ref.watch(scenesProvider);
     if (banks.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Banks'), actions: const [_SceneLibraryAction(), NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
-        body: const Center(child: Text('No banks yet', style: TextStyle(color: AppColors.textFaint))),
+        appBar: AppBar(title: Text(context.l10n.banksTitle), actions: const [_SceneLibraryAction(), NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
+        body: Center(child: Text(context.l10n.banksNoBanks, style: TextStyle(color: AppColors.textFaint))),
       );
     }
     final selectedBankId = ref.watch(selectedBankIdProvider);
@@ -863,18 +866,18 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Banks'),
+        title: Text(context.l10n.banksTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.auto_awesome_mosaic_outlined),
-            tooltip: 'Scene library',
+            tooltip: context.l10n.banksSceneLibrary,
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ScenesScreen()),
             ),
           ),
           IconButton(
             icon: const Icon(Icons.file_open_outlined),
-            tooltip: 'Import banks / chases',
+            tooltip: context.l10n.banksImport,
             onPressed: () async {
               final result = await importShowItemsFromFile(context, ref);
               if (result != null && result.banks.isNotEmpty) {
@@ -884,7 +887,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
           ),
           IconButton(
             icon: const Icon(Icons.auto_awesome),
-            tooltip: 'Generate Program',
+            tooltip: context.l10n.banksGenerateProgram,
             onPressed: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const ProgramGeneratorScreen()),
             ),
@@ -900,7 +903,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 hoverColor: AppColors.accent.withValues(alpha: 0.15),
                 highlightColor: AppColors.accent.withValues(alpha: 0.25),
               ),
-              tooltip: onDashboard ? 'Remove from Dashboard' : 'Add to Dashboard',
+              tooltip: onDashboard ? context.l10n.banksRemoveFromDashboard : context.l10n.banksAddToDashboard,
               onPressed: () {
                 final notifier = ref.read(dashboardTriggersProvider.notifier);
                 notifier.toggle(selected.id, TriggerKind.bank);
@@ -908,8 +911,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   SnackBar(
                     content: Text(
                       onDashboard
-                          ? 'Removed "${selected.name}" from Dashboard'
-                          : 'Added "${selected.name}" to Dashboard',
+                          ? context.l10n.banksRemovedFromDashboard(selected.name)
+                          : context.l10n.banksAddedToDashboard(selected.name),
                     ),
                   ),
                 );
@@ -918,7 +921,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
           }),
           IconButton(
             icon: const Icon(Icons.edit_outlined),
-            tooltip: 'Rename bank',
+            tooltip: context.l10n.banksRenameBank,
             onPressed: () => _renameBank(selected),
           ),
           const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
@@ -946,15 +949,15 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     backgroundColor: AppColors.accent2.withValues(alpha: 0.16),
                     side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.list, size: 16, color: AppColors.accent2),
-                      label: Text('All banks (${banks.length})'),
-                      tooltip: 'Find a bank by name',
+                      label: Text(context.l10n.banksAllBanks(banks.length)),
+                      tooltip: context.l10n.banksFindByName,
                       onPressed: () => _showAllBanks(banks, selected.id),
                     ),
                     ActionChip(
                     backgroundColor: AppColors.accent2.withValues(alpha: 0.16),
                     side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.add, size: 16),
-                      label: const Text('New'),
+                      label: Text(context.l10n.commonNew),
                       onPressed: () {
                         final newBank = ref.read(banksProvider.notifier).addBank();
                         _selectBank(newBank.id);
@@ -965,7 +968,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.flash_on, size: 16, color: AppColors.accent),
                       label: const Text('Beat Flash'),
-                      tooltip: 'Every lamp, full, on every beat',
+                      tooltip: context.l10n.banksBeatFlashTooltip,
                       onPressed: _addBeatFlashBank,
                     ),
                     ActionChip(
@@ -973,7 +976,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                     side: BorderSide(color: AppColors.accent2.withValues(alpha: 0.45)),
                       avatar: const Icon(Icons.open_with, size: 16, color: AppColors.accent2),
                       label: const Text('Movement FX'),
-                      tooltip: 'Circle, swim, sweep… for the moving heads — set by shape and speed, not by steps',
+                      tooltip: context.l10n.banksMovementFxTooltip,
                       onPressed: _addMovementFxBank,
                     ),
                   ],
@@ -1018,7 +1021,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'Bank Size: ${selected.sceneSlots.length} slots',
+                    context.l10n.banksSizeLine(selected.sceneSlots.length),
                     style: const TextStyle(fontSize: 12, color: AppColors.textFaint),
                   ),
                 ),
@@ -1030,23 +1033,22 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               spacing: 4,
               children: [
                 Tooltip(
-                  message: 'Plays its slots as dark/lit pairs: 1 dark, 2 lit, 3 dark… '
-                      'The lit step only stays up for the flash length — on the beat or on the timer.',
+                  message: context.l10n.banksFlashBankTooltip,
                   child: FilterChip(
                     avatar: Icon(Icons.flash_on, size: 14, color: selected.isBeatFlash ? AppColors.accent : AppColors.textFaint),
-                    label: const Text('Flash bank'),
+                    label: Text(context.l10n.banksFlashBank),
                     selected: selected.isBeatFlash,
                     visualDensity: VisualDensity.compact,
                     onSelected: (v) => ref.read(banksProvider.notifier).setBeatFlash(selected.id, v),
                   ),
                 ),
-                TextButton(onPressed: () => _resizeBank(selected), child: const Text('Edit Size')),
+                TextButton(onPressed: () => _resizeBank(selected), child: Text(context.l10n.banksEditSize)),
                 const SizedBox(width: 4),
                 Tooltip(
-                  message: 'On: tap a slot to pick its scene and timing; hold and drag a scene to move it',
+                  message: context.l10n.banksEditSlotsTooltip,
                   child: FilterChip(
                     avatar: Icon(Icons.edit_note, size: 16, color: _editSlots ? AppColors.accent2 : AppColors.textFaint),
-                    label: const Text('Edit slots'),
+                    label: Text(context.l10n.banksEditSlots),
                     selected: _editSlots,
                     visualDensity: VisualDensity.compact,
                     onSelected: (v) => setState(() => _editSlots = v),
@@ -1065,18 +1067,18 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 OutlinedButton.icon(
                   onPressed: () => _toggleRun(selected),
                   icon: Icon(isRunningThisBankAnywhere ? Icons.stop : Icons.play_arrow),
-                  label: Text(isRunningThisBankAnywhere ? 'Stop' : 'Run Bank'),
+                  label: Text(isRunningThisBankAnywhere ? context.l10n.commonStop : context.l10n.banksRunBank),
                 ),
                 IconButton(
                   onPressed: () => showLayerPickerSheet(context, bank: selected),
                   icon: const Icon(Icons.layers, size: 20),
                   color: isRunningThisBankOnAnyOtherLayer ? AppColors.accent : AppColors.textFaint,
                   visualDensity: VisualDensity.compact,
-                  tooltip: 'Run on another layer…',
+                  tooltip: context.l10n.banksRunOnLayer,
                 ),
                 const SizedBox(width: 4),
                 Tooltip(
-                  message: beatSync ? 'Beat Sync on — steps wait for the beat' : 'Beat Sync off — steps on the timer',
+                  message: beatSync ? context.l10n.banksBeatSyncOn : context.l10n.banksBeatSyncOff,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -1094,8 +1096,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 ),
                 if (beatSync && selected.isBeatFlash) ...[
                   const SizedBox(width: 6),
-                  const Tooltip(
-                    message: 'A Beat Flash bank always flashes on the beat, whatever the app-wide rate',
+                  Tooltip(
+                    message: context.l10n.banksBeatFlashAlways,
                     child: Chip(
                       avatar: Icon(Icons.flash_on, size: 14, color: AppColors.accent),
                       label: Text('Flash'),
@@ -1105,7 +1107,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                 ] else if (beatSync) ...[
                   const SizedBox(width: 6),
                   Tooltip(
-                    message: 'Steps per beat',
+                    message: context.l10n.banksStepsPerBeat,
                     child: SegmentedButton<BeatRate>(
                       segments: [
                         for (final rate in BeatRate.values) ButtonSegment(value: rate, label: Text(rate.label)),
@@ -1160,13 +1162,12 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
               child: Row(
                 children: [
-                  const Tooltip(
-                    message: 'How long the lit → dark step takes at the Flash rate. '
-                        '0 is a hard cut; a little more gives the flash a short decay.',
+                  Tooltip(
+                    message: context.l10n.banksFlashFadeTooltip,
                     child: Icon(Icons.timelapse, size: 15, color: AppColors.textFaint),
                   ),
                   const SizedBox(width: 6),
-                  const Text('Flash Fade Out', style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
+                  Text(context.l10n.banksFlashFadeOut, style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
                   Expanded(
                     child: Slider(
                       value: selected.flashFadeOutMs.toDouble().clamp(0, 500),
@@ -1284,8 +1285,8 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         top: 1,
                         left: 1,
                         child: Tooltip(
-                          message: 'Own timing: Hold ${_seconds(selected.timingAt(index)!.holdMs)} · '
-                              'Fade ${_seconds(selected.timingAt(index)!.fadeMs)}',
+                          message: context.l10n.banksOwnTimingTooltip('Hold ${_seconds(selected.timingAt(index)!.holdMs)} · '
+                              'Fade ${_seconds(selected.timingAt(index)!.fadeMs)}'),
                           child: InkWell(
                             borderRadius: BorderRadius.circular(9),
                             onTap: () => _editSlotTiming(selected.id, index),
@@ -1307,7 +1308,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                         top: 0,
                         right: 0,
                         child: Tooltip(
-                          message: 'Change scene, step timing…',
+                          message: context.l10n.banksSlotMenuTooltip,
                           child: InkWell(
                             borderRadius: BorderRadius.circular(16),
                             onTap: () => _pickScene(selected, index),
@@ -1393,14 +1394,14 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                       final copy = await duplicateBankAsking(context, ref, selected);
                       if (copy != null) ref.read(selectedBankIdProvider.notifier).state = copy.id;
                     },
-                    child: const Text('Duplicate Bank'),
+                    child: Text(context.l10n.banksDuplicate),
                   ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.upload_file, size: 16),
-                    label: const Text('Export Bank'),
+                    label: Text(context.l10n.banksExport),
                     onPressed: () => exportShowItemsToFile(context, ref, bankIds: [selected.id]),
                   ),
                 ),
@@ -1409,7 +1410,7 @@ class _BanksScreenState extends ConsumerState<BanksScreen> {
                   child: OutlinedButton(
                     onPressed: banks.length <= 1 ? null : () => _deleteBank(selected),
                     style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
-                    child: const Text('Delete Bank'),
+                    child: Text(context.l10n.banksDelete),
                   ),
                 ),
               ],
@@ -1438,7 +1439,7 @@ class _SceneLibraryAction extends StatelessWidget {
   Widget build(BuildContext context) {
     return IconButton(
       icon: const Icon(Icons.auto_awesome_mosaic_outlined),
-      tooltip: 'Scene library',
+      tooltip: context.l10n.banksSceneLibrary,
       onPressed: () => Navigator.of(context).push(
         MaterialPageRoute(builder: (_) => const ScenesScreen()),
       ),

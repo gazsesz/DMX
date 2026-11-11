@@ -8,6 +8,7 @@ import '../../models/fixture_group.dart';
 import '../../models/patched_fixture.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../l10n/l10n.dart';
 
 /// Create or edit one saved [FixtureGroup] — a name, an icon, and which of
 /// the currently patched fixtures belong to it.
@@ -66,13 +67,13 @@ class _FixtureGroupEditorScreenState extends ConsumerState<FixtureGroupEditorScr
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: Text('Delete "${existing.name}"?'),
+        title: Text(context.l10n.layersDeleteTitle(existing.name)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.scDelete),
           ),
         ],
       ),
@@ -91,19 +92,19 @@ class _FixtureGroupEditorScreenState extends ConsumerState<FixtureGroupEditorScr
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.existing == null ? 'New group' : 'Edit group'),
+        title: Text(widget.existing == null ? context.l10n.scNewGroup2 : context.l10n.scEditGroup),
         actions: [
           if (widget.existing != null)
             IconButton(icon: const Icon(Icons.delete_outline, color: AppColors.danger), onPressed: _delete),
-          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: 'Save'),
+          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: context.l10n.commonSave),
         ],
       ),
       body: allFixtures.isEmpty
-          ? const Center(
+          ? Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 32),
                 child: Text(
-                  'No patched fixtures yet — patch some in the Fixtures tab first.',
+                  context.l10n.scNoPatchedFixturesYet2,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textFaint),
                 ),
@@ -114,11 +115,11 @@ class _FixtureGroupEditorScreenState extends ConsumerState<FixtureGroupEditorScr
               children: [
                 TextField(
                   controller: _nameController,
-                  decoration: const InputDecoration(labelText: 'Name', hintText: 'e.g. Front'),
+                  decoration: InputDecoration(labelText: context.l10n.commonName, hintText: context.l10n.scEGFront),
                 ),
                 const SizedBox(height: 16),
-                const Text(
-                  'ICON',
+                Text(
+                  context.l10n.scIcon,
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                 ),
                 const SizedBox(height: 8),
@@ -137,13 +138,13 @@ class _FixtureGroupEditorScreenState extends ConsumerState<FixtureGroupEditorScr
                 const SizedBox(height: 20),
                 Row(
                   children: [
-                    const Text(
-                      'FIXTURES',
+                    Text(
+                      context.l10n.scFixtures,
                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                     ),
                     const Spacer(),
                     Text(
-                      '${_fixtureIds.length} selected',
+                      context.l10n.scSelected(_fixtureIds.length),
                       style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                   ],
@@ -151,9 +152,9 @@ class _FixtureGroupEditorScreenState extends ConsumerState<FixtureGroupEditorScr
                 const SizedBox(height: 8),
                 TextField(
                   controller: _searchController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     prefixIcon: Icon(Icons.search, size: 20),
-                    hintText: 'Search fixtures…',
+                    hintText: context.l10n.scSearchFixtures,
                     isDense: true,
                   ),
                 ),

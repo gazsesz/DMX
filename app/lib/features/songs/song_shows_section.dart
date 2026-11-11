@@ -7,6 +7,8 @@ import '../../models/song_show.dart';
 import '../../state/song_show_providers.dart';
 import 'song_show_actions.dart';
 import 'song_show_editor_screen.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// The Song Shows block on the Chases screen: one row per timed program, a
 /// play button on each, and + to make a new one.
@@ -43,7 +45,7 @@ class SongShowsSection extends ConsumerWidget {
       }
       final error = await startSongShow(ref.read, show);
       if (error != null && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
       }
     }
 
@@ -60,8 +62,8 @@ class SongShowsSection extends ConsumerWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text(
-              'SONG SHOWS',
+            Text(
+              context.l10n.dashSongShowsHeader,
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint, letterSpacing: 1),
             ),
             Row(
@@ -70,15 +72,15 @@ class SongShowsSection extends ConsumerWidget {
                 IconButton(
                   key: const ValueKey('import-song-show'),
                   icon: const Icon(Icons.file_open_outlined, size: 20),
-                  tooltip: 'Import a song show',
+                  tooltip: context.l10n.songImportASongShow,
                   onPressed: () => importSongShowFromFile(context, ref),
                 ),
                 IconButton(
                   key: const ValueKey('new-song-show'),
                   icon: const Icon(Icons.add, size: 20),
-                  tooltip: 'New song show',
+                  tooltip: context.l10n.songNewSongShow,
                   onPressed: () {
-                    final show = ref.read(songShowsProvider.notifier).create('New song show');
+                    final show = ref.read(songShowsProvider.notifier).create(context.l10n.songNewSongShow);
                     _open(context, show.id);
                   },
                 ),
@@ -86,15 +88,15 @@ class SongShowsSection extends ConsumerWidget {
             ),
           ],
         ),
-        const Text(
-          'A program timed to one song: sections and cues placed on a timeline, played with the song',
+        Text(
+          context.l10n.songAProgramTimedTo,
           style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
         ),
         const SizedBox(height: 8),
         if (shows.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 8),
-            child: Text('No song shows yet', style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
+            child: Text(context.l10n.songNoSongShowsYet, style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
           )
         else
           for (final show in shows)
@@ -121,17 +123,17 @@ class SongShowsSection extends ConsumerWidget {
                   IconButton(
                     key: ValueKey('export-song-${show.id}'),
                     icon: const Icon(Icons.ios_share, size: 18),
-                    tooltip: 'Export',
+                    tooltip: context.l10n.filesExport,
                     onPressed: () => exportSongShowToFile(context, ref, show),
                   ),
                   IconButton(
                     icon: const Icon(Icons.copy_outlined, size: 18),
-                    tooltip: 'Duplicate',
+                    tooltip: context.l10n.scDuplicate,
                     onPressed: () => ref.read(songShowsProvider.notifier).duplicate(show.id),
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline, size: 18),
-                    tooltip: 'Delete',
+                    tooltip: context.l10n.scDelete,
                     onPressed: () => delete(show),
                   ),
                 ],

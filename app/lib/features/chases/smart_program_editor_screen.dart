@@ -16,6 +16,8 @@ import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../layers/dropout_controls.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 class SmartProgramEditorScreen extends ConsumerStatefulWidget {
   final SmartProgram existing;
@@ -82,7 +84,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     final lanes = chaseLanes(chase, [for (final l in layers) l.id]);
     if (lanes.length < 2 || chase.steps.any((s) => s.bankId == null)) return false;
     final banks = ref.read(banksProvider);
-    String bankName(String? id) => banks.where((b) => b.id == id).firstOrNull?.name ?? 'Missing bank';
+    String bankName(String? id) => banks.where((b) => b.id == id).firstOrNull?.name ?? context.l10n.wMissingBank;
     String layerLabel(String id) {
       final index = layers.indexWhere((l) => l.id == id);
       return 'L${index + 1} ${layers[index].name}';
@@ -92,7 +94,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: Text('„${chase.name}” több rétegen fut'),
+        title: Text(context.l10n.wRunsOnSeveralLayers(chase.name)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,14 +109,14 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
               ),
             const SizedBox(height: 8),
             Text(
-              'Behúzzam a rétegeit a saját layereikre ebben a zónában (${_zoneName(zone)})?',
+              context.l10n.wSpreadItsLanesOnto(_zoneName(zone)),
               style: const TextStyle(fontSize: 13, color: AppColors.textDim),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Mind ezen a rétegen')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Szétosztás')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.wAllOnThisLayer)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.wSpreadOut)),
         ],
       ),
     );
@@ -213,11 +215,11 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     final value = _keyFor(targets.explicit(zone));
     final String emptyLabel;
     if (zone == SmartProgramZone.base) {
-      emptyLabel = '— nincs —';
+      emptyLabel = context.l10n.wNone;
     } else if (targets.base != null) {
-      emptyLabel = '— marad a Base —';
+      emptyLabel = context.l10n.wStaysOnBase;
     } else {
-      emptyLabel = '— nincs —';
+      emptyLabel = context.l10n.wNone;
     }
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -282,7 +284,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                     isExpanded: true,
                     decoration: InputDecoration(labelText: layers[i].name, isDense: true),
                     items: [
-                      for (final mode in LaneTiming.values) DropdownMenuItem(value: mode, child: Text(mode.label)),
+                      for (final mode in LaneTiming.values) DropdownMenuItem(value: mode, child: Text(mode.tr(context.l10n))),
                     ],
                     onChanged: (mode) {
                       if (mode != null) setState(() => _layerTimings[layers[i].id] = mode);
@@ -321,9 +323,9 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
         const Divider(height: 24),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
-          title: const Text('Dimmer-bevágás ebben a zónában', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-          subtitle: const Text(
-            'Időnként egy pillanatra sötét; a program rétegeire hat, amíg a zóna fut.',
+          title: Text(context.l10n.wDimmerDropoutInThis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+          subtitle: Text(
+            context.l10n.wGoesDarkForA2,
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           value: settings.enabled,
@@ -343,7 +345,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Fade Time: ${value.toStringAsFixed(2)}s', style: appMonoStyle(fontSize: 12)),
+        Text(context.l10n.wFadeTimeS(value.toStringAsFixed(2)), style: appMonoStyle(fontSize: 12)),
         Slider(value: value, min: 0, max: 5, activeColor: color, onChanged: onChanged),
       ],
     );
@@ -367,35 +369,25 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
           onChanged: (_) => setState(() {}),
         ),
         actions: [
-          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: 'Save'),
+          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: context.l10n.commonSave),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          const Text(
-            'How this works',
+          Text(
+            context.l10n.wHowThisWorks,
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
-          const Text(
-            'One tempo reading switches the whole program between Base, Faster '
-            'and Slower once the live tempo has stayed past a threshold for '
-            'that direction\'s hold time — but each layer plays its own chase '
-            'or bank in each zone. A layer with nothing set for a zone keeps '
-            'its Base through it; a layer with no Base sits dark until one of '
-            'its zones comes round. A chase picked here plays entirely on this '
-            'layer, whatever layers its own steps name — unless it\'s made of '
-            'banks spread over several layers: then you\'re asked whether to '
-            'put each layer\'s banks on that layer instead.',
-            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          Text(
+            context.l10n.smartHowItWorks,
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 20),
-          const Text('LAYER TIMING', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
-          const Text(
-            'Follow dock: as above. On beat: steps on the beat even with Beat Sync off on the dock. '
-            'Free-running: plays its Base target once on its own Hold/Fade — no beat, '
-            'not restarted by zone changes, left running through silence. For a slow pan sweep.',
-            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+          Text(context.l10n.wLayerTiming, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
+          Text(
+            context.l10n.smartLayerTimingHint,
+            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           Card(
@@ -405,7 +397,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             ),
           ),
           const SizedBox(height: 20),
-          const Text('BASE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
+          Text(context.l10n.wBase, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
           const SizedBox(height: 8),
           Card(
             child: Padding(
@@ -415,7 +407,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                 children: [
                   _layerPickers(SmartProgramZone.base),
                   const SizedBox(height: 6),
-                  Text('Base BPM: ${_baseBpm.round()}', style: appMonoStyle(fontSize: 12)),
+                  Text(context.l10n.wBaseBpm(_baseBpm.round()), style: appMonoStyle(fontSize: 12)),
                   Slider(
                     value: _baseBpm,
                     min: 40,
@@ -426,11 +418,11 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                   const SizedBox(height: 8),
                   _fadeSlider(_baseFadeSeconds, (v) => setState(() => _baseFadeSeconds = v)),
                   const SizedBox(height: 8),
-                  const Text('Threshold Unit', style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
+                  Text(context.l10n.wThresholdUnit, style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
                   const SizedBox(height: 6),
                   SegmentedButton<ThresholdMode>(
-                    segments: const [
-                      ButtonSegment(value: ThresholdMode.percent, label: Text('Percent')),
+                    segments: [
+                      ButtonSegment(value: ThresholdMode.percent, label: Text(context.l10n.wPercent)),
                       ButtonSegment(value: ThresholdMode.bpm, label: Text('BPM')),
                     ],
                     selected: {_mode},
@@ -446,10 +438,10 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             children: [
               const Icon(Icons.speed, size: 14, color: AppColors.accent2),
               const SizedBox(width: 6),
-              const Text('FASTER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
+              Text(context.l10n.wFaster, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
               const Spacer(),
               Text(
-                'triggers at ${current.fasterTriggerBpm.toStringAsFixed(0)} BPM',
+                context.l10n.wTriggersAtBpm(current.fasterTriggerBpm.toStringAsFixed(0)),
                 style: appMonoStyle(fontSize: 10.5, color: AppColors.textDim),
               ),
             ],
@@ -464,7 +456,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                   _layerPickers(SmartProgramZone.faster),
                   if (_anyFaster) ...[
                     const SizedBox(height: 6),
-                    Text('Speed up by: +${_fasterThreshold.toStringAsFixed(0)}$_unit', style: appMonoStyle(fontSize: 12)),
+                    Text(context.l10n.wSpeedUpBy(_fasterThreshold.toStringAsFixed(0), _unit), style: appMonoStyle(fontSize: 12)),
                     Slider(
                       value: _fasterThreshold,
                       min: 1,
@@ -473,7 +465,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                       onChanged: (v) => setState(() => _fasterThreshold = v),
                     ),
                     Text(
-                      'Hold for: ${_fasterHoldSeconds.toStringAsFixed(1)}s before switching',
+                      context.l10n.wHoldForSBefore(_fasterHoldSeconds.toStringAsFixed(1)),
                       style: appMonoStyle(fontSize: 12),
                     ),
                     Slider(
@@ -490,8 +482,8 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                       color: AppColors.accent2,
                     ),
                   ] else
-                    const Text(
-                      'No layer has a Faster pick — the program stays on Base when the song speeds up.',
+                    Text(
+                      context.l10n.wNoLayerHasA,
                       style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                   _dropoutSection(SmartProgramZone.faster),
@@ -504,10 +496,10 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             children: [
               const Icon(Icons.slow_motion_video, size: 14, color: AppColors.accent),
               const SizedBox(width: 6),
-              const Text('SLOWER', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
+              Text(context.l10n.wSlower, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint)),
               const Spacer(),
               Text(
-                'triggers at ${current.slowerTriggerBpm.toStringAsFixed(0)} BPM',
+                context.l10n.wTriggersAtBpm(current.slowerTriggerBpm.toStringAsFixed(0)),
                 style: appMonoStyle(fontSize: 10.5, color: AppColors.textDim),
               ),
             ],
@@ -522,7 +514,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                   _layerPickers(SmartProgramZone.slower),
                   if (_anySlower) ...[
                     const SizedBox(height: 6),
-                    Text('Slow down by: -${_slowerThreshold.toStringAsFixed(0)}$_unit', style: appMonoStyle(fontSize: 12)),
+                    Text(context.l10n.wSlowDownBy(_slowerThreshold.toStringAsFixed(0), _unit), style: appMonoStyle(fontSize: 12)),
                     Slider(
                       value: _slowerThreshold,
                       min: 1,
@@ -530,7 +522,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                       onChanged: (v) => setState(() => _slowerThreshold = v),
                     ),
                     Text(
-                      'Hold for: ${_slowerHoldSeconds.toStringAsFixed(1)}s before switching',
+                      context.l10n.wHoldForSBefore(_slowerHoldSeconds.toStringAsFixed(1)),
                       style: appMonoStyle(fontSize: 12),
                     ),
                     Slider(
@@ -542,8 +534,8 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
                     const SizedBox(height: 8),
                     _fadeSlider(_slowerFadeSeconds, (v) => setState(() => _slowerFadeSeconds = v)),
                   ] else
-                    const Text(
-                      'No layer has a Slower pick — the program stays on Base when the song slows down.',
+                    Text(
+                      context.l10n.wNoLayerHasA2,
                       style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                   _dropoutSection(SmartProgramZone.slower),
@@ -552,12 +544,12 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             ),
           ),
           const SizedBox(height: 20),
-          const Row(
+          Row(
             children: [
               Icon(Icons.nightlight_outlined, size: 14, color: AppColors.textFaint),
               SizedBox(width: 6),
               Text(
-                'WHEN THE MUSIC STOPS',
+                context.l10n.wWhenTheMusicStops,
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
               ),
             ],
@@ -569,14 +561,13 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'After 4s without a beat the rig fades out and waits. The '
-                    'first beat back brings the slower picks up again.',
+                  Text(
+                    context.l10n.wAfter4sWithoutA,
                     style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Blackout Fade: ${_blackoutFadeSeconds.toStringAsFixed(1)}s',
+                    context.l10n.wBlackoutFadeS(_blackoutFadeSeconds.toStringAsFixed(1)),
                     style: appMonoStyle(fontSize: 12),
                   ),
                   Slider(
@@ -590,7 +581,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
             ),
           ),
           const SizedBox(height: 20),
-          FilledButton(onPressed: _save, child: const Text('Save Smart Program')),
+          FilledButton(onPressed: _save, child: Text(context.l10n.wSaveSmartProgram)),
         ],
       ),
     );

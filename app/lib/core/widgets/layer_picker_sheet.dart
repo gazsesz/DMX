@@ -6,6 +6,8 @@ import '../../models/layer.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// Asks which layer to run [bank] on — every layer runs independently, so
 /// this doesn't stop whatever else is already playing elsewhere.
@@ -43,9 +45,9 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Futtatás melyik rétegen?', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+            Text(context.l10n.wRunOnWhichLayer, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
             const SizedBox(height: 2),
-            Text('Bank: ${widget.bank.name}', style: const TextStyle(fontSize: 12.5, color: AppColors.textFaint)),
+            Text(context.l10n.wBank(widget.bank.name), style: const TextStyle(fontSize: 12.5, color: AppColors.textFaint)),
             const SizedBox(height: 8),
             for (var i = 0; i < layers.length; i++) _layerRow(layers[i], i),
             const SizedBox(height: 8),
@@ -54,7 +56,7 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
                 Expanded(
                   child: TextButton(
                     onPressed: () => Navigator.pop(context),
-                    child: const Text('Mégse'),
+                    child: Text(context.l10n.commonCancel),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -62,7 +64,7 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
                   child: FilledButton(
                     onPressed: _selectedLayerId == null ? null : _start,
                     child: Text(
-                      selectedIndex == null ? 'Indítás' : 'Indítás Layer ${selectedIndex + 1}-en',
+                      selectedIndex == null ? context.l10n.wStart : context.l10n.wStartOnLayer(selectedIndex + 1),
                     ),
                   ),
                 ),
@@ -80,11 +82,11 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
     final selected = _selectedLayerId == layer.id;
     final String subtitle;
     if (current != null) {
-      subtitle = 'most: ${current.name} fut · felülírja';
+      subtitle = context.l10n.wNowRunningReplacesIt(current.name);
     } else if (lastPlayed != null) {
-      subtitle = 'utoljára: ${lastPlayed.name}';
+      subtitle = context.l10n.wLast(lastPlayed.name);
     } else {
-      subtitle = 'jelenleg üres';
+      subtitle = context.l10n.wEmptyNow2;
     }
     return ListTile(
       dense: true,
@@ -98,7 +100,7 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
           border: Border.all(color: selected ? AppColors.accent : AppColors.border, width: 1.5),
         ),
       ),
-      title: Text('Layer ${index + 1} - ${layer.name}', style: const TextStyle(fontSize: 13.5)),
+      title: Text(context.l10n.wLayer(index + 1, layer.name), style: const TextStyle(fontSize: 13.5)),
       subtitle: Text(
         subtitle,
         style: TextStyle(fontSize: 11, color: current == null ? AppColors.textFaint : AppColors.accent2),
@@ -114,7 +116,7 @@ class _LayerPickerSheetState extends ConsumerState<_LayerPickerSheet> {
     final error = runBankOnLayer(ref.read, bank: widget.bank, layerId: layerId);
     Navigator.pop(context);
     if (error != null) {
-      messenger.showSnackBar(SnackBar(content: Text(error)));
+      messenger.showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
     }
   }
 }

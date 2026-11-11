@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
 
 /// Placeholder for a section that has a reviewed wireframe but no
 /// implementation yet.
@@ -21,7 +22,7 @@ class ComingSoonScreen extends StatelessWidget {
             Icon(icon, size: 40, color: AppColors.textFaint),
             const SizedBox(height: 12),
             Text(
-              'Coming soon',
+              context.l10n.wComingSoon,
               style: TextStyle(color: AppColors.textFaint, fontWeight: FontWeight.w700),
             ),
           ],

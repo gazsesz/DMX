@@ -17,6 +17,7 @@ import '../../core/widgets/save_project_action.dart';
 import '../../models/project_data.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/project_providers.dart';
+import '../../l10n/l10n.dart';
 
 class FilesScreen extends ConsumerStatefulWidget {
   const FilesScreen({super.key});
@@ -58,11 +59,11 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: AppColors.panel,
-          title: const Text('Save Project As'),
+          title: Text(context.l10n.filesSaveAsTitle),
           content: TextField(controller: controller, autofocus: true),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
           ],
         ),
       );
@@ -73,7 +74,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     await _storage.save(name, _snapshot());
     await _refresh();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Saved "$name"')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesSaved(name))));
     }
   }
 
@@ -82,7 +83,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final data = await _storage.loadFile(info.file, builtIns: builtIns);
     _applyProject(data);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Loaded "${info.name}"')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesLoaded(info.name))));
     }
   }
 
@@ -98,9 +99,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final current = ref.read(currentProjectNameProvider);
     final choice = await showNewProjectDialog(
       context,
-      title: 'New Project',
-      initialName: 'Untitled Project',
-      sourceName: current.trim().isEmpty ? 'current show' : current,
+      title: context.l10n.filesNewProject,
+      initialName: context.l10n.filesUntitledProject,
+      sourceName: current.trim().isEmpty ? context.l10n.filesCurrentShow : current,
     );
     if (choice == null || !mounted) return;
     startProject(ref, name: choice.name, carryOver: choice.carryOver, source: _snapshot());
@@ -114,8 +115,8 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     if (!mounted) return;
     final choice = await showNewProjectDialog(
       context,
-      title: 'Duplicate Project',
-      initialName: '${info.name} Copy',
+      title: context.l10n.filesDuplicateProject,
+      initialName: context.l10n.filesCopyName(info.name),
       sourceName: info.name,
       initial: ProjectCarryOver.everything,
     );
@@ -124,7 +125,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     await _storage.save(choice.name, _snapshot());
     await _refresh();
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Created "${choice.name}"')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesCreated(choice.name))));
     }
   }
 
@@ -134,7 +135,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     );
     final name = ref.read(currentProjectNameProvider);
     await FilePicker.saveFile(
-      dialogTitle: 'Export project',
+      dialogTitle: context.l10n.filesExportDialogTitle,
       fileName: '$name.json',
       bytes: bytes,
       type: FileType.custom,
@@ -154,7 +155,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     final data = ProjectData.fromJson(jsonDecode(content) as Map<String, dynamic>, builtIns: builtIns);
     _applyProject(data);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Imported "${data.name}"')));
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesImported(data.name))));
     }
   }
 
@@ -164,9 +165,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Files'),
+        title: Text(context.l10n.filesTitle),
         actions: [
-          IconButton(icon: const Icon(Icons.add), tooltip: 'New Project', onPressed: _newProject),
+          IconButton(icon: const Icon(Icons.add), tooltip: context.l10n.filesNewProject, onPressed: _newProject),
           const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
         ],
       ),
@@ -191,23 +192,23 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
           const SizedBox(height: 14),
           Row(
             children: [
-              Expanded(child: FilledButton(onPressed: () => _save(), child: const Text('Save'))),
+              Expanded(child: FilledButton(onPressed: () => _save(), child: Text(context.l10n.commonSave))),
               const SizedBox(width: 10),
-              Expanded(child: OutlinedButton(onPressed: () => _save(saveAs: true), child: const Text('Save As…'))),
+              Expanded(child: OutlinedButton(onPressed: () => _save(saveAs: true), child: Text(context.l10n.filesSaveAs))),
             ],
           ),
           const SizedBox(height: 20),
-          const Text(
-            'SAVED PROJECTS',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          Text(
+            context.l10n.filesSavedProjectsHeader,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           if (_loading)
             const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
           else if (_files.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.all(16),
-              child: Text('No saved projects yet', style: TextStyle(color: AppColors.textFaint)),
+              child: Text(context.l10n.filesNoSavedProjects, style: TextStyle(color: AppColors.textFaint)),
             )
           else
             Card(
@@ -227,7 +228,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                         children: [
                           IconButton(
                             icon: const Icon(Icons.copy_all_outlined, size: 18),
-                            tooltip: 'Duplicate…',
+                            tooltip: context.l10n.filesDuplicate,
                             onPressed: () => _duplicate(file),
                           ),
                           IconButton(
@@ -241,9 +242,9 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
               ),
             ),
           const SizedBox(height: 20),
-          const Text(
-            'IMPORT / EXPORT',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+          Text(
+            context.l10n.filesImportExportHeader,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           Row(
@@ -252,7 +253,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _importFromFile,
                   icon: const Icon(Icons.file_upload_outlined),
-                  label: const Text('Import'),
+                  label: Text(context.l10n.filesImport),
                 ),
               ),
               const SizedBox(width: 10),
@@ -260,7 +261,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
                 child: OutlinedButton.icon(
                   onPressed: _exportToFile,
                   icon: const Icon(Icons.file_download_outlined),
-                  label: const Text('Export'),
+                  label: Text(context.l10n.filesExport),
                 ),
               ),
             ],

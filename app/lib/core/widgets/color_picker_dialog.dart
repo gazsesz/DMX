@@ -5,6 +5,7 @@ import '../../models/builtin_fixtures.dart';
 import '../../state/color_palette_providers.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../../l10n/l10n.dart';
 
 /// Picks a colour for a group of fixtures: the named presets and your own
 /// saved colours on one side, a full hue/saturation/brightness palette on
@@ -76,16 +77,16 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
       backgroundColor: AppColors.panel,
       insetPadding: const EdgeInsets.all(20),
       titlePadding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-      contentPadding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+      contentPadding: EdgeInsets.fromLTRB(20, 0, 20, 8),
       title: Row(
         children: [
-          const Expanded(
-            child: Text('Colour', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
+          Expanded(
+            child: Text(context.l10n.wColour, style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
           ),
           SegmentedButton<_Tab>(
-            segments: const [
-              ButtonSegment(value: _Tab.swatches, label: Text('Swatches')),
-              ButtonSegment(value: _Tab.palette, label: Text('Palette')),
+            segments: [
+              ButtonSegment(value: _Tab.swatches, label: Text(context.l10n.wSwatches)),
+              ButtonSegment(value: _Tab.palette, label: Text(context.l10n.wPalette)),
             ],
             selected: {_tab},
             showSelectedIcon: false,
@@ -104,8 +105,8 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancel')),
-        FilledButton(onPressed: () => _pick(_rgb), child: const Text('Use colour')),
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: Text(context.l10n.commonCancel)),
+        FilledButton(onPressed: () => _pick(_rgb), child: Text(context.l10n.wUseColour)),
       ],
     );
   }
@@ -114,7 +115,7 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _SectionLabel('PRESETS'),
+        _SectionLabel(context.l10n.wPresets),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -124,12 +125,12 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
           ],
         ),
         const SizedBox(height: 14),
-        const _SectionLabel('MY COLOURS'),
+        _SectionLabel(context.l10n.wMyColours),
         if (custom.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.symmetric(vertical: 6),
             child: Text(
-              'Mix one on the Palette tab and save it — it shows up here, in every project.',
+              context.l10n.wMixOneOnThe,
               style: TextStyle(fontSize: 11, color: AppColors.textFaint),
             ),
           )
@@ -163,12 +164,12 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
           children: [
             ListTile(
               leading: const Icon(Icons.edit_outlined),
-              title: Text(colour.name == null ? 'Name this colour' : 'Rename'),
+              title: Text(colour.name == null ? context.l10n.wNameThisColour : context.l10n.scRename),
               onTap: () => Navigator.pop(context, 'rename'),
             ),
             ListTile(
               leading: const Icon(Icons.delete_outline, color: AppColors.danger),
-              title: const Text('Delete', style: TextStyle(color: AppColors.danger)),
+              title: Text(context.l10n.scDelete, style: TextStyle(color: AppColors.danger)),
               onTap: () => Navigator.pop(context, 'delete'),
             ),
           ],
@@ -184,15 +185,15 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
         context: context,
         builder: (context) => AlertDialog(
           backgroundColor: AppColors.panel,
-          title: const Text('Colour name'),
+          title: Text(context.l10n.wColourName),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(hintText: 'e.g. Deep Blue'),
+            decoration: InputDecoration(hintText: context.l10n.wEGDeepBlue),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Save')),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: Text(context.l10n.commonSave)),
           ],
         ),
       );
@@ -233,7 +234,7 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
                   OutlinedButton.icon(
                     onPressed: saved ? null : () => ref.read(customColorsProvider.notifier).add(rgb),
                     icon: Icon(saved ? Icons.check : Icons.bookmark_add_outlined, size: 16),
-                    label: Text(saved ? 'Saved' : 'Save colour', style: const TextStyle(fontSize: 12)),
+                    label: Text(saved ? context.l10n.wSaved : context.l10n.wSaveColour, style: const TextStyle(fontSize: 12)),
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -245,7 +246,7 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
           ],
         ),
         const SizedBox(height: 12),
-        const _SectionLabel('HUE'),
+        _SectionLabel(context.l10n.wHue),
         _GradientSlider(
           value: _hsv.hue / 360,
           colors: const [
@@ -259,7 +260,7 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
           ],
           onChanged: (v) => _setHsv(_hsv.withHue((v * 360).clamp(0, 360))),
         ),
-        const _SectionLabel('SATURATION'),
+        _SectionLabel(context.l10n.wSaturation),
         _GradientSlider(
           value: _hsv.saturation,
           colors: [Colors.white, hueOnly],
@@ -267,7 +268,7 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
         ),
         // Brightness here is the colour's own, not the dimmer: a par can
         // dims by scaling its emitters, which is exactly what this does.
-        const _SectionLabel('BRIGHTNESS'),
+        _SectionLabel(context.l10n.wBrightness),
         _GradientSlider(
           value: _hsv.value,
           colors: [Colors.black, HSVColor.fromAHSV(1, _hsv.hue, _hsv.saturation, 1).toColor()],
@@ -275,7 +276,7 @@ class _ColorPickerDialogState extends ConsumerState<ColorPickerDialog> {
         ),
         if (custom.isNotEmpty) ...[
           const SizedBox(height: 8),
-          const _SectionLabel('MY COLOURS'),
+          _SectionLabel(context.l10n.wMyColours),
           Wrap(
             spacing: 8,
             runSpacing: 8,

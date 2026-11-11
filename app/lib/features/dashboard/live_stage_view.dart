@@ -13,6 +13,7 @@ import '../../models/patched_fixture.dart';
 import '../../models/universe_config.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../l10n/l10n.dart';
 
 /// A read-only live mirror of the 2D stage layout: fixtures light up with
 /// their actual current DMX color, moving heads sweep a beam to match their
@@ -50,8 +51,8 @@ class _LiveStageViewState extends ConsumerState<LiveStageView> {
     final service = ref.watch(artNetServiceProvider);
 
     if (fixtures.isEmpty) {
-      return const Center(
-        child: Text('No patched fixtures yet', style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
+      return Center(
+        child: Text(context.l10n.stageNoFixtures, style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
       );
     }
 
@@ -71,7 +72,7 @@ class _LiveStageViewState extends ConsumerState<LiveStageView> {
             children: [
               Center(
                 child: Text(
-                  'STAGE',
+                  context.l10n.stageHeader,
                   style: TextStyle(
                     fontSize: 28,
                     fontWeight: FontWeight.w900,

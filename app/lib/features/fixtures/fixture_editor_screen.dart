@@ -6,6 +6,7 @@ import '../../models/channel_function.dart';
 import '../../models/fixture_profile.dart';
 import '../../state/fixture_providers.dart';
 import 'capability_editor_dialog.dart';
+import '../../l10n/l10n.dart';
 
 class FixtureEditorScreen extends ConsumerStatefulWidget {
   final FixtureProfile? existing;
@@ -25,11 +26,13 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
 
   bool get _isEditing => widget.existing != null;
 
+  bool _defaultNameSet = false;
+
   @override
   void initState() {
     super.initState();
     final existing = widget.existing;
-    _nameController = TextEditingController(text: existing?.name ?? 'New Fixture');
+    _nameController = TextEditingController(text: widget.existing?.name ?? '');
     _category = existing?.category ?? FixtureCategory.generic;
     _panRangeController = TextEditingController(
       text: '${existing?.panRangeDeg ?? FixtureProfile.defaultPanRangeDeg}',
@@ -47,6 +50,16 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
                 capabilities: channel.capabilities,
               ),
           ];
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // The default name is localised, which can't be read in initState.
+    if (widget.existing == null && !_defaultNameSet) {
+      _defaultNameSet = true;
+      _nameController.text = context.l10n.scNewFixture;
+    }
   }
 
   @override
@@ -117,14 +130,14 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: Text(_isEditing ? 'Discard changes?' : 'Discard fixture?'),
-        content: Text(_isEditing ? 'Your edits have not been saved.' : 'This fixture has not been saved yet.'),
+        title: Text(_isEditing ? context.l10n.scDiscardChanges : context.l10n.scDiscardFixture),
+        content: Text(_isEditing ? context.l10n.scYourEditsHaveNot : context.l10n.scThisFixtureHasNot),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Keep Editing')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.scKeepEditing)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Discard'),
+            child: Text(context.l10n.scDiscard),
           ),
         ],
       ),
@@ -144,9 +157,9 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
       },
       child: Scaffold(
       appBar: AppBar(
-        title: Text(_isEditing ? 'Edit Fixture' : 'New Fixture'),
+        title: Text(_isEditing ? context.l10n.scEditFixture : context.l10n.scNewFixture),
         actions: [
-          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: 'Save'),
+          IconButton(icon: const Icon(Icons.check), onPressed: _save, tooltip: context.l10n.commonSave),
         ],
       ),
       body: ListView(
@@ -154,19 +167,19 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
         children: [
           TextField(
             controller: _nameController,
-            decoration: const InputDecoration(labelText: 'Fixture Name'),
+            decoration: InputDecoration(labelText: context.l10n.scFixtureName),
           ),
-          const SizedBox(height: 16),
-          const Text(
-            'FIXTURE TYPE',
+          SizedBox(height: 16),
+          Text(
+            context.l10n.scFixtureType,
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           SegmentedButton<FixtureCategory>(
-            segments: const [
-              ButtonSegment(value: FixtureCategory.movingHead, label: Text('Moving Head')),
-              ButtonSegment(value: FixtureCategory.rgb, label: Text('RGB / Par')),
-              ButtonSegment(value: FixtureCategory.generic, label: Text('Generic')),
+            segments: [
+              ButtonSegment(value: FixtureCategory.movingHead, label: Text(context.l10n.scMovingHead)),
+              ButtonSegment(value: FixtureCategory.rgb, label: Text(context.l10n.scRgbPar)),
+              ButtonSegment(value: FixtureCategory.generic, label: Text(context.l10n.scGeneric)),
             ],
             selected: {_category},
             onSelectionChanged: (s) => setState(() => _category = s.first),
@@ -175,21 +188,21 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'CHANNEL MAP',
+              Text(
+                context.l10n.scChannelMap,
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
               ),
               Text(
-                '${_channels.length} channels',
+                context.l10n.scChannels(_channels.length),
                 style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
               ),
             ],
           ),
           if (_isEditing)
-            const Padding(
+            Padding(
               padding: EdgeInsets.only(top: 6),
               child: Text(
-                'Changing the channel count/order updates every patched instance of this fixture — existing scenes may need re-checking.',
+                context.l10n.scChangingTheChannelCount,
                 style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
               ),
             ),
@@ -239,8 +252,8 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
                           ),
                           child: Text(
                             _channels[i].capabilities.isEmpty
-                                ? 'Ranges'
-                                : '${_channels[i].capabilities.length} ranges',
+                                ? context.l10n.scRanges
+                                : context.l10n.scRanges2(_channels[i].capabilities.length),
                             style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700),
                           ),
                         ),
@@ -255,20 +268,19 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
                   dense: true,
                   onTap: _addChannel,
                   leading: const Icon(Icons.add, size: 18, color: AppColors.accent),
-                  title: const Text('Add Channel', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
+                  title: Text(context.l10n.scAddChannel, style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
                 ),
               ],
             ),
           ),
           if (_hasPanTilt) ...[
             const SizedBox(height: 20),
-            const Text(
-              'MOVEMENT RANGE',
+            Text(
+              context.l10n.scMovementRange,
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
             ),
-            const Text(
-              'How far the head turns over the whole pan and tilt channel — from the fixture\'s spec sheet. '
-              'Sets the degree scale on the position pad and how the stage view aims it.',
+            Text(
+              context.l10n.scHowFarTheHead,
               style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
             const SizedBox(height: 8),
@@ -278,7 +290,7 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
                   child: TextField(
                     controller: _panRangeController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Pan range', suffixText: '°'),
+                    decoration: InputDecoration(labelText: context.l10n.scPanRange, suffixText: '°'),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -286,7 +298,7 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
                   child: TextField(
                     controller: _tiltRangeController,
                     keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Tilt range', suffixText: '°'),
+                    decoration: InputDecoration(labelText: context.l10n.scTiltRange, suffixText: '°'),
                   ),
                 ),
               ],
@@ -295,7 +307,7 @@ class _FixtureEditorScreenState extends ConsumerState<FixtureEditorScreen> {
           const SizedBox(height: 20),
           FilledButton(onPressed: _save, child: Padding(
             padding: const EdgeInsets.symmetric(vertical: 6),
-            child: Text(_isEditing ? 'Save Changes' : 'Save Fixture'),
+            child: Text(_isEditing ? context.l10n.scSaveChanges : context.l10n.scSaveFixture),
           )),
         ],
       ),

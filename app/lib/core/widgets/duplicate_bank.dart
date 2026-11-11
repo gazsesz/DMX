@@ -5,6 +5,7 @@ import '../../models/bank.dart';
 import '../../state/bank_providers.dart';
 import '../../state/scene_providers.dart';
 import '../theme/app_colors.dart';
+import '../../l10n/l10n.dart';
 
 /// Duplicates [bank], first asking whether the copy gets clones of its
 /// scenes (the default — editing the copy leaves the original alone) or
@@ -22,7 +23,7 @@ Future<Bank?> duplicateBankAsking(BuildContext context, WidgetRef ref, Bank bank
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: AppColors.panel,
-          title: Text('Duplicate "${bank.name}"'),
+          title: Text(context.l10n.wDuplicate(bank.name)),
           content: RadioGroup<bool>(
             groupValue: clone,
             onChanged: (v) => setDialogState(() => clone = v ?? clone),
@@ -32,18 +33,18 @@ Future<Bank?> duplicateBankAsking(BuildContext context, WidgetRef ref, Bank bank
                 RadioListTile<bool>(
                   contentPadding: EdgeInsets.zero,
                   value: true,
-                  title: const Text('Clone the scenes'),
+                  title: Text(context.l10n.wCloneTheScenes),
                   subtitle: Text(
-                    '${sceneIds.length} new scene(s) — editing the copy leaves the original alone',
+                    context.l10n.wNewSceneSEditing(sceneIds.length),
                     style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
                   ),
                 ),
                 RadioListTile<bool>(
                   contentPadding: EdgeInsets.zero,
                   value: false,
-                  title: const Text('Use the same scenes'),
-                  subtitle: const Text(
-                    'Both banks share them — a change shows up in both',
+                  title: Text(context.l10n.wUseTheSameScenes),
+                  subtitle: Text(
+                    context.l10n.wBothBanksShareThem,
                     style: TextStyle(fontSize: 11.5, color: AppColors.textFaint),
                   ),
                 ),
@@ -51,8 +52,8 @@ Future<Bank?> duplicateBankAsking(BuildContext context, WidgetRef ref, Bank bank
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, clone), child: const Text('Duplicate')),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, clone), child: Text(context.l10n.scDuplicate)),
           ],
         ),
       ),

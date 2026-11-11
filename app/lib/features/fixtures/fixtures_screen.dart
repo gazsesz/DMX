@@ -22,6 +22,7 @@ import 'fixture_editor_screen.dart';
 import 'fixture_groups_screen.dart';
 import 'fixture_layout_screen.dart';
 import 'fixture_library_browser.dart';
+import '../../l10n/l10n.dart';
 
 IconData _categoryIcon(FixtureCategory category) => fixtureCategoryIcon(category);
 Color _categoryColor(FixtureCategory category) => fixtureCategoryColor(category);
@@ -61,7 +62,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(controller: labelController, decoration: const InputDecoration(labelText: 'Label')),
+              TextField(controller: labelController, decoration: InputDecoration(labelText: context.l10n.scLabel)),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 initialValue: universeId,
@@ -74,14 +75,14 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: channelController,
-                decoration: const InputDecoration(labelText: 'Start Channel (0-based)'),
+                decoration: InputDecoration(labelText: context.l10n.scStartChannel0Based),
                 keyboardType: TextInputType.number,
                 onChanged: (value) => startChannel = int.tryParse(value) ?? 0,
               ),
             ],
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
             FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(confirmLabel)),
           ],
         ),
@@ -100,8 +101,8 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     final universes = ref.read(universesProvider);
     if (universes.isEmpty) return;
     final fields = await _showPatchFieldsDialog(
-      title: 'Patch: ${profile.name}',
-      confirmLabel: 'Patch',
+      title: context.l10n.scPatch(profile.name),
+      confirmLabel: context.l10n.scPatch2,
       initialLabel: profile.name,
       initialUniverseId: universes.first.id,
       initialStartChannel: 0,
@@ -120,8 +121,8 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
 
   Future<void> _editPatched(PatchedFixture fixture) async {
     final fields = await _showPatchFieldsDialog(
-      title: 'Edit: ${fixture.label}',
-      confirmLabel: 'Save',
+      title: context.l10n.scEdit(fixture.label),
+      confirmLabel: context.l10n.commonSave,
       initialLabel: fixture.label,
       initialUniverseId: fixture.universeId,
       initialStartChannel: fixture.startChannel,
@@ -146,7 +147,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     if (created != null && mounted) {
       setState(() => _showPatched = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Saved "${created.name}" — scroll down to find it in Templates')),
+        SnackBar(content: Text(context.l10n.scSavedScrollDownTo(created.name))),
       );
     }
   }
@@ -160,7 +161,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     setState(() => _showPatched = false);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('Added "${added.name}" — tap it in Templates to patch it'),
+        content: Text(context.l10n.scAddedTapItIn(added.name)),
       ),
     );
   }
@@ -182,7 +183,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Could not import: $e'), backgroundColor: AppColors.danger),
+        SnackBar(content: Text(context.l10n.scCouldNotImport(e)), backgroundColor: AppColors.danger),
       );
       return;
     }
@@ -194,8 +195,8 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     if (!mounted) return;
     setState(() => _showPatched = false);
     final summary = result.profiles.length == 1
-        ? 'Imported "${result.profiles.first.name}"'
-        : 'Imported ${result.profiles.length} fixtures';
+        ? context.l10n.filesImported(result.profiles.first.name)
+        : context.l10n.scImportedFixtures(result.profiles.length);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text([summary, ...result.warnings].join('\n')),
@@ -210,7 +211,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     final custom = ref.read(fixtureLibraryProvider).where((f) => !f.isBuiltIn).toList();
     if (custom.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No custom fixtures to export yet')),
+        SnackBar(content: Text(context.l10n.scNoCustomFixturesTo)),
       );
       return;
     }
@@ -233,7 +234,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
 
     final name = format == 'qxf' ? custom.first.name : 'fixtures';
     await FilePicker.saveFile(
-      dialogTitle: 'Export fixtures',
+      dialogTitle: context.l10n.scExportFixtures,
       fileName: '$name.$extension',
       bytes: Uint8List.fromList(utf8.encode(content)),
       type: FileType.custom,
@@ -244,8 +245,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'QLC+ files hold one fixture each — exported "${custom.first.name}". '
-            'Use JSON or CSV to export all ${custom.length} at once.',
+            context.l10n.scQlcFilesHoldOne(custom.first.name, custom.length),
           ),
           duration: const Duration(seconds: 6),
         ),
@@ -259,7 +259,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
     );
     if (updated != null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Updated "${updated.name}"')),
+        SnackBar(content: Text(context.l10n.scUpdated(updated.name))),
       );
     }
   }
@@ -271,25 +271,25 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Fixtures'),
+        title: Text(context.l10n.scFixtures3),
         actions: [
           IconButton(
-            tooltip: 'Groups',
+            tooltip: context.l10n.scGroups2,
             icon: const Icon(Icons.group_work_outlined),
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const FixtureGroupsScreen()),
+              MaterialPageRoute(builder: (_) => FixtureGroupsScreen()),
             ),
           ),
           IconButton(
-            tooltip: '2D Stage Layout',
-            icon: const Icon(Icons.grid_3x3),
+            tooltip: context.l10n.sc2dStageLayout,
+            icon: Icon(Icons.grid_3x3),
             onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(builder: (_) => const FixtureLayoutScreen()),
+              MaterialPageRoute(builder: (_) => FixtureLayoutScreen()),
             ),
           ),
           PopupMenuButton<String>(
-            tooltip: 'Fixture library, import and export',
-            icon: const Icon(Icons.library_books_outlined),
+            tooltip: context.l10n.scFixtureLibraryImportAnd,
+            icon: Icon(Icons.library_books_outlined),
             onSelected: (value) {
               switch (value) {
                 case 'library':
@@ -300,13 +300,13 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
                   _exportFixtures(value.substring('export-'.length));
               }
             },
-            itemBuilder: (context) => const [
-              PopupMenuItem(value: 'library', child: Text('Fixture library…')),
-              PopupMenuItem(value: 'import', child: Text('Import from file…')),
+            itemBuilder: (context) => [
+              PopupMenuItem(value: 'library', child: Text(context.l10n.scFixtureLibrary2)),
+              PopupMenuItem(value: 'import', child: Text(context.l10n.scImportFromFile)),
               PopupMenuDivider(),
-              PopupMenuItem(value: 'export-json', child: Text('Export fixtures as JSON…')),
-              PopupMenuItem(value: 'export-qxf', child: Text('Export as QLC+ (.qxf)…')),
-              PopupMenuItem(value: 'export-csv', child: Text('Export as CSV…')),
+              PopupMenuItem(value: 'export-json', child: Text(context.l10n.scExportFixturesAsJson)),
+              PopupMenuItem(value: 'export-qxf', child: Text(context.l10n.scExportAsQlcQxf)),
+              PopupMenuItem(value: 'export-csv', child: Text(context.l10n.scExportAsCsv)),
             ],
           ),
           const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
@@ -318,8 +318,8 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
             child: SegmentedButton<bool>(
               segments: [
-                const ButtonSegment(value: false, label: Text('Templates')),
-                ButtonSegment(value: true, label: Text('Patched (${patched.length})')),
+                ButtonSegment(value: false, label: Text(context.l10n.scTemplates)),
+                ButtonSegment(value: true, label: Text(context.l10n.scPatched(patched.length))),
               ],
               selected: {_showPatched},
               onSelectionChanged: (s) => setState(() => _showPatched = s.first),
@@ -335,7 +335,7 @@ class _FixturesScreenState extends ConsumerState<FixturesScreen> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'fixtures-fab',
         onPressed: _createCustom,
-        tooltip: 'Create Custom Fixture',
+        tooltip: context.l10n.scCreateCustomFixture,
         child: const Icon(Icons.add),
       ),
     );
@@ -398,7 +398,7 @@ class _TemplateGrid extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text('${profile.channelCount} ch', style: appMonoStyle(fontSize: 9.5, color: AppColors.textFaint)),
+                Text(context.l10n.scCh(profile.channelCount), style: appMonoStyle(fontSize: 9.5, color: AppColors.textFaint)),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
@@ -410,7 +410,7 @@ class _TemplateGrid extends StatelessWidget {
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text('+ Patch', style: TextStyle(fontSize: 10.5)),
+                    child: Text(context.l10n.scPatch3, style: TextStyle(fontSize: 10.5)),
                   ),
                 ),
               ],
@@ -431,8 +431,8 @@ class _PatchedList extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (fixtures.isEmpty) {
-      return const Center(
-        child: Text('No fixtures patched yet', style: TextStyle(color: AppColors.textFaint)),
+      return Center(
+        child: Text(context.l10n.scNoFixturesPatchedYet, style: TextStyle(color: AppColors.textFaint)),
       );
     }
     return ListView.builder(
@@ -450,7 +450,7 @@ class _PatchedList extends ConsumerWidget {
             leading: Icon(_categoryIcon(fixture.profile.category), color: _categoryColor(fixture.profile.category), size: 20),
             title: Text(fixture.label, style: const TextStyle(fontSize: 13)),
             subtitle: Text(
-              '${fixture.profile.name} · $universeName · Ch ${fixture.startChannel + 1}-${fixture.startChannel + fixture.profile.channelCount}',
+              context.l10n.scCh2(fixture.profile.name, universeName, fixture.startChannel + 1, fixture.startChannel + fixture.profile.channelCount),
               style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
             trailing: Row(
@@ -459,17 +459,17 @@ class _PatchedList extends ConsumerWidget {
                 IconButton(
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   onPressed: () => onEdit(fixture),
-                  tooltip: 'Edit label / channel',
+                  tooltip: context.l10n.scEditLabelChannel,
                 ),
                 IconButton(
                   icon: const Icon(Icons.copy_outlined, size: 16),
                   onPressed: () => ref.read(patchedFixturesProvider.notifier).duplicate(fixture.id),
-                  tooltip: 'Duplicate',
+                  tooltip: context.l10n.scDuplicate,
                 ),
                 IconButton(
                   icon: const Icon(Icons.delete_outline, size: 16),
                   onPressed: () => ref.read(patchedFixturesProvider.notifier).remove(fixture.id),
-                  tooltip: 'Delete',
+                  tooltip: context.l10n.scDelete,
                 ),
               ],
             ),

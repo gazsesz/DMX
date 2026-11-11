@@ -5,6 +5,7 @@ import '../../core/fixtures/fixture_library_asset.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/fixture_providers.dart';
+import '../../l10n/l10n.dart';
 
 /// Browses the fixture library that ships with the app: pick a
 /// manufacturer, pick a model, pick a DMX mode, and it lands in the
@@ -114,11 +115,10 @@ class _FixtureLibraryBrowserState extends ConsumerState<FixtureLibraryBrowser> {
                 style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
               ),
             ),
-            const Padding(
+            Padding(
               padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Text(
-                'Pick the DMX mode the fixture itself is set to — the channel '
-                'layout differs between modes.',
+                context.l10n.scPickTheDmxMode,
                 style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
               ),
             ),
@@ -128,8 +128,7 @@ class _FixtureLibraryBrowserState extends ConsumerState<FixtureLibraryBrowser> {
                 leading: const Icon(Icons.tune, size: 18, color: AppColors.accent2),
                 title: Text(mode.name, style: const TextStyle(fontSize: 13)),
                 subtitle: Text(
-                  '${mode.channelCount} channels · '
-                  '${mode.channels.where((c) => c.hasCapabilities).length} with named ranges',
+                  context.l10n.scChannelsWithNamedRanges(mode.channelCount, mode.channels.where((c) => c.hasCapabilities).length),
                   style: appMonoStyle(fontSize: 10, color: AppColors.textFaint),
                 ),
                 onTap: () {
@@ -145,10 +144,8 @@ class _FixtureLibraryBrowserState extends ConsumerState<FixtureLibraryBrowser> {
 
   Widget _fixtureTile(LibraryFixture fixture, {bool showBrand = false}) {
     final modes = fixture.modes.length == 1
-        ? '${fixture.modes.first.channelCount} channels'
-        : '${fixture.modes.length} modes · '
-              '${fixture.modes.map((m) => m.channelCount).reduce((a, b) => a < b ? a : b)}'
-              '-${fixture.modes.map((m) => m.channelCount).reduce((a, b) => a > b ? a : b)} channels';
+        ? context.l10n.scChannels2(fixture.modes.first.channelCount)
+        : context.l10n.scModesChannels(fixture.modes.length, fixture.modes.map((m) => m.channelCount).reduce((a, b) => a < b ? a : b), fixture.modes.map((m) => m.channelCount).reduce((a, b) => a > b ? a : b));
     return ListTile(
       dense: true,
       title: Text(
@@ -173,7 +170,7 @@ class _FixtureLibraryBrowserState extends ConsumerState<FixtureLibraryBrowser> {
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
-                'Could not read the bundled library.\n${snapshot.error}',
+                context.l10n.scCouldNotReadThe('${snapshot.error}'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(color: AppColors.textFaint),
               ),
@@ -221,10 +218,10 @@ class _FixtureLibraryBrowserState extends ConsumerState<FixtureLibraryBrowser> {
     if (_searching) return const Center(child: CircularProgressIndicator());
     final results = _searchResults ?? const <LibraryFixture>[];
     if (results.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
-          child: Text('Nothing matched', style: TextStyle(color: AppColors.textFaint)),
+          child: Text(context.l10n.scNothingMatched, style: TextStyle(color: AppColors.textFaint)),
         ),
       );
     }
@@ -238,8 +235,8 @@ class _FixtureLibraryBrowserState extends ConsumerState<FixtureLibraryBrowser> {
   Widget build(BuildContext context) {
     final searching = _search.text.trim().length >= 2;
     final title = searching
-        ? 'Search'
-        : _selected?.name ?? 'Fixture Library';
+        ? context.l10n.scSearch
+        : _selected?.name ?? context.l10n.scFixtureLibrary;
 
     return Scaffold(
       appBar: AppBar(
@@ -263,7 +260,7 @@ class _FixtureLibraryBrowserState extends ConsumerState<FixtureLibraryBrowser> {
               decoration: InputDecoration(
                 isDense: true,
                 prefixIcon: const Icon(Icons.search, size: 18),
-                hintText: 'Search all manufacturers and models',
+                hintText: context.l10n.scSearchAllManufacturersAnd,
                 suffixIcon: _search.text.isEmpty
                     ? null
                     : IconButton(
@@ -308,9 +305,8 @@ class _LibraryFooter extends StatelessWidget {
       decoration: const BoxDecoration(
         border: Border(top: BorderSide(color: AppColors.border)),
       ),
-      child: const Text(
-        'Fixture definitions from the Q Light Controller Plus project, '
-        'used under the Apache License 2.0.',
+      child: Text(
+        context.l10n.scFixtureDefinitionsFromThe,
         style: TextStyle(fontSize: 9.5, color: AppColors.textFaint),
       ),
     );

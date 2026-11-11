@@ -17,6 +17,8 @@ import 'control_panel.dart';
 import 'dock_layout.dart';
 import 'master_fader.dart';
 import 'momentary_fx_buttons.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// The live controls that are worth reaching from *any* screen: what's
 /// running (and a way to stop it), beat sync with its rate, blackout — and
@@ -126,14 +128,14 @@ class _PanelHeader extends ConsumerWidget {
         children: [
           const Icon(Icons.tune, size: 16, color: AppColors.accent),
           const SizedBox(width: 8),
-          const Expanded(
+          Expanded(
             child: Text(
-              'Control dock',
+              context.l10n.wControlDock,
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800, color: AppColors.text),
             ),
           ),
           IconButton(
-            tooltip: 'Close the panel',
+            tooltip: context.l10n.wCloseThePanel,
             visualDensity: VisualDensity.compact,
             icon: const Icon(Icons.close, size: 20, color: AppColors.textDim),
             onPressed: () => ref.read(controlDockProvider.notifier).collapse(),
@@ -162,14 +164,14 @@ class _DockControls extends ConsumerWidget {
   Future<void> _resume(BuildContext context, WidgetRef ref) async {
     final message = await resumeLastPlayed(ref.read);
     if (!context.mounted || message.startsWith('Started')) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   Future<void> _setBeatSync(BuildContext context, WidgetRef ref, bool value) async {
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
       }
       return;
     }
@@ -315,7 +317,7 @@ class _DockControls extends ConsumerWidget {
       _DockItem(
         _DockButton(
           icon: expanded ? Icons.keyboard_arrow_down : Icons.tune,
-          label: expanded ? 'Close' : 'Tempo',
+          label: expanded ? context.l10n.wClose : 'Tempo',
           color: AppColors.accent,
           active: expanded,
           onTap: () => ref.read(controlDockProvider.notifier).toggleExpanded(),
@@ -437,15 +439,15 @@ class _NowPlayingChip extends StatelessWidget {
 
   const _NowPlayingChip({required this.nowPlaying, required this.zone, required this.vertical});
 
-  static String _zoneLabel(SmartProgramStatus status) {
-    if (status.isSilent) return 'Waiting for music';
+  static String _zoneLabel(BuildContext context, SmartProgramStatus status) {
+    if (status.isSilent) return context.l10n.wWaitingForMusic;
     final name = switch (status.zone) {
       SmartProgramZone.faster => 'Faster',
       SmartProgramZone.slower => 'Slower',
       SmartProgramZone.base => 'Base',
     };
     final bpm = status.liveBpm;
-    return bpm == null ? name : '$name · ${bpm.round()} BPM';
+    return bpm == null ? name : context.l10n.wBpm(name, bpm.round());
   }
 
   @override
@@ -455,7 +457,7 @@ class _NowPlayingChip extends StatelessWidget {
       return SizedBox(
         width: vertical ? 62 : 96,
         child: Text(
-          'Idle',
+          context.l10n.wIdle,
           textAlign: TextAlign.center,
           style: appMonoStyle(fontSize: 10.5, color: AppColors.textFaint),
         ),
@@ -486,7 +488,7 @@ class _NowPlayingChip extends StatelessWidget {
           ),
           if (status != null)
             Text(
-              _zoneLabel(status),
+              _zoneLabel(context, status),
               textAlign: TextAlign.center,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -571,7 +573,7 @@ class ControlDockAction extends ConsumerWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         IconButton(
-          tooltip: dock.colorBarVisible ? 'Hide the Colour strip' : 'Show the Colour strip',
+          tooltip: dock.colorBarVisible ? context.l10n.wHideTheColourStrip : context.l10n.settingsShowColourStrip,
           icon: Icon(
             Icons.palette_outlined,
             color: dock.colorBarVisible ? AppColors.accent2 : null,
@@ -579,7 +581,7 @@ class ControlDockAction extends ConsumerWidget {
           onPressed: () => ref.read(controlDockProvider.notifier).toggleColorBar(),
         ),
         IconButton(
-          tooltip: dock.movementBarVisible ? 'Hide the Movement knobs' : 'Show the Movement knobs',
+          tooltip: dock.movementBarVisible ? context.l10n.wHideTheMovementKnobs : context.l10n.wShowTheMovementKnobs,
           icon: Icon(
             Icons.open_with,
             color: dock.movementBarVisible ? AppColors.accent2 : null,
@@ -587,7 +589,7 @@ class ControlDockAction extends ConsumerWidget {
           onPressed: () => ref.read(controlDockProvider.notifier).toggleMovementBar(),
         ),
         IconButton(
-          tooltip: dock.stageVisible ? 'Hide live stage' : 'Show live stage',
+          tooltip: dock.stageVisible ? context.l10n.wHideLiveStage : context.l10n.wShowLiveStage,
           icon: Icon(
             dock.stageVisible ? Icons.lightbulb : Icons.lightbulb_outline,
             color: dock.stageVisible ? AppColors.accent2 : null,
@@ -595,7 +597,7 @@ class ControlDockAction extends ConsumerWidget {
           onPressed: () => ref.read(controlDockProvider.notifier).toggleStageVisible(),
         ),
         IconButton(
-          tooltip: dock.expanded ? 'Hide tempo controls' : 'Show tempo controls',
+          tooltip: dock.expanded ? context.l10n.wHideTempoControls : context.l10n.wShowTempoControls,
           icon: Icon(
             dock.expanded ? Icons.tune : Icons.tune_outlined,
             color: dock.expanded ? AppColors.accent : null,

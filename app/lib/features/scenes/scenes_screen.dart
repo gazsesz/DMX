@@ -14,6 +14,8 @@ import '../../state/bank_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
 import 'scene_editor_screen.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 enum _SortMode { manual, name }
 
@@ -122,14 +124,14 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: Text('Delete $count scene${count == 1 ? '' : 's'}?'),
-        content: const Text('This also removes them from any bank slots they\'re assigned to.'),
+        title: Text(context.l10n.scDeleteScenes(count)),
+        content: Text(context.l10n.scThisAlsoRemovesThem),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+            child: Text(context.l10n.scDelete),
           ),
         ],
       ),
@@ -148,7 +150,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
   void _duplicateScene(String sceneId, {String? bankId}) {
     final copy = ref.read(scenesProvider.notifier).duplicate(sceneId);
     if (copy == null || bankId == null) return;
-    assignSceneToBank(ref, bankId: bankId, sceneId: copy.id);
+    assignSceneToBank(ref, context.l10n, bankId: bankId, sceneId: copy.id);
   }
 
   void _duplicateSelected() {
@@ -169,19 +171,19 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
         children: [
           SimpleDialogOption(
             onPressed: () => Navigator.pop(context, 'select'),
-            child: const Text('Select (multi)'),
+            child: Text(context.l10n.scSelectMulti),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(context, 'duplicate'),
-            child: const Text('Duplicate'),
+            child: Text(context.l10n.scDuplicate),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(context, 'assign'),
-            child: const Text('Assign to Bank…'),
+            child: Text(context.l10n.scAssignToBank2),
           ),
           SimpleDialogOption(
             onPressed: () => Navigator.pop(context, 'delete'),
-            child: const Text('Delete', style: TextStyle(color: AppColors.danger)),
+            child: Text(context.l10n.scDelete, style: TextStyle(color: AppColors.danger)),
           ),
         ],
       ),
@@ -229,7 +231,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
     ];
     final ungrouped = scenes.where((s) => !banks.any((b) => b.sceneSlots.contains(s.id))).toList();
     if (ungrouped.isNotEmpty) {
-      groups.add(_SceneGroup(bankId: null, name: 'Ungrouped', scenes: ungrouped));
+      groups.add(_SceneGroup(bankId: null, name: context.l10n.scUngrouped, scenes: ungrouped));
     }
     return groups;
   }
@@ -240,22 +242,22 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
     if (drag.fromBankId == targetBankId) return;
     final notifier = ref.read(banksProvider.notifier);
     final banks = ref.read(banksProvider);
-    var message = 'Removed from bank';
+    var message = context.l10n.scRemovedFromBank;
 
     if (targetBankId != null) {
       final matches = banks.where((b) => b.id == targetBankId);
       if (matches.isEmpty) return;
       final target = matches.first;
       if (target.sceneSlots.contains(drag.scene.id)) {
-        message = 'Already in ${target.name}';
+        message = context.l10n.scAlreadyIn(target.name);
       } else {
         final emptyIndex = target.sceneSlots.indexWhere((slot) => slot == null);
         if (emptyIndex == -1) {
-          _showSnack('${target.name} is full');
+          _showSnack(context.l10n.scIsFull(target.name));
           return; // Leave the scene where it was rather than losing it.
         }
         notifier.setSlot(targetBankId, emptyIndex, drag.scene.id);
-        message = 'Moved to ${target.name}';
+        message = context.l10n.scMovedTo(target.name);
       }
     }
 
@@ -271,13 +273,13 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
   }
 
   void _showSnack(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   Future<void> _assignToBank(Scene scene) async {
     final bankId = await showBankPicker(context);
     if (bankId == null || !mounted) return;
-    _showSnack(assignSceneToBank(ref, bankId: bankId, sceneId: scene.id));
+    _showSnack(assignSceneToBank(ref, context.l10n, bankId: bankId, sceneId: scene.id));
   }
 
   Widget _sceneGrid(List<Scene> scenes, {String? bankId, bool draggable = false, bool reorderable = false}) {
@@ -359,7 +361,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
                             overflow: TextOverflow.ellipsis,
                           ),
                           Text(
-                            active ? 'Active' : '${scene.fixtureValues.length} fx',
+                            active ? context.l10n.scActive : context.l10n.scFx(scene.fixtureValues.length),
                             style: TextStyle(
                               fontSize: 8.5,
                               color: active ? AppColors.accent : AppColors.textFaint,
@@ -487,7 +489,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   child: Text(
-                    hovering ? 'Drop to add here' : 'Empty — drop a scene here',
+                    hovering ? context.l10n.scDropToAddHere : context.l10n.scEmptyDropAScene,
                     style: TextStyle(
                       fontSize: 11,
                       color: hovering ? AppColors.accent : AppColors.textFaint,
@@ -519,41 +521,41 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
       appBar: _selecting
           ? AppBar(
               leading: IconButton(icon: const Icon(Icons.close), onPressed: _clearSelection),
-              title: Text('${_selectedIds.length} selected'),
+              title: Text(context.l10n.scSelected(_selectedIds.length)),
               actions: [
-                IconButton(icon: const Icon(Icons.copy_outlined), tooltip: 'Duplicate', onPressed: _duplicateSelected),
-                IconButton(icon: const Icon(Icons.delete_outline), tooltip: 'Delete', onPressed: _deleteSelected),
+                IconButton(icon: const Icon(Icons.copy_outlined), tooltip: context.l10n.scDuplicate, onPressed: _duplicateSelected),
+                IconButton(icon: const Icon(Icons.delete_outline), tooltip: context.l10n.scDelete, onPressed: _deleteSelected),
               ],
             )
           : AppBar(
-              title: const Text('Scenes'),
+              title: Text(context.l10n.scScenes),
               actions: [
                 PopupMenuButton<_SortMode>(
-                  tooltip: 'Sort',
-                  icon: const Icon(Icons.sort),
+                  tooltip: context.l10n.scSort,
+                  icon: Icon(Icons.sort),
                   initialValue: _sortMode,
                   onSelected: (v) => setState(() => _sortMode = v),
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: _SortMode.manual, child: Text('Manual order')),
-                    PopupMenuItem(value: _SortMode.name, child: Text('Name (A-Z)')),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(value: _SortMode.manual, child: Text(context.l10n.scManualOrder)),
+                    PopupMenuItem(value: _SortMode.name, child: Text(context.l10n.scNameAZ)),
                   ],
                 ),
                 PopupMenuButton<_GroupMode>(
-                  tooltip: 'Group',
-                  icon: const Icon(Icons.workspaces_outlined),
+                  tooltip: context.l10n.scGroup3,
+                  icon: Icon(Icons.workspaces_outlined),
                   initialValue: _groupMode,
                   onSelected: (v) => setState(() => _groupMode = v),
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: _GroupMode.none, child: Text('No grouping')),
-                    PopupMenuItem(value: _GroupMode.bank, child: Text('Group by Bank')),
+                  itemBuilder: (context) => [
+                    PopupMenuItem(value: _GroupMode.none, child: Text(context.l10n.scNoGrouping)),
+                    PopupMenuItem(value: _GroupMode.bank, child: Text(context.l10n.scGroupByBank)),
                   ],
                 ),
                 const NodeStatusAction(), const ControlDockAction(), const SaveProjectAction(),
               ],
             ),
       body: allScenes.isEmpty
-          ? const Center(
-              child: Text('No scenes yet — tap + to create one', style: TextStyle(color: AppColors.textFaint)),
+          ? Center(
+              child: Text(context.l10n.scNoScenesYetTap, style: TextStyle(color: AppColors.textFaint)),
             )
           : _groupMode == _GroupMode.none
               ? SingleChildScrollView(
@@ -563,10 +565,10 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
               : ListView(
                   padding: const EdgeInsets.fromLTRB(12, 8, 12, 96),
                   children: [
-                    const Padding(
+                    Padding(
                       padding: EdgeInsets.fromLTRB(4, 0, 4, 4),
                       child: Text(
-                        'Long-press a scene to drag it into another bank',
+                        context.l10n.scLongPressAScene,
                         style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                       ),
                     ),
@@ -579,7 +581,7 @@ class _ScenesScreenState extends ConsumerState<ScenesScreen> {
           : FloatingActionButton(
               heroTag: 'scenes-fab',
               onPressed: () => _openEditor(),
-              tooltip: 'New Scene',
+              tooltip: context.l10n.scNewScene,
               child: const Icon(Icons.add),
             ),
     );

@@ -1,0 +1,2698 @@
+{
+  "@@locale": "en",
+  "navHome": "Home",
+  "navLive": "Live",
+  "navFiles": "Files",
+  "navFixture": "Fixture",
+  "navBank": "Bank",
+  "navLayers": "Layers",
+  "navChase": "Chase",
+  "navSetup": "Setup",
+  "commonCancel": "Cancel",
+  "commonSave": "Save",
+  "commonName": "Name",
+  "commonPort": "Port",
+  "settingsLanguageSection": "Language / Nyelv",
+  "settingsLanguageSystem": "System",
+  "settingsLanguageHint": "System follows the device language (Hungarian → Magyar, anything else → English).",
+  "settingsTitle": "Settings",
+  "settingsNoBatteryScreen": "This device has no such screen — look for Battery / App launch in system settings",
+  "settingsEditUniverse": "Edit Universe",
+  "settingsMidiConnectFailed": "Could not connect to {device}",
+  "@settingsMidiConnectFailed": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsDisconnect": "Disconnect",
+  "settingsConnect": "Connect",
+  "settingsArtNetSection": "Art-Net Connection",
+  "settingsDeviceName": "Device Name",
+  "settingsHostIp": "Host / IP Address",
+  "settingsOutputProtocol": "OUTPUT PROTOCOL",
+  "settingsSacnHint": "sACN goes to 239.255.0.<universe+1> on port 5568 — the Host above is only used for Art-Net. Set the node to the same universe number.",
+  "settingsArtNetHint": "Art-Net is sent to the Host above. Switch to sACN if your node is set up for E1.31 instead.",
+  "settingsSacnPriorityHint": "sACN priority (0-200, default 100) — a higher number wins over another source on the same universe.",
+  "settingsPriority": "Priority",
+  "settingsDemoMode": "Demo Mode (no node)",
+  "settingsDemoModeOn": "Nothing is transmitted — program offline and watch the Live Stage view",
+  "settingsDemoModeOff": "Turn on to write shows with no node on the network",
+  "settingsTest": "Test",
+  "settingsRemoteSection": "Remote Control",
+  "settingsRemoteIntro": "Lets a phone, laptop or a MacroDroid macro on a watch fire triggers by name over Wi-Fi — no screen tapping, no coordinates. Everything on the node's network can reach it, so leave it off on public Wi-Fi.",
+  "settingsEnableEndpoint": "Enable endpoint",
+  "settingsPointMacroAt": "Point your macro at:",
+  "settingsNoWifiAddress": "No Wi-Fi address yet",
+  "settingsRemoteAlso": "Also: /status (what it answers to), /stop, /blackout. The name is whatever the tile is called, so renaming a bank is the only thing that can break a macro.",
+  "settingsRemoteLocal": "From a macro on this device: http://127.0.0.1:{port}/trigger?name=…",
+  "@settingsRemoteLocal": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsRemoteStartFailed": "Could not start: {error}",
+  "@settingsRemoteStartFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBatteryOptimized": "Android may still put this app to sleep. While the endpoint is on a notification keeps it alive, but some phones (Huawei especially) ignore that unless the app is also excluded from battery optimisation — triggers then stop landing once the screen is off.",
+  "settingsBatteryExcluded": "Excluded from battery optimisation — the endpoint stays reachable with the screen off.",
+  "settingsExcludeBattery": "Exclude from battery optimisation",
+  "settingsDockSection": "Control Dock",
+  "settingsDockIntro": "A strip of live controls (now playing, stop, beat sync, blackout) pinned outside the tabs, so it stays reachable from every screen. Show or hide it with the icon in any screen's top bar.",
+  "settingsOpenControlPanel": "Open the control panel",
+  "settingsOpenControlPanelHint": "Tempo, fade and beat sync — also on the Tempo button in the dock",
+  "settingsShowStageStrip": "Show the Live Stage strip",
+  "settingsShowStageStripHint": "The 2D rig along the bottom of every screen — pairs well with Demo Mode",
+  "settingsShowMovementStrip": "Show the Movement strip",
+  "settingsShowMovementStripHint": "Live Size, Speed, Shift and Smooth knobs for the running Movement FX, above the dock",
+  "settingsShowColourStrip": "Show the Colour strip",
+  "settingsShowColourStripHint": "Basic colours to override the scenes live, whole rig or one saved group, above the dock",
+  "settingsBeatSourceSection": "Beat Source",
+  "settingsBeatSourceIntro": "What drives beat sync everywhere in the app — the microphone listening to the room, an exact MIDI clock over USB from a mixer or controller, or Rekordbox's master deck over Wi-Fi via rkbx_link on the DJ laptop. Device-level, like the dock — not saved with the show.",
+  "settingsUsbMidiDevices": "USB MIDI devices",
+  "settingsRescan": "Rescan",
+  "settingsNoMidiDevices": "Nothing found. Plug the device in over USB-OTG, then rescan — needs a class-compliant USB MIDI interface; a plain data cable between two computers won't carry MIDI on its own.",
+  "settingsLastUsed": "Last used: {name}",
+  "@settingsLastUsed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRkbxTitle": "rkbx_link on the DJ laptop",
+  "settingsRkbxConfig": "Same Wi-Fi as this tablet. In rkbx_link's config file set:",
+  "settingsThisTabletIp": "<this tablet's IP>",
+  "settingsUniversesSection": "Universes",
+  "settingsUniversesActive": "{count} active",
+  "@settingsUniversesActive": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsAddUniverse": "Add Universe",
+  "settingsDmxChannelMap": "DMX channel map",
+  "settingsAboutSection": "About & Diagnostics",
+  "settingsAppVersion": "App Version",
+  "settingsSendTestPulse": "Send Test DMX Pulse",
+  "settingsQlcAttribution": "The built-in fixture library contains definitions from the Q Light Controller Plus project (qlcplus.org), used under the Apache License 2.0. Find them under Fixtures, then Fixture library.",
+  "settingsMidiBeats": "Beats arriving from {device} — this is working.",
+  "@settingsMidiBeats": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMidiBeatsBpm": "Beats arriving from {device} — {bpm} BPM — this is working.",
+  "@settingsMidiBeatsBpm": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      },
+      "bpm": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMidiNoClock": "Receiving data from {device}, but none of it is clock — enable \"Sync\" on that device's MIDI output (in your DAW/mixer's MIDI preferences), and make sure it's actually playing.",
+  "@settingsMidiNoClock": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsMidiNothingYet": "Connected to {device}, but nothing has arrived yet.",
+  "@settingsMidiNothingYet": {
+    "placeholders": {
+      "device": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOscNotListening": "Not listening — starts with Beat sync.",
+  "settingsListen": "Listen",
+  "settingsOscNoBeats": "Receiving from {sender}, but no beats — check the \"osc.msg.master/beat/trigger 1\" line, and that the master deck is playing.",
+  "@settingsOscNoBeats": {
+    "placeholders": {
+      "sender": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOscNothingYet": "Listening on port {port}, nothing has arrived yet — check the IP in rkbx_link's config, that it's running, and that both are on the same Wi-Fi.",
+  "@settingsOscNothingYet": {
+    "placeholders": {
+      "port": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsTesting": "Testing…",
+  "settingsNotTested": "Not tested yet",
+  "settingsConnectedLatency": "Connected · {ms}ms",
+  "@settingsConnectedLatency": {
+    "placeholders": {
+      "ms": {
+        "type": "int"
+      }
+    }
+  },
+  "settingsNoReply": "No reply received",
+  "dashMovementSub": "movement · {shape}",
+  "@dashMovementSub": {
+    "placeholders": {
+      "shape": {
+        "type": "String"
+      }
+    }
+  },
+  "dashBankScenes": "{filled}/{total} scenes",
+  "@dashBankScenes": {
+    "placeholders": {
+      "filled": {
+        "type": "int"
+      },
+      "total": {
+        "type": "int"
+      }
+    }
+  },
+  "dashChaseSteps": "{count, plural, =1{1 step} other{{count} steps}}",
+  "@dashChaseSteps": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dashCreateFirst": "Create a bank or chase first",
+  "dashCustomizeTriggers": "Customize Quick Triggers",
+  "dashCustomizeTriggersHint": "Pick which banks/chases show up on the Dashboard",
+  "dashBanksHeader": "BANKS",
+  "dashChasesHeader": "CHASES",
+  "commonDone": "Done",
+  "dashTapToResume": "{layer} · tap to resume",
+  "@dashTapToResume": {
+    "placeholders": {
+      "layer": {
+        "type": "String"
+      }
+    }
+  },
+  "dashSitsZoneOut": "— (sits this zone out)",
+  "dashNoMusicSub": "{name} · No music",
+  "@dashNoMusicSub": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "commonEmpty": "Empty",
+  "dashSongShowsHeader": "SONG SHOWS",
+  "dashSongShowsHint": "Programs timed to one song — tap to play from the start",
+  "dashNoneYetChaseTab": "None yet — create one from the Chase tab",
+  "dashCueCount": "{count, plural, =1{1 cue} other{{count} cues}}",
+  "@dashCueCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dashSilent": "silent",
+  "dashSmartProgramsHeader": "SMART PROGRAMS",
+  "dashSmartProgramsHint": "Switches chases automatically as the live music tempo changes",
+  "commonNoMusic": "No music",
+  "dashBpmBase": "{bpm} BPM base",
+  "@dashBpmBase": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "dashQuickTriggersHeader": "QUICK TRIGGERS",
+  "dashAddRemoveTriggers": "Add / remove triggers",
+  "dashBoxSize": "Box size",
+  "dashMosaicView": "Mosaic view",
+  "dashListView": "List view",
+  "dashNoBanksOrChases": "No banks or chases yet — create some in the Bank/Chase tabs",
+  "dashNoTriggers": "No triggers yet — tap the pencil to add some",
+  "dashLayersHeader": "LAYERS",
+  "dashLayersHint": "What each playback layer is running right now",
+  "dashTitle": "Dashboard",
+  "dashLiveStageHeader": "LIVE STAGE",
+  "dashEditStageLayout": "Edit stage layout",
+  "stageNoFixtures": "No patched fixtures yet",
+  "stageHeader": "STAGE",
+  "filesSaveAsTitle": "Save Project As",
+  "filesSaved": "Saved \"{name}\"",
+  "@filesSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesLoaded": "Loaded \"{name}\"",
+  "@filesLoaded": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesNewProject": "New Project",
+  "filesUntitledProject": "Untitled Project",
+  "filesCurrentShow": "current show",
+  "filesDuplicateProject": "Duplicate Project",
+  "filesCopyName": "{name} Copy",
+  "@filesCopyName": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesCreated": "Created \"{name}\"",
+  "@filesCreated": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesExportDialogTitle": "Export project",
+  "filesImported": "Imported \"{name}\"",
+  "@filesImported": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "filesTitle": "Files",
+  "filesSaveAs": "Save As…",
+  "filesSavedProjectsHeader": "SAVED PROJECTS",
+  "filesNoSavedProjects": "No saved projects yet",
+  "filesDuplicate": "Duplicate…",
+  "filesImportExportHeader": "IMPORT / EXPORT",
+  "filesImport": "Import",
+  "filesExport": "Export",
+  "manualTitle": "Manual Control",
+  "manualLiveHeader": "LIVE",
+  "manualNoFixtures": "No patched fixtures — patch one in the Fixtures tab",
+  "manualAllUniverses": "All Universes",
+  "commonAll": "All",
+  "commonBlackout": "Blackout",
+  "dmxMapUsage": "{used} of {size} channels used · {fixtures} fixtures",
+  "@dmxMapUsage": {
+    "placeholders": {
+      "used": {
+        "type": "int"
+      },
+      "size": {
+        "type": "int"
+      },
+      "fixtures": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapFirstFree": " · first free: {channel}",
+  "@dmxMapFirstFree": {
+    "placeholders": {
+      "channel": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapOverlaps": "{count} channels overlap",
+  "@dmxMapOverlaps": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapFixtureLine": "{profile} · {universe} · channels {first}–{last} ({count})",
+  "@dmxMapFixtureLine": {
+    "placeholders": {
+      "profile": {
+        "type": "String"
+      },
+      "universe": {
+        "type": "String"
+      },
+      "first": {
+        "type": "int"
+      },
+      "last": {
+        "type": "int"
+      },
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "dmxMapOverlap": "overlap",
+  "dropoutTitle": "Dimmer dropout",
+  "dropoutSubtitle": "Goes dark for a moment now and then, while everything else (movement, colour) keeps running",
+  "dropoutWhichLayer": "Which layer",
+  "dropoutWhichFixtures": "Which fixtures",
+  "dropoutWhen": "When",
+  "dropoutAtIntervals": "At intervals",
+  "dropoutOnBeat": "On the beat",
+  "dropoutWhichBeat": "Every how many beats",
+  "dropoutEveryNthBeat": "{n, plural, =1{Every beat} other{Every {n}th}}",
+  "@dropoutEveryNthBeat": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "dropoutBeatHint": "The music is heard by the dock's Beat Sync (or a running Smart Program). While there is no beat, it keeps going at intervals.",
+  "dropoutDarkLength": "Dark length",
+  "dropoutInstant": "instant",
+  "dropoutGapNoBeat": "Gap (without beat)",
+  "dropoutAverageGap": "Average gap",
+  "dropoutIrregularity": "Irregularity",
+  "layersNew": "New Layer",
+  "layersRename": "Rename Layer",
+  "layersMergeHint": "Merge hint (informational)",
+  "layersDeleteTitle": "Delete \"{name}\"?",
+  "@layersDeleteTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "layersDeleteEmpty": "This layer is currently empty.",
+  "layersDeleteRunning": "This will stop \"{name}\", currently running on this layer.",
+  "@layersDeleteRunning": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "layersTitle": "Layers",
+  "layersSubtitle": "Programs running at the same time",
+  "layersAdd": "Add layer",
+  "layersMergeRule": "Channel merge: dimmer → HTP · pan/tilt, colour → LTP (priority)",
+  "layersRunningBadge": "LIVE",
+  "layersLastPlayed": "Last: {name}",
+  "@layersLastPlayed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "layersNothingRunning": "Nothing running",
+  "layersPriority": "Priority {priority}",
+  "@layersPriority": {
+    "placeholders": {
+      "priority": {
+        "type": "int"
+      }
+    }
+  },
+  "layersResume": "Resume \"{name}\"",
+  "@layersResume": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "commonStop": "Stop",
+  "layersDelete": "Delete layer",
+  "layersEdit": "Edit layer",
+  "fxPresetCircle": "Slow round and round",
+  "fxPresetSwim": "Figure of eight, heads a half lap apart",
+  "fxPresetFloat": "Wanders, never repeats the same shape",
+  "fxPresetLightRider": "A scanner bar, easing at each end",
+  "fxPresetPanSweep": "Left and right",
+  "fxPresetTiltSweep": "Up and down",
+  "fxPresetSquare": "Round the corners of a square",
+  "fxPresetDiamond": "Round the corners of a diamond",
+  "fxPresetRandom": "Wanders between random spots",
+  "fxPresetRandomJump": "Jumps to a new random spot on the beat",
+  "fxPresetHold": "Stays at the centre — move it with the pad",
+  "banksSearch": "Search banks",
+  "banksNoMatch": "No bank by that name",
+  "banksTimingTitle": "{name} — Timing",
+  "@banksTimingTitle": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksOwnTiming": "Own timing for this bank",
+  "banksOwnTimingOn": "Plays at the Hold/Fade below, wherever it runs",
+  "banksFollowsDock": "Follows the dock: {timing}",
+  "@banksFollowsDock": {
+    "placeholders": {
+      "timing": {
+        "type": "String"
+      }
+    }
+  },
+  "banksHoldBeatSync": "Hold {hold} — Beat Sync is on, steps follow the beat",
+  "@banksHoldBeatSync": {
+    "placeholders": {
+      "hold": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepsOwnTiming": "{count, plural, =1{1 step has its own timing, which wins over this} other{{count} steps have their own timing, which wins over this}}",
+  "@banksStepsOwnTiming": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "banksResetAllSteps": "Reset all steps",
+  "banksAppWideTiming": "App-wide timing (dock)",
+  "banksBeatFlashColours": "Beat Flash colours",
+  "banksPickColour": "Pick colour…",
+  "banksFlashesBeforeRepeat": "Flashes before it repeats",
+  "commonNext": "Next",
+  "banksNewMovementFx": "New Movement FX bank",
+  "banksNoFixtures": "No patched fixtures — patch your lamps first",
+  "banksWhichFixturesFlash": "Which fixtures flash?",
+  "banksBeatFlashReady": "\"{name}\" ready — hit Run Bank and it flashes on every beat",
+  "@banksBeatFlashReady": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepTimingTitle": "Step {step} · {scene} — Timing",
+  "@banksStepTimingTitle": {
+    "placeholders": {
+      "step": {
+        "type": "int"
+      },
+      "scene": {
+        "type": "String"
+      }
+    }
+  },
+  "banksOwnStepTiming": "Own timing for this step",
+  "banksStepWins": "Wins over {bank}'s and the dock's timing, wherever the bank plays",
+  "@banksStepWins": {
+    "placeholders": {
+      "bank": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepFollows": "{from, select, bank{Follows the bank} other{Follows the dock}}: {timing}",
+  "@banksStepFollows": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      },
+      "timing": {
+        "type": "String"
+      }
+    }
+  },
+  "banksStepReset": "{from, select, bank{Reset — follow the bank again} other{Reset — follow the dock again}}",
+  "@banksStepReset": {
+    "placeholders": {
+      "from": {
+        "type": "String"
+      }
+    }
+  },
+  "banksSlotTitle": "Slot {n}",
+  "@banksSlotTitle": {
+    "placeholders": {
+      "n": {
+        "type": "int"
+      }
+    }
+  },
+  "banksNewScene": "New scene…",
+  "banksDuplicateScene": "Duplicate scene into the next free slot",
+  "banksDuplicateShift": "Duplicate into the next step, shift the rest",
+  "banksStepTiming": "Step timing…",
+  "banksStepTimingValue": "Step timing · {hold} / {fade}",
+  "@banksStepTimingValue": {
+    "placeholders": {
+      "hold": {
+        "type": "String"
+      },
+      "fade": {
+        "type": "String"
+      }
+    }
+  },
+  "banksClearSlot": "Clear slot",
+  "banksDeleteEmptySlot": "Delete this empty slot",
+  "banksRenameTitle": "Rename Bank",
+  "banksSizeTitle": "Bank Size",
+  "banksNumberOfSlots": "Number of slots",
+  "banksTitle": "Banks",
+  "banksNoBanks": "No banks yet",
+  "banksSceneLibrary": "Scene library",
+  "banksImport": "Import banks / chases",
+  "banksGenerateProgram": "Generate Program",
+  "banksRemoveFromDashboard": "Remove from Dashboard",
+  "banksAddToDashboard": "Add to Dashboard",
+  "banksRemovedFromDashboard": "Removed \"{name}\" from Dashboard",
+  "@banksRemovedFromDashboard": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksAddedToDashboard": "Added \"{name}\" to Dashboard",
+  "@banksAddedToDashboard": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "banksRenameBank": "Rename bank",
+  "banksAllBanks": "All banks ({count})",
+  "@banksAllBanks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "banksFindByName": "Find a bank by name",
+  "commonNew": "New",
+  "banksBeatFlashTooltip": "Every lamp, full, on every beat",
+  "banksMovementFxTooltip": "Circle, swim, sweep… for the moving heads — set by shape and speed, not by steps",
+  "banksSizeLine": "Bank Size: {count} slots",
+  "@banksSizeLine": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "banksFlashBankTooltip": "Plays its slots as dark/lit pairs: 1 dark, 2 lit, 3 dark… The lit step only stays up for the flash length — on the beat or on the timer.",
+  "banksFlashBank": "Flash bank",
+  "banksEditSize": "Edit Size",
+  "banksEditSlotsTooltip": "On: tap a slot to pick its scene and timing; hold and drag a scene to move it",
+  "banksEditSlots": "Edit slots",
+  "banksRunBank": "Run Bank",
+  "banksRunOnLayer": "Run on another layer…",
+  "banksBeatSyncOn": "Beat Sync on — steps wait for the beat",
+  "banksBeatSyncOff": "Beat Sync off — steps on the timer",
+  "banksBeatFlashAlways": "A Beat Flash bank always flashes on the beat, whatever the app-wide rate",
+  "banksStepsPerBeat": "Steps per beat",
+  "banksFlashFadeTooltip": "How long the lit → dark step takes at the Flash rate. 0 is a hard cut; a little more gives the flash a short decay.",
+  "banksFlashFadeOut": "Flash Fade Out",
+  "banksSlotMenuTooltip": "Change scene, step timing…",
+  "banksOwnTimingTooltip": "Own timing: {timing}",
+  "@banksOwnTimingTooltip": {
+    "placeholders": {
+      "timing": {
+        "type": "String"
+      }
+    }
+  },
+  "banksDuplicate": "Duplicate Bank",
+  "banksExport": "Export Bank",
+  "banksDelete": "Delete Bank",
+  "fxShape": "Shape",
+  "fxSpeed": "Speed",
+  "fxLockToBeat": "Lock to the beat",
+  "fxLockedHint": "One lap every {beats} beats; without a beat it carries on at the last tempo",
+  "@fxLockedHint": {
+    "placeholders": {
+      "beats": {
+        "type": "String"
+      }
+    }
+  },
+  "fxFreeRunning": "Free running at its own pace",
+  "fxBeats": "{beats} beats",
+  "@fxBeats": {
+    "placeholders": {
+      "beats": {
+        "type": "String"
+      }
+    }
+  },
+  "fxLapTime": "Lap time",
+  "fxReverse": "Reverse",
+  "fxMirror": "Mirror left/right",
+  "fxWave": "Wave across heads",
+  "fxTogether": "together",
+  "fxPercentOfLap": "{percent}% of a lap",
+  "@fxPercentOfLap": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "fxPath": "Path",
+  "fxWidth": "Width",
+  "fxHeight": "Height",
+  "fxCentre": "Centre",
+  "fxStagePlanHint": "Drawn on the stage plan, so every head aims at its own point of the shape.",
+  "fxDepth": "Depth",
+  "fxCentreAcross": "Centre across",
+  "fxCentreDepth": "Centre depth",
+  "fxPlaneHeight": "Height of the plane",
+  "fxRotate": "Rotate",
+  "fxFan": "Fan",
+  "fxFanDeg": "{deg}° per head",
+  "@fxFanDeg": {
+    "placeholders": {
+      "deg": {
+        "type": "int"
+      }
+    }
+  },
+  "fxFanM": "{m} m per head",
+  "@fxFanM": {
+    "placeholders": {
+      "m": {
+        "type": "String"
+      }
+    }
+  },
+  "commonOff": "off",
+  "fxLook": "Look",
+  "fxHeads": "Heads",
+  "fxEveryHead": "Every moving head ({count})",
+  "@fxEveryHead": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fxOnlyPicked": "Only the ones picked below",
+  "fxNoMovers": "No moving heads in the patch (a fixture needs pan and tilt channels).",
+  "fxLookBank": "Look bank",
+  "fxNoSceneBanks": "No scene banks yet — make one on the Banks screen",
+  "fxScenesCount": "{count} scenes",
+  "@fxScenesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "fxLookNone": "None — the colours come from whatever else is playing",
+  "fxLookGone": "The look bank is gone",
+  "fxPickBank": "Pick bank",
+  "fxChange": "Change",
+  "fxNoLook": "No look",
+  "fxLookPanTiltIgnored": "Its pan/tilt is ignored for the heads the path moves.",
+  "fxDockHoldFade": "Dock Hold/Fade",
+  "fxOwnTiming": "Own timing",
+  "fxLookFollowsDock": "Follows the dock: its Hold and Fade, and the beat when Beat Sync is on.",
+  "fxLookHold": "Look hold",
+  "fxLookFade": "Look fade",
+  "genNoFixtures": "No fixtures selected — tick at least one under Apply To",
+  "genGenerated": "{count} scenes generated into a bank",
+  "@genGenerated": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genGeneratedWithChase": "{count} scenes generated into a bank + chase",
+  "@genGeneratedWithChase": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "genBaseColors": "BASE COLORS (pick up to 4)",
+  "genColorFx": "COLOR FX",
+  "genMovementMoved": "Beam movement (circles, sweeps, swim…) now lives in Banks → Movement FX, where it runs live on the heads.",
+  "genRunningStrobe": "RUNNING STROBE",
+  "genRunningStrobeHint": "A strobe hit walking along the lamps, in the order they're patched",
+  "genLampsAtOnce": "Lamps at once",
+  "genDirection": "Direction",
+  "genStrobeHint": "Each flash is followed by a dark step. Hold sets the strobe speed; with Beat Sync each step lands on a beat.",
+  "genShape": "SHAPE (Shift staggers the palette)",
+  "genShiftWheelHint": "How far apart the lamps sit on the colour wheel (0 = the full wheel)",
+  "genShiftHint": "Staggers the palette across the fixtures",
+  "genFixturePattern": "FIXTURE PATTERN",
+  "genFixturePatternHint": "Which fixtures light up each scene — not always all of them at once",
+  "genApplyTo": "APPLY TO",
+  "genOutput": "OUTPUT",
+  "genDestinationBank": "Destination Bank",
+  "genNewBank": "+ New Bank",
+  "genNumberOfScenes": "Number of Scenes",
+  "genAlsoCreateChase": "Also Create Chase",
+  "genGenerateButton": "Generate {count} Scenes",
+  "@genGenerateButton": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scNewScene": "New Scene",
+  "scAddedToSlot": " Added to {bankName}, slot {v}.",
+  "@scAddedToSlot": {
+    "placeholders": {
+      "bankName": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSavedAsYouRe": "Saved as \"{name}\" — you're editing the copy now. \"{name2}\" is unchanged.{filed}",
+  "@scSavedAsYouRe": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "name2": {
+        "type": "Object"
+      },
+      "filed": {
+        "type": "Object"
+      }
+    }
+  },
+  "scThisAlsoRemovesIt": "This also removes it from any bank slots it's assigned to.",
+  "scDelete": "Delete",
+  "scSaveTheSceneFirst": "Save the scene first",
+  "scGroup": "Group {v} · {describeGroupGroup}",
+  "@scGroup": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "describeGroupGroup": {
+        "type": "Object"
+      }
+    }
+  },
+  "scIncludes": "INCLUDES",
+  "scLeftAloneAtPlayback": "Left alone at playback — another program can drive it",
+  "scThisSceneSetsIt": "This scene sets it",
+  "scMixAColour": "Mix a colour",
+  "scIsLeftOutOf": "{label} is left out of this scene — turn it on under INCLUDES to set it here.",
+  "@scIsLeftOutOf": {
+    "placeholders": {
+      "label": {
+        "type": "Object"
+      }
+    }
+  },
+  "scColorWheel": "COLOR WHEEL",
+  "scSwatchColoursAreGuessed": "Swatch colours are guessed from the range names. Set them exactly in Fixtures → edit → Ranges.",
+  "scColorMix": "COLOR MIX",
+  "scDuplicate": "Duplicate",
+  "scNoPatchedFixturesYet": "No patched fixtures yet.\nGo to the Fixtures tab, pick a template (built-in or your own),\nand tap \"+ Patch\" to assign it a universe + channel.",
+  "scAddSavedGroup": "ADD SAVED GROUP",
+  "scFixtures": "FIXTURES",
+  "scPickWhichFixturesAre": "Pick which fixtures are part of this scene. Fixtures start in their own group — merge them below to share a look.",
+  "scSelectAtLeastOne": "Select at least one fixture",
+  "scGroups": "GROUPS",
+  "scGroup2": "Group {v}",
+  "@scGroup2": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNewGroup": "+ New Group",
+  "scAssignToBank": "Assign to Bank",
+  "scSaveScene": "Save Scene",
+  "scThisAlsoRemovesThem": "This also removes them from any bank slots they're assigned to.",
+  "scSelectMulti": "Select (multi)",
+  "scAssignToBank2": "Assign to Bank…",
+  "scUngrouped": "Ungrouped",
+  "scRemovedFromBank": "Removed from bank",
+  "scAlreadyIn": "Already in {name}",
+  "@scAlreadyIn": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scIsFull": "{name} is full",
+  "@scIsFull": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scMovedTo": "Moved to {name}",
+  "@scMovedTo": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scActive": "Active",
+  "scFx": "{length} fx",
+  "@scFx": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scDropToAddHere": "Drop to add here",
+  "scEmptyDropAScene": "Empty — drop a scene here",
+  "scSelected": "{length} selected",
+  "@scSelected": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scScenes": "Scenes",
+  "scSort": "Sort",
+  "scManualOrder": "Manual order",
+  "scNameAZ": "Name (A-Z)",
+  "scGroup3": "Group",
+  "scNoGrouping": "No grouping",
+  "scGroupByBank": "Group by Bank",
+  "scNoScenesYetTap": "No scenes yet — tap + to create one",
+  "scLongPressAScene": "Long-press a scene to drag it into another bank",
+  "scUpstage": "UPSTAGE",
+  "scAudience": "AUDIENCE",
+  "scHasNoPositionSaved": "\"{name}\" has no position saved for these fixtures",
+  "@scHasNoPositionSaved": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSavePosition": "Save position",
+  "scUpdateWithThesePositions": "Update \"{name}\" with these positions",
+  "@scUpdateWithThesePositions": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scOnlyTheseFixturesChange": "Only these fixtures change; the rest of the preset is kept",
+  "scRename": "Rename",
+  "scScenesThatUsedIt": "Scenes that used it keep their positions",
+  "scRenamePosition": "Rename position",
+  "scPerFixture": "PER FIXTURE",
+  "scAHeadSetHere": "A head set here leaves the fan and keeps its own spot. The group pad still moves it along.",
+  "scBackToGroup": "Back to group",
+  "scPosition": "Position",
+  "scXyPad": "XY pad",
+  "scStage": "Stage",
+  "scFullScreen": "Full screen",
+  "scTipPlaceTheseHeads": "Tip: place these heads where they really hang in Fixtures → Stage Layout, and set their height there, so the beams land where the plan shows.",
+  "scTapToRecallLong": "Tap to recall · long-press for more",
+  "scSaveCurrent": "Save current",
+  "scPositionPresets": "POSITION PRESETS",
+  "scGroupSpread": "GROUP SPREAD",
+  "scFanPan": "Fan (pan)",
+  "scFanTilt": "Fan (tilt)",
+  "scMirrorLeftRight": "Mirror left / right",
+  "scHeadsOnTheRight": "Heads on the right half of the stage pan the opposite way",
+  "scOfHeadsHaveTheir": "{length} of {length2} heads have their own position and ignore the fan.",
+  "@scOfHeadsHaveTheir": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "length2": {
+        "type": "Object"
+      }
+    }
+  },
+  "scMovement": "MOVEMENT",
+  "scPanTiltSpeed": "Pan/Tilt speed",
+  "scPerFixture2": "Per fixture…",
+  "scCenterAll": "Center all",
+  "scRiggingCalibration": "RIGGING & CALIBRATION",
+  "scRiggingThenCalibrateThis": "Rigging, then calibrate this head on the spot you are aiming at",
+  "scAimAt": "AIM AT",
+  "scFloor": "Floor",
+  "scHeads17M": "Heads · 1.7 m",
+  "scTheAudienceSHead": "The audience's head height",
+  "scMHighLongPress": "{v} m high · long-press to delete",
+  "@scMHighLongPress": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSaveSpot": "Save spot",
+  "scNameTheSpotUnder": "Name the spot under the orange handle, e.g. a mirror ball",
+  "scAimingMAboveThe": "Aiming {v} m above the floor",
+  "@scAimingMAboveThe": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scFormation": "FORMATION",
+  "scSpread": "Spread",
+  "scBackToTheFormation": "Back to the formation ({length} moved on their own)",
+  "@scBackToTheFormation": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scTheSpotUnderThe": "The spot under the orange handle, so any group can be sent there in one tap.",
+  "scMirrorBall": "Mirror ball",
+  "scHeightAboveTheFloor": "Height above the floor",
+  "scScenesAlreadyAimedThere": "Scenes already aimed there keep their positions.",
+  "scSnapToTheGrid": "Snap to the grid: whole, half or quarter of a grid cell",
+  "scSnapOff": "Snap off",
+  "scCoarse": "Coarse",
+  "scFine": "Fine",
+  "scAudience2": "Audience",
+  "scGroups2": "Groups",
+  "scNoSavedGroupsYet": "No saved groups yet.\nBuild one from fixtures you always control together — \"Front\", \"Back\", \"Moving\" — and it shows up as a one-tap shortcut in every scene.",
+  "scFixtures2": "{liveCount} fixtures",
+  "@scFixtures2": {
+    "placeholders": {
+      "liveCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scOfFixturesStillPatched": "{liveCount} of {length} fixtures still patched",
+  "@scOfFixturesStillPatched": {
+    "placeholders": {
+      "liveCount": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNewGroup2": "New group",
+  "scEditGroup": "Edit group",
+  "scNoPatchedFixturesYet2": "No patched fixtures yet — patch some in the Fixtures tab first.",
+  "scEGFront": "e.g. Front",
+  "scIcon": "ICON",
+  "scSearchFixtures": "Search fixtures…",
+  "scStageSize": "Stage size",
+  "scTheRealSizeOf": "The real size of the area this plan shows, so the Scene editor can aim the moving heads in metres.",
+  "scWidthLeftToRight": "Width (left to right)",
+  "scDepthBackToThe": "Depth (back to the audience)",
+  "scStageLayout": "Stage Layout",
+  "scArrangeInAGrid": "Arrange in a grid",
+  "scNoPatchedFixturesYet3": "No patched fixtures yet — patch one in the Templates tab",
+  "scDragEachFixtureTo": "Drag each fixture to where it hangs. Tap a moving head to set its height, which way it faces, and to calibrate it.",
+  "scNewFixture": "New Fixture",
+  "scDiscardChanges": "Discard changes?",
+  "scDiscardFixture": "Discard fixture?",
+  "scYourEditsHaveNot": "Your edits have not been saved.",
+  "scThisFixtureHasNot": "This fixture has not been saved yet.",
+  "scKeepEditing": "Keep Editing",
+  "scDiscard": "Discard",
+  "scEditFixture": "Edit Fixture",
+  "scFixtureName": "Fixture Name",
+  "scFixtureType": "FIXTURE TYPE",
+  "scMovingHead": "Moving Head",
+  "scRgbPar": "RGB / Par",
+  "scGeneric": "Generic",
+  "scChannelMap": "CHANNEL MAP",
+  "scChannels": "{length} channels",
+  "@scChannels": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scChangingTheChannelCount": "Changing the channel count/order updates every patched instance of this fixture — existing scenes may need re-checking.",
+  "scRanges": "Ranges",
+  "scRanges2": "{length} ranges",
+  "@scRanges2": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scAddChannel": "Add Channel",
+  "scMovementRange": "MOVEMENT RANGE",
+  "scHowFarTheHead": "How far the head turns over the whole pan and tilt channel — from the fixture's spec sheet. Sets the degree scale on the position pad and how the stage view aims it.",
+  "scPanRange": "Pan range",
+  "scTiltRange": "Tilt range",
+  "scSaveChanges": "Save Changes",
+  "scSaveFixture": "Save Fixture",
+  "scSplitIntoEqualSlots": "Split into equal slots",
+  "scHowManySlots": "How many slots?",
+  "scSplit": "Split",
+  "scSlot": "Slot {v}",
+  "@scSlot": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSwatchColour": "Swatch colour",
+  "scGuessFromTheName": "Guess from the name",
+  "scGoboPicture": "Gobo picture",
+  "scFrom": "From",
+  "scTo": "To",
+  "scValueRanges": "{channelLabel} — value ranges",
+  "@scValueRanges": {
+    "placeholders": {
+      "channelLabel": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNameWhatEachPart": "Name what each part of this channel's 0-255 span does. Use \"Range\" for a continuous span you fine-tune (strobe speed, fade speed), \"Slot\" for a fixed choice (a gobo, a colour), and \"Off\" for the inactive end.",
+  "scNoRangesThisChannel": "No ranges — this channel stays a plain 0-255 fader.",
+  "scAddRange": "Add range",
+  "scStrobeTemplate": "Strobe template",
+  "scSplitEvenly": "Split evenly…",
+  "scClear": "Clear",
+  "scConnectToTheArt": "Connect to the Art-Net node first to see the beam",
+  "scPanTilt": "{qualifiedName} · pan {panRangeDeg}° / tilt {tiltRangeDeg}°",
+  "@scPanTilt": {
+    "placeholders": {
+      "qualifiedName": {
+        "type": "Object"
+      },
+      "panRangeDeg": {
+        "type": "Object"
+      },
+      "tiltRangeDeg": {
+        "type": "Object"
+      }
+    }
+  },
+  "scMounting": "MOUNTING",
+  "scHeightOfTheHead": "Height of the head (truss trim)",
+  "scHeightOfTheHead2": "Height of the head",
+  "scPanCentreFaces": "PAN CENTRE FACES",
+  "scWhereTheBeamPoints": "Where the beam points on the plan with pan at the middle of its travel. Right and left are as the audience sees the stage.",
+  "scInvertPan": "Invert pan",
+  "scTheHeadTurnsThe": "The head turns the opposite way to the plan",
+  "scInvertTilt": "Invert tilt",
+  "scTheBeamLiftsThe": "The beam lifts the wrong way",
+  "scCalibration": "CALIBRATION",
+  "scSendToTheMark": "Send to the mark again",
+  "scAimAtTheMark": "Aim at the mark",
+  "scOffsetPanTilt": "Offset: pan {panOffsetDeg}° · tilt {tiltOffsetDeg}°",
+  "@scOffsetPanTilt": {
+    "placeholders": {
+      "panOffsetDeg": {
+        "type": "Object"
+      },
+      "tiltOffsetDeg": {
+        "type": "Object"
+      }
+    }
+  },
+  "scReset": "Reset",
+  "scPickTheDmxMode": "Pick the DMX mode the fixture itself is set to — the channel layout differs between modes.",
+  "scChannelsWithNamedRanges": "{channelCount} channels · {length} with named ranges",
+  "@scChannelsWithNamedRanges": {
+    "placeholders": {
+      "channelCount": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scChannels2": "{channelCount} channels",
+  "@scChannels2": {
+    "placeholders": {
+      "channelCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scModesChannels": "{length} modes · {b}-{b2} channels",
+  "@scModesChannels": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "b": {
+        "type": "Object"
+      },
+      "b2": {
+        "type": "Object"
+      }
+    }
+  },
+  "scCouldNotReadThe": "Could not read the bundled library.\n{error}",
+  "@scCouldNotReadThe": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNothingMatched": "Nothing matched",
+  "scSearch": "Search",
+  "scFixtureLibrary": "Fixture Library",
+  "scSearchAllManufacturersAnd": "Search all manufacturers and models",
+  "scFixtureDefinitionsFromThe": "Fixture definitions from the Q Light Controller Plus project, used under the Apache License 2.0.",
+  "scLabel": "Label",
+  "scStartChannel0Based": "Start Channel (0-based)",
+  "scPatch": "Patch: {name}",
+  "@scPatch": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scPatch2": "Patch",
+  "scEdit": "Edit: {label}",
+  "@scEdit": {
+    "placeholders": {
+      "label": {
+        "type": "Object"
+      }
+    }
+  },
+  "scSavedScrollDownTo": "Saved \"{name}\" — scroll down to find it in Templates",
+  "@scSavedScrollDownTo": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scAddedTapItIn": "Added \"{name}\" — tap it in Templates to patch it",
+  "@scAddedTapItIn": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scCouldNotImport": "Could not import: {e}",
+  "@scCouldNotImport": {
+    "placeholders": {
+      "e": {
+        "type": "Object"
+      }
+    }
+  },
+  "scImportedFixtures": "Imported {length} fixtures",
+  "@scImportedFixtures": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scNoCustomFixturesTo": "No custom fixtures to export yet",
+  "scExportFixtures": "Export fixtures",
+  "scQlcFilesHoldOne": "QLC+ files hold one fixture each — exported \"{name}\". Use JSON or CSV to export all {length} at once.",
+  "@scQlcFilesHoldOne": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scUpdated": "Updated \"{name}\"",
+  "@scUpdated": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "scFixtures3": "Fixtures",
+  "sc2dStageLayout": "2D Stage Layout",
+  "scFixtureLibraryImportAnd": "Fixture library, import and export",
+  "scFixtureLibrary2": "Fixture library…",
+  "scImportFromFile": "Import from file…",
+  "scExportFixturesAsJson": "Export fixtures as JSON…",
+  "scExportAsQlcQxf": "Export as QLC+ (.qxf)…",
+  "scExportAsCsv": "Export as CSV…",
+  "scTemplates": "Templates",
+  "scPatched": "Patched ({length})",
+  "@scPatched": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "scCreateCustomFixture": "Create Custom Fixture",
+  "scCh": "{channelCount} ch",
+  "@scCh": {
+    "placeholders": {
+      "channelCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scPatch3": "+ Patch",
+  "scNoFixturesPatchedYet": "No fixtures patched yet",
+  "scCh2": "{name} · {universeName} · Ch {v}-{channelCount}",
+  "@scCh2": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "universeName": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      },
+      "channelCount": {
+        "type": "Object"
+      }
+    }
+  },
+  "scEditLabelChannel": "Edit label / channel",
+  "scDeleteScenes": "{count, plural, =1{Delete 1 scene?} other{Delete {count} scenes?}}",
+  "@scDeleteScenes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scDefaultRigging": "{names} still use the default rigging: hanging, 3 m, not calibrated. Heads on stands will not aim right — Tap its chip below: Standing, its height, which way pan centre faces, then calibrate.",
+  "@scDefaultRigging": {
+    "placeholders": {
+      "names": {
+        "type": "String"
+      }
+    }
+  },
+  "scUnreachable": "{count, plural, =1{1 head can't turn far enough — shown red, and left at the nearest spot it can reach.} other{{count} heads can't turn far enough — shown red, and left at the nearest spot they can reach.}}",
+  "@scUnreachable": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "mountCalibrationHint": "{what} ({x} m from the left edge, {y} m from the back{up}). Send the head there, nudge it until the beam sits on the mark, and you're done — every nudge is saved as you go.",
+  "@mountCalibrationHint": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      },
+      "x": {
+        "type": "String"
+      },
+      "y": {
+        "type": "String"
+      },
+      "up": {
+        "type": "String"
+      }
+    }
+  },
+  "mountMarkCentre": "Put a mark on the floor in the middle of the stage",
+  "mountMarkAimSpot": "Put something at the spot you are aiming at in the Scene editor",
+  "mountMarkUp": ", {m} m up",
+  "@mountMarkUp": {
+    "placeholders": {
+      "m": {
+        "type": "String"
+      }
+    }
+  },
+  "scLookDark": "Dark",
+  "scLookCustom": "Custom",
+  "scLookMoving": "Moving",
+  "scTabStage": "Stage",
+  "scTabPreset": "Preset",
+  "scTabDim": "Dim {percent}%",
+  "@scTabDim": {
+    "placeholders": {
+      "percent": {
+        "type": "int"
+      }
+    }
+  },
+  "scTabPosition": "Position",
+  "scTabColor": "Color",
+  "scTabChannels": "Channels",
+  "mountFacingAudience": "Audience",
+  "mountFacingRight": "Right",
+  "mountFacingUpstage": "Upstage",
+  "mountFacingLeft": "Left",
+  "wMovementStep": "Movement Step",
+  "wStepTiming": "Step Timing",
+  "wRunUntilStopped": "Run until stopped",
+  "wTheChaseStaysOn": "The chase stays on this step; only the next lane or a Stop ends it",
+  "wRunsForS": "Runs for: {v}s",
+  "@wRunsForS": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wHoldS": "Hold: {v}s",
+  "@wHoldS": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wGlideOntoThePath": "Glide onto the path: {v}s",
+  "@wGlideOntoThePath": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wFadeS": "Fade: {v}s",
+  "@wFadeS": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wStartTheLapFrom": "Start the lap from the top",
+  "wOffThePathCarries": "Off: the path carries on from where the previous movement step was",
+  "wNotConnectedCheckSettings": "Not connected — check Settings",
+  "wNothingToPreviewAdd": "Nothing to preview — add a step with a valid scene or bank first",
+  "wMissingScene": "Missing scene",
+  "wScene": "Scene: {name}",
+  "@wScene": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wMissingBank": "Missing bank",
+  "wMovement": "Movement: {name}",
+  "@wMovement": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wBank": "Bank: {name}",
+  "@wBank": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wEmptyStep": "Empty step",
+  "wAddALayerTo": "Add a layer to this chase",
+  "wHowThisLayerIs": "How this layer is clocked",
+  "wRemoveThisEmptyLayer": "Remove this empty layer from the chase",
+  "wNoStepsOnThis": "No steps on this layer yet",
+  "wScene2": "Scene",
+  "wHoldSFadeS": "Hold {seconds}s · Fade {glide}s",
+  "@wHoldSFadeS": {
+    "placeholders": {
+      "seconds": {
+        "type": "Object"
+      },
+      "glide": {
+        "type": "Object"
+      }
+    }
+  },
+  "wTapToSeeScenes": "{timing} · tap to see scenes",
+  "@wTapToSeeScenes": {
+    "placeholders": {
+      "timing": {
+        "type": "Object"
+      }
+    }
+  },
+  "wTapToEdit": "{timing} · tap to edit",
+  "@wTapToEdit": {
+    "placeholders": {
+      "timing": {
+        "type": "Object"
+      }
+    }
+  },
+  "wEditTiming": "Edit timing",
+  "wMoveToAnotherLayer": "Move to another layer",
+  "wMoveTo": "Move to {name}",
+  "@wMoveTo": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wThisBankHasNo": "This bank has no scenes yet",
+  "wStepsByLayer": "STEPS BY LAYER",
+  "wEachLayerIsA": "Each layer is a lane: its steps play one after another, and the lanes play at the same time. New steps land on Layer 1 unless added to another layer.",
+  "wSpeedSync": "SPEED & SYNC",
+  "wAppliesToEveryStep": "Applies to every step (and new ones) — override a single step by tapping it",
+  "wHoldTimeSyncedTo": "Hold Time (synced to beat)",
+  "wHoldTime": "Hold Time",
+  "wSStep": "{v}s / step",
+  "@wSStep": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wFadeTimeStillApplies": "Fade Time (still applies even when synced to beat)",
+  "wSFade": "{v}s fade",
+  "@wSFade": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wSyncToBeatMic": "Sync to Beat (Mic)",
+  "wSensitivity": "Sensitivity",
+  "wReactTo": "React to",
+  "wForward": "Forward",
+  "wBounce": "Bounce",
+  "wRandom": "Random",
+  "wGoesDarkForA": "Goes dark for a moment now and then (or on the beat) while the chase runs — on the layer it plays on. It comes along in a Smart Program too.",
+  "wPreview": "Preview",
+  "wSaveChase": "Save Chase",
+  "wFallingBackToTimed": "{error} — falling back to timed steps",
+  "@wFallingBackToTimed": {
+    "placeholders": {
+      "error": {
+        "type": "Object"
+      }
+    }
+  },
+  "wHasNoValidSteps": "\"{name}\" has no valid steps — check its scenes/banks still exist",
+  "@wHasNoValidSteps": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNewSmartProgram": "New Smart Program",
+  "wTheChasesAndBanks": "The chases and banks it switches between stay in the project.",
+  "wOnly": "— (only {onlyIn})",
+  "@wOnly": {
+    "placeholders": {
+      "onlyIn": {
+        "type": "Object"
+      }
+    }
+  },
+  "wEmptyNow": "— empty now",
+  "wChases": "Chases",
+  "wImportChasesBanks": "Import chases / banks",
+  "wSwitchesEachLayerBetween": "Switches each layer between its own chases as the live music tempo speeds up or slows down",
+  "wNoSmartProgramsYet": "No smart programs yet",
+  "wNoMusic": "NO MUSIC",
+  "wBpmBase": "{round} BPM base",
+  "@wBpmBase": {
+    "placeholders": {
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNothingSetYetTap": "Nothing set yet — tap to pick chases per layer",
+  "wNoChasesYetTap": "No chases yet — tap + to create one",
+  "wRunningOnOfLayers": "Running on {length} of {length2} layers",
+  "@wRunningOnOfLayers": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "length2": {
+        "type": "Object"
+      }
+    }
+  },
+  "wRunning": "Running…",
+  "wStepsSStep": "{length} steps · {v}s/step",
+  "@wStepsSStep": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wExportWithItsBanks": "Export (with its banks and scenes)",
+  "wNewChase": "New Chase",
+  "wRunsOnSeveralLayers": "\"{name}\" runs on several layers",
+  "@wRunsOnSeveralLayers": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wSpreadItsLanesOnto": "Spread its lanes onto their own layers in this zone ({zoneNameZone})?",
+  "@wSpreadItsLanesOnto": {
+    "placeholders": {
+      "zoneNameZone": {
+        "type": "Object"
+      }
+    }
+  },
+  "wAllOnThisLayer": "All on this layer",
+  "wSpreadOut": "Spread out",
+  "wNone": "— none —",
+  "wStaysOnBase": "— stays on Base —",
+  "wDimmerDropoutInThis": "Dimmer dropout in this zone",
+  "wGoesDarkForA2": "Goes dark for a moment now and then; acts on the program's layers while the zone runs.",
+  "wFadeTimeS": "Fade Time: {v}s",
+  "@wFadeTimeS": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wHowThisWorks": "How this works",
+  "wLayerTiming": "LAYER TIMING",
+  "wBase": "BASE",
+  "wBaseBpm": "Base BPM: {round}",
+  "@wBaseBpm": {
+    "placeholders": {
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "wThresholdUnit": "Threshold Unit",
+  "wPercent": "Percent",
+  "wFaster": "FASTER",
+  "wTriggersAtBpm": "triggers at {v} BPM",
+  "@wTriggersAtBpm": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wSpeedUpBy": "Speed up by: +{v}{unit}",
+  "@wSpeedUpBy": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "unit": {
+        "type": "Object"
+      }
+    }
+  },
+  "wHoldForSBefore": "Hold for: {v}s before switching",
+  "@wHoldForSBefore": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNoLayerHasA": "No layer has a Faster pick — the program stays on Base when the song speeds up.",
+  "wSlower": "SLOWER",
+  "wSlowDownBy": "Slow down by: -{v}{unit}",
+  "@wSlowDownBy": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "unit": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNoLayerHasA2": "No layer has a Slower pick — the program stays on Base when the song slows down.",
+  "wWhenTheMusicStops": "WHEN THE MUSIC STOPS",
+  "wAfter4sWithoutA": "After 4s without a beat the rig fades out and waits. The first beat back brings the slower picks up again.",
+  "wBlackoutFadeS": "Blackout Fade: {v}s",
+  "@wBlackoutFadeS": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wSaveSmartProgram": "Save Smart Program",
+  "wDelete": "Delete \"{bankName}\"?",
+  "@wDelete": {
+    "placeholders": {
+      "bankName": {
+        "type": "Object"
+      }
+    }
+  },
+  "wTheBankHasNo": "The bank has no scenes in it.",
+  "wDeleteKeepScenes": "Delete, keep scenes",
+  "wFree": "Free",
+  "wPanAndTiltPad": "Pan and tilt pad",
+  "wColour": "Colour",
+  "wSwatches": "Swatches",
+  "wPalette": "Palette",
+  "wUseColour": "Use colour",
+  "wPresets": "PRESETS",
+  "wMyColours": "MY COLOURS",
+  "wMixOneOnThe": "Mix one on the Palette tab and save it — it shows up here, in every project.",
+  "wNameThisColour": "Name this colour",
+  "wColourName": "Colour name",
+  "wEGDeepBlue": "e.g. Deep Blue",
+  "wSaved": "Saved",
+  "wSaveColour": "Save colour",
+  "wHue": "HUE",
+  "wSaturation": "SATURATION",
+  "wBrightness": "BRIGHTNESS",
+  "wResetTheMovementKnobs": "Reset the Movement knobs",
+  "wMovementFxLiveKnobs": "Movement FX — live knobs",
+  "wSaveProject": "Save Project",
+  "wComingSoon": "Coming soon",
+  "wRunOnWhichLayer": "Run on which layer?",
+  "wStart": "Start",
+  "wStartOnLayer": "Start on Layer {v}",
+  "@wStartOnLayer": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNowRunningReplacesIt": "now: {name} running · replaces it",
+  "@wNowRunningReplacesIt": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wLast": "last: {name}",
+  "@wLast": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wEmptyNow2": "empty now",
+  "wLayer": "Layer {v} - {name}",
+  "@wLayer": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wWatch": "WATCH",
+  "wMusic": "MUSIC",
+  "wQuiet": "QUIET",
+  "wLevel": "Level",
+  "wWaitingForTheMicrophone": "Waiting for the microphone…",
+  "wDuplicate": "Duplicate \"{name}\"",
+  "@wDuplicate": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wCloneTheScenes": "Clone the scenes",
+  "wNewSceneSEditing": "{length} new scene(s) — editing the copy leaves the original alone",
+  "@wNewSceneSEditing": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "wUseTheSameScenes": "Use the same scenes",
+  "wBothBanksShareThem": "Both banks share them — a change shows up in both",
+  "wSlotsUsed": "{length}/{length2} slots used",
+  "@wSlotsUsed": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "length2": {
+        "type": "Object"
+      }
+    }
+  },
+  "wDuplicateThisBank": "Duplicate this bank",
+  "wNewBank": "New Bank",
+  "wThatBankNoLonger": "That bank no longer exists",
+  "wAddedToSlot": "Added to {name}, slot {v}",
+  "@wAddedToSlot": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wSilenceFloor": "Silence floor",
+  "wOff": "Off",
+  "wDb": "{round} dB",
+  "@wDb": {
+    "placeholders": {
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "wLoudnessTheLevelBar": "Loudness (the Level bar) that counts as music. Below it for about 2 s, a Smart Program blacks out; back above it, it comes back. Set it above the quiet room, below the music.",
+  "wProjectName": "Project name",
+  "wBringOverFrom": "BRING OVER FROM \"{toUpperCase}\"",
+  "@wBringOverFrom": {
+    "placeholders": {
+      "toUpperCase": {
+        "type": "Object"
+      }
+    }
+  },
+  "wCreate": "Create",
+  "wColourOverrideOverThe": "Colour override — over the scenes",
+  "wWhichFixturesTheColour": "Which fixtures the colour goes to",
+  "wAllFixtures": "All fixtures",
+  "wAuto": "Auto",
+  "wControlDock": "Control dock",
+  "wCloseThePanel": "Close the panel",
+  "wClose": "Close",
+  "wWaitingForMusic": "Waiting for music",
+  "wBpm": "{name} · {round} BPM",
+  "@wBpm": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "wIdle": "Idle",
+  "wHideTheColourStrip": "Hide the Colour strip",
+  "wHideTheMovementKnobs": "Hide the Movement knobs",
+  "wShowTheMovementKnobs": "Show the Movement knobs",
+  "wHideLiveStage": "Hide live stage",
+  "wShowLiveStage": "Show live stage",
+  "wHideTempoControls": "Hide tempo controls",
+  "wShowTempoControls": "Show tempo controls",
+  "wOfFixtures": "{length} of {length2} fixtures",
+  "@wOfFixtures": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "length2": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNone2": "None",
+  "wNoPatchedFixturesOf": "No patched fixtures of this type",
+  "wOk": "OK",
+  "wStepSpeedTheProgram": "Step speed — the program follows the music",
+  "wStepSpeedSyncedTo": "Step speed — synced to the beat",
+  "wStepSpeedBanksAnd": "Step speed — banks and chases",
+  "wStepSpeedBanksOnly": "Step speed — banks only",
+  "wSec": "Sec",
+  "wSStepBpm": "{v}s / step · {round} BPM",
+  "@wSStepBpm": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "wFadeTheZoneOf": "Fade — the {zoneWord} zone of the running program",
+  "@wFadeTheZoneOf": {
+    "placeholders": {
+      "zoneWord": {
+        "type": "Object"
+      }
+    }
+  },
+  "wFadeOffFlashSnaps": "Fade — off, Flash snaps",
+  "wFadeFollowingTheTempo": "Fade — following the tempo",
+  "wFade": "Fade",
+  "wAutoFade": "Auto fade",
+  "wNotInPlayWhile": "Not in play while Flash is the beat rate",
+  "wSlowerMusicFadesLonger": "Slower music fades longer, faster snaps tighter",
+  "wAmount": "Amount {round}%",
+  "@wAmount": {
+    "placeholders": {
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "wOverrideSavedTiming": "Override saved timing",
+  "wChasesRunAtThe": "Chases run at the timing set here",
+  "wChasesKeepTheirOwn": "Chases keep their own; banks always follow this",
+  "wBeatSync": "Beat sync",
+  "wFlashLength": "Flash length",
+  "wMs": "{inMilliseconds} ms",
+  "@wMs": {
+    "placeholders": {
+      "inMilliseconds": {
+        "type": "Object"
+      }
+    }
+  },
+  "wBaselineMemory": "Baseline memory",
+  "wMomentaryHoldOneLet": "Momentary — hold one, let go to drop back",
+  "wSettingsLayersScreen": "Settings: Layers screen",
+  "wStrobeRate": "Strobe rate",
+  "wFlashesASecond": "{v} flashes a second",
+  "@wFlashesASecond": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNoMidiDevicePick": "No MIDI device — pick one in Setup",
+  "wClockFrom": "Clock from {name}",
+  "@wClockFrom": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wClockFromBpm": "Clock from {name} — {v} BPM",
+  "@wClockFromBpm": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wReceivingFromButNo": "Receiving from {name}, but no clock — enable Sync on its output",
+  "@wReceivingFromButNo": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wConnectedToWaitingFor": "Connected to {name} — waiting for its clock",
+  "@wConnectedToWaitingFor": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      }
+    }
+  },
+  "wBeatsFromRkbxLink": "Beats from rkbx_link",
+  "wBeatsFromRkbxLink2": "Beats from rkbx_link — {v} BPM",
+  "@wBeatsFromRkbxLink2": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wRkbxLinkIsSending": "rkbx_link is sending, but no beats — is the master deck playing?",
+  "wWaitingForRkbxLink": "Waiting for rkbx_link on port {port}",
+  "@wWaitingForRkbxLink": {
+    "placeholders": {
+      "port": {
+        "type": "Object"
+      }
+    }
+  },
+  "wDemoModeNothingIs": "Demo mode — nothing is transmitted",
+  "wSendingSacnToThe": "Sending sACN to the universe multicast groups — E1.31 has no reply to check",
+  "wRepliedFromInMs": "{deviceName} replied from {host} in {v} ms",
+  "@wRepliedFromInMs": {
+    "placeholders": {
+      "deviceName": {
+        "type": "Object"
+      },
+      "host": {
+        "type": "Object"
+      },
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wNoReplyFrom": "No reply from {host}",
+  "@wNoReplyFrom": {
+    "placeholders": {
+      "host": {
+        "type": "Object"
+      }
+    }
+  },
+  "wDemoModeNoPackets": "Demo mode — no packets are sent",
+  "wStreamingSacnE131": "Streaming sACN — E1.31 has no reply to verify against",
+  "wMs2": "{v}ms",
+  "@wMs2": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      }
+    }
+  },
+  "wOnlineAt": "{deviceName} online at {host}",
+  "@wOnlineAt": {
+    "placeholders": {
+      "deviceName": {
+        "type": "Object"
+      },
+      "host": {
+        "type": "Object"
+      }
+    }
+  },
+  "wLookingForTheNode": "Looking for the node…",
+  "wTapToReCheck": "{tooltip}\nTap to re-check",
+  "@wTapToReCheck": {
+    "placeholders": {
+      "tooltip": {
+        "type": "Object"
+      }
+    }
+  },
+  "wExported": "Exported {what}",
+  "@wExported": {
+    "placeholders": {
+      "what": {
+        "type": "Object"
+      }
+    }
+  },
+  "wCouldNotImport": "Could not import: {message}",
+  "@wCouldNotImport": {
+    "placeholders": {
+      "message": {
+        "type": "Object"
+      }
+    }
+  },
+  "chaseCreateFirst": "{kind, select, bank{Create a bank first} other{Create a scene first}}",
+  "@chaseCreateFirst": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "chaseAddStep": "{kind, select, bank{Add Bank Step} other{Add Scene Step}}",
+  "@chaseAddStep": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "chaseFallbackTimed": "{error} — falling back to timed steps",
+  "@chaseFallbackTimed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "chaseMicUnavailable": "Microphone unavailable",
+  "chaseMoveStepTiming": "{runs} · Glide {glide}s{restarts}",
+  "@chaseMoveStepTiming": {
+    "placeholders": {
+      "runs": {
+        "type": "String"
+      },
+      "glide": {
+        "type": "String"
+      },
+      "restarts": {
+        "type": "String"
+      }
+    }
+  },
+  "chaseRunsUntilStopped": "Runs until stopped",
+  "chaseRunsSeconds": "Runs {seconds}s",
+  "@chaseRunsSeconds": {
+    "placeholders": {
+      "seconds": {
+        "type": "String"
+      }
+    }
+  },
+  "chaseRestarts": " · restarts",
+  "chaseDeleteStepsGo": "{count, plural, =1{Its 1 step goes with it. The scenes and banks it stepped through stay in the project.} other{Its {count} steps go with it. The scenes and banks it stepped through stay in the project.}}",
+  "@chaseDeleteStepsGo": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "smartZoneLine": "Zone {zone}{live}",
+  "@smartZoneLine": {
+    "placeholders": {
+      "zone": {
+        "type": "String"
+      },
+      "live": {
+        "type": "String"
+      }
+    }
+  },
+  "smartLiveBpm": " · {bpm} BPM live",
+  "@smartLiveBpm": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "smartHowItWorks": "One tempo reading switches the whole program between Base, Faster and Slower once the live tempo has stayed past a threshold for that direction's hold time — but each layer plays its own chase or bank in each zone. A layer with nothing set for a zone keeps its Base through it; a layer with no Base sits dark until one of its zones comes round. A chase picked here plays entirely on this layer, whatever layers its own steps name — unless it's made of banks spread over several layers: then you're asked whether to put each layer's banks on that layer instead.",
+  "smartLayerTimingHint": "Follow dock: as above. On beat: steps on the beat even with Beat Sync off on the dock. Free-running: plays its Base target once on its own Hold/Fade — no beat, not restarted by zone changes, left running through silence. For a slow pan sweep.",
+  "confirmBankHoldsScenes": "{count, plural, =1{The bank holds 1 scene. Scenes live in the project, not in the bank — keeping them just leaves them unsorted, ready to drop into another bank.} other{The bank holds {count} scenes. Scenes live in the project, not in the bank — keeping them just leaves them unsorted, ready to drop into another bank.}}",
+  "@confirmBankHoldsScenes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "confirmSharedScenes": "{count, plural, =1{1 of them is also used by another bank or a chase and will be kept either way.} other{{count} of them are also used by another bank or a chase and will be kept either way.}}",
+  "@confirmSharedScenes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "confirmDeleteWithScenes": "{count, plural, =1{Delete with 1 scene} other{Delete with {count} scenes}}",
+  "@confirmDeleteWithScenes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "beatMeterWatching": "Watching {band} · needs +{rise}dB above its average to trigger · level {level}{floor}",
+  "@beatMeterWatching": {
+    "placeholders": {
+      "band": {
+        "type": "String"
+      },
+      "rise": {
+        "type": "String"
+      },
+      "level": {
+        "type": "String"
+      },
+      "floor": {
+        "type": "String"
+      }
+    }
+  },
+  "beatMeterFloor": " · floor {db} dB",
+  "@beatMeterFloor": {
+    "placeholders": {
+      "db": {
+        "type": "int"
+      }
+    }
+  },
+  "panelCheckSetup": "{problem} — check Setup",
+  "@panelCheckSetup": {
+    "placeholders": {
+      "problem": {
+        "type": "String"
+      }
+    }
+  },
+  "panelNotConnected": "Not connected",
+  "panelNotListening": "Not listening",
+  "exportScenesCount": "{count, plural, =1{1 scene} other{{count} scenes}}",
+  "@exportScenesCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "songSections": "Sections",
+  "songImportASongShow": "Import a song show",
+  "songNewSongShow": "New song show",
+  "songAProgramTimedTo": "A program timed to one song: sections and cues placed on a timeline, played with the song",
+  "songNoSongShowsYet": "No song shows yet",
+  "songEndsBarBeat": "ends bar {v} · beat {v2}",
+  "@songEndsBarBeat": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "v2": {
+        "type": "Object"
+      }
+    }
+  },
+  "songCut": "Cut",
+  "songHowDoesItEnd": "How does it end?",
+  "songKeepTheLastLook": "Keep the last look",
+  "songTheBankSLast": "The bank's last scene, or the scene, stays on stage as it was.",
+  "songTheLightsFadeOut": "The lights fade out. Moving heads keep their position.",
+  "songFadeOutOver": "Fade out over",
+  "songLinkASongFile": "Link a song file in the editor first",
+  "songReplaceWhatIsOn": "Replace what is on the timeline?",
+  "songCuesAndSectionsAre": "{length} cues and {length2} sections are replaced by the generated ones.",
+  "@songCuesAndSectionsAre": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      },
+      "length2": {
+        "type": "Object"
+      }
+    }
+  },
+  "songTheSectionsAreReplaced": "The sections are replaced by the detected ones. Your cues stay where they are.",
+  "songReplace": "Replace",
+  "songAutoProgram": "Auto program",
+  "songRetry": "Retry",
+  "songListeningToTheSong": "Listening to the song…",
+  "songTempoBeatGridAnd": "Tempo, beat grid and sections",
+  "songStyle": "STYLE",
+  "songRestlessness": "Restlessness",
+  "songSeed": "Seed {seed}",
+  "@songSeed": {
+    "placeholders": {
+      "seed": {
+        "type": "Object"
+      }
+    }
+  },
+  "songAnotherArrangement": "Another arrangement",
+  "songBanksToUse": "BANKS TO USE",
+  "songNoMovementFxBanks": "No Movement FX banks yet",
+  "songMovementBanks": "Movement banks",
+  "songSavedWithTheShow": "Saved with the show. None selected means every fixture. Limiting playback to these groups arrives with export and scope.",
+  "songTempoAndSectionsOnly": "Tempo and sections only",
+  "songGenerateShow": "Generate show",
+  "songBpmGridMsBars": "{v} BPM · grid {beatOffsetMs} ms · {bars} bars · {length} sections",
+  "@songBpmGridMsBars": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "beatOffsetMs": {
+        "type": "Object"
+      },
+      "bars": {
+        "type": "Object"
+      },
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "songNotSureAboutThe": "Not sure about the tempo — check it in the editor (double or half is the usual mistake).",
+  "songNoSectionsFoundThe": "No sections found — the song may be too short or too even.",
+  "songNewSection": "New section",
+  "songSection": "Section",
+  "songNameOptional": "Name (optional)",
+  "songLength": "Length",
+  "songBars": "{round} bars",
+  "@songBars": {
+    "placeholders": {
+      "round": {
+        "type": "Object"
+      }
+    }
+  },
+  "songPlayItsCues": "Play its cues",
+  "songExportSongShow": "Export song show",
+  "songTheSongFileIs": " The song file is not included — link it again after importing.",
+  "songExported": "Exported \"{name}\".{audioNote}",
+  "@songExported": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "audioNote": {
+        "type": "Object"
+      }
+    }
+  },
+  "songIsThisTheSame": "Is this the same song?",
+  "songIsLongButThis": "\"{name}\" is {inMilliseconds} long, but this show was made for \"{fileName}\" ({durationMs}). The cues would land in the wrong places.",
+  "@songIsLongButThis": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "inMilliseconds": {
+        "type": "Object"
+      },
+      "fileName": {
+        "type": "Object"
+      },
+      "durationMs": {
+        "type": "Object"
+      }
+    }
+  },
+  "songLinkAnyway": "Link anyway",
+  "songCouldNotRead": "Could not read {name}: {e}",
+  "@songCouldNotRead": {
+    "placeholders": {
+      "name": {
+        "type": "Object"
+      },
+      "e": {
+        "type": "Object"
+      }
+    }
+  },
+  "songPlayOnWhichFixtures": "Play on which fixtures?",
+  "songNoFixtureGroupsYet": "No fixture groups yet — make some on the Fixture tab, then limit the show to them.",
+  "songFixtures": "{length} fixtures",
+  "@songFixtures": {
+    "placeholders": {
+      "length": {
+        "type": "Object"
+      }
+    }
+  },
+  "songSongShowName": "Song show name",
+  "songStartABankScene": "Start a bank, scene or chase here",
+  "songPaste": "Paste: {songCueNameRefClip}",
+  "@songPaste": {
+    "placeholders": {
+      "songCueNameRefClip": {
+        "type": "Object"
+      }
+    }
+  },
+  "songStopThisLayerHere": "Stop this layer here",
+  "songTryItNow": "Try it now",
+  "songPlaysThisLookOn": "Plays this look on its layer, outside the song",
+  "songHowItEnds": "How it ends…",
+  "songBlackout": "Blackout, {stopFadeMs}",
+  "@songBlackout": {
+    "placeholders": {
+      "stopFadeMs": {
+        "type": "Object"
+      }
+    }
+  },
+  "songKeepsTheLastLook": "Keeps the last look",
+  "songStopThisLayerNow": "Stop this layer now",
+  "songChangeWhatItStarts": "Change what it starts",
+  "songStartSomethingInstead": "Start something instead",
+  "songCopy": "Copy",
+  "songThenTapALane": "Then tap a lane to paste it there",
+  "songDeleteCue": "Delete cue",
+  "songCopiedTapALane": "Copied \"{songCueNameRefCue}\" — tap a lane to paste it",
+  "@songCopiedTapALane": {
+    "placeholders": {
+      "songCueNameRefCue": {
+        "type": "Object"
+      }
+    }
+  },
+  "songItCannotEndThere": "It cannot end there — the next cue is too close",
+  "songThisSongShowNo": "This song show no longer exists",
+  "songPlayFromTheCursor": "Play from the cursor",
+  "songPickAudioFile": "Pick audio file",
+  "songGridMs": "Grid {beatOffsetMs} ms",
+  "@songGridMs": {
+    "placeholders": {
+      "beatOffsetMs": {
+        "type": "Object"
+      }
+    }
+  },
+  "songSnap": "Snap: {label}",
+  "@songSnap": {
+    "placeholders": {
+      "label": {
+        "type": "Object"
+      }
+    }
+  },
+  "songZoomOut": "Zoom out",
+  "songZoomIn": "Zoom in",
+  "songRecord": "Record",
+  "songNoAudioLinkedThe": "No audio linked — the timeline still works from the tempo, but playing needs a song file.",
+  "songTheSongFileIsn": "The song file isn't linked on this device — pick \"{fileName}\" to play it. The cues are kept.",
+  "@songTheSongFileIsn": {
+    "placeholders": {
+      "fileName": {
+        "type": "Object"
+      }
+    }
+  },
+  "songTapALaneTo": "Tap a lane to add a cue there. A cue plays until the next cue on its layer — add a Stop to end it, or hold the cue and drag its end. Tap the left end of a cue to change or delete it, drag it to move it.",
+  "songGrid10MsEarlier": "Grid 10 ms earlier",
+  "songGrid10MsLater": "Grid 10 ms later",
+  "songRecordingOn": "Recording on",
+  "songTempo": "Tempo",
+  "songTapTempo": "Tap tempo",
+  "songSet": "Set",
+  "songItsTimelineGoesWith": "Its timeline goes with it. The banks and chases it used stay in the project, and the song file is untouched.",
+  "songBarBeat": "bar {v} · beat {v2}",
+  "@songBarBeat": {
+    "placeholders": {
+      "v": {
+        "type": "Object"
+      },
+      "v2": {
+        "type": "Object"
+      }
+    }
+  },
+  "songPlay": "Play",
+  "songPlaying": "Playing · {barBeatBeat}",
+  "@songPlaying": {
+    "placeholders": {
+      "barBeatBeat": {
+        "type": "Object"
+      }
+    }
+  },
+  "songStartsFromTapThe": "Starts from {barBeatCursorBeat} (tap the ruler to move it)",
+  "@songStartsFromTapThe": {
+    "placeholders": {
+      "barBeatCursorBeat": {
+        "type": "Object"
+      }
+    }
+  },
+  "songNoSongFileLinked": "No song file linked: plays without sound, on the tempo",
+  "songStartWhat": "Start what?",
+  "songSearchByName": "Search by name",
+  "songNothingMatches": "Nothing matches",
+  "songScenes": "SCENES",
+  "songMakeACopyTo": "Make a copy to change",
+  "songDeleted": "(deleted)",
+  "enumProtocolBoth": "Both",
+  "enumFormationPoint": "Single point",
+  "enumFormationLine": "Line",
+  "enumFormationCircle": "Circle",
+  "enumDockBottom": "Bottom",
+  "enumDockRight": "Right side",
+  "enumLaneFollowDock": "Follow dock",
+  "enumLaneOnBeat": "On beat",
+  "enumLaneFree": "Free-running",
+  "enumMountHanging": "Hanging",
+  "enumMountStanding": "Standing",
+  "enumSpaceStage": "Stage plan",
+  "enumAdaptFast": "Fast",
+  "enumAdaptNormal": "Normal",
+  "enumAdaptSlow": "Slow",
+  "enumBandVolume": "Volume",
+  "enumBandBass": "Bass",
+  "enumBandMid": "Mid",
+  "enumBandHigh": "High",
+  "enumStrobeRight": "Right →",
+  "enumStrobeLeft": "← Left",
+  "enumStrobeBounce": "↔ Bounce",
+  "enumFlashSingle": "One colour",
+  "enumFlashRandomSame": "Random, all lamps alike",
+  "enumFlashRandomEach": "Random, every lamp its own",
+  "enumPatternAll": "All Together",
+  "enumPatternAlternating": "Alternating",
+  "enumPatternOneAtATime": "One at a Time",
+  "enumPatternRandomSubset": "Random Subset",
+  "enumCarryEmpty": "Empty project",
+  "enumCarryFixtures": "Keep fixtures",
+  "enumCarryEverything": "Full copy",
+  "enumCarryEmptyHint": "Start from nothing — no fixtures, scenes, banks or chases",
+  "enumCarryFixturesHint": "Universes, fixture profiles and the patch carry over; scenes, banks and chases start empty",
+  "enumCarryEverythingHint": "Everything carries over, saved under the new name",
+  "enumFilterAll": "All Fixtures",
+  "enumFilterRgb": "RGB Only",
+  "enumFilterMoving": "Moving Heads",
+  "enumSourceMic": "Microphone",
+  "enumStyleClubHint": "Frequent changes, movement on builds and drops",
+  "enumStyleRockHint": "Longer looks, movement on drops only",
+  "enumStyleChillHint": "Slow changes, little movement",
+  "enumStyleShowHint": "Busy: changes often, movement almost everywhere",
+  "enumSnapFree": "Free",
+  "enumSnapBeat": "1 beat",
+  "enumSnapHalf": "½ beat",
+  "enumSnapBar": "1 bar",
+  "enumAdaptOff": "Off",
+  "songKindLooks": "{kind} looks",
+  "@songKindLooks": {
+    "placeholders": {
+      "kind": {
+        "type": "String"
+      }
+    }
+  },
+  "songMovementKinds": "Movement ({kinds})",
+  "@songMovementKinds": {
+    "placeholders": {
+      "kinds": {
+        "type": "String"
+      }
+    }
+  },
+  "statusStarted": "Started {name}",
+  "@statusStarted": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusStopped": "Stopped {name}",
+  "@statusStopped": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNotConnected": "Not connected — check Settings",
+  "statusBankGone": "That bank no longer exists",
+  "statusChaseGone": "That chase no longer exists",
+  "statusSmartGone": "That smart program no longer exists",
+  "statusNothingPlayed": "Nothing has played yet",
+  "statusBeatSync": "{when, select, already{Beat sync already {state, select, on{on} other{off}}} other{Beat sync {state, select, on{on} other{off}}}}",
+  "@statusBeatSync": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "statusPredict": "{when, select, already{Predict already {state, select, on{on} other{off}}} other{Predict {state, select, on{on} other{off}}}}",
+  "@statusPredict": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "statusDropout": "{when, select, already{Dropout already {state, select, on{on} other{off}}} other{Dropout {state, select, on{on} other{off}}}}",
+  "@statusDropout": {
+    "placeholders": {
+      "when": {
+        "type": "String"
+      },
+      "state": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNoName": "No name given",
+  "statusNothingCalled": "Nothing called \"{name}\"",
+  "@statusNothingCalled": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusMicTempo": "Could not open the microphone for tempo tracking",
+  "statusNoValidSteps": "{name} has no valid steps to play",
+  "@statusNoValidSteps": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNoFilledSlots": "\"{name}\" has no filled slots to play",
+  "@statusNoFilledSlots": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusNothingToPlay": "\"{name}\" has nothing to play",
+  "@statusNothingToPlay": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusAddCues": "Add some cues to {name} first",
+  "@statusAddCues": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "statusCouldNotPlay": "Could not play {name}: {error}",
+  "@statusCouldNotPlay": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      },
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "statusMicDenied": "Microphone permission denied",
+  "statusNoMic": "No microphone/input device found",
+  "statusBeatSourceFailed": "Could not start the beat source",
+  "statusNoMidiSelected": "No MIDI device selected — pick one in Setup",
+  "statusNoMidiPlatform": "No MIDI input on this platform",
+  "statusSocketNotOpen": "Socket not open",
+  "statusNoArtPollReply": "No ArtPollReply received from {host}",
+  "@statusNoArtPollReply": {
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "statusSocketFailed": "Could not open the socket: {error}",
+  "@statusSocketFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "statusImported": "Imported {parts}",
+  "@statusImported": {
+    "placeholders": {
+      "parts": {
+        "type": "String"
+      }
+    }
+  },
+  "statusCountBanks": "{count, plural, =1{1 bank} other{{count} banks}}",
+  "@statusCountBanks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statusCountChases": "{count, plural, =1{1 chase} other{{count} chases}}",
+  "@statusCountChases": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "statusCountScenes": "{count, plural, =1{1 scene} other{{count} scenes}}",
+  "@statusCountScenes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "songLooksOn": "Looks on ",
+  "songMovementOn": "Movement on ",
+  "songGroupCount": "{count, plural, =1{1 group} other{{count} groups}}",
+  "@songGroupCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  }
+}

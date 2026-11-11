@@ -7,6 +7,7 @@ import '../../models/fixture_group.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import 'fixture_group_editor_screen.dart';
+import '../../l10n/l10n.dart';
 
 /// Saved, reusable fixture groups (Front / Back / Moving, …) — set up once
 /// here, then reused with one tap from the scene editor instead of
@@ -26,14 +27,13 @@ class FixtureGroupsScreen extends ConsumerWidget {
     final patchedIds = ref.watch(patchedFixturesProvider).map((f) => f.id).toSet();
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Groups')),
+      appBar: AppBar(title: Text(context.l10n.scGroups2)),
       body: groups.isEmpty
-          ? const Center(
+          ? Center(
               child: Padding(
                 padding: EdgeInsets.symmetric(horizontal: 32),
                 child: Text(
-                  'No saved groups yet.\nBuild one from fixtures you always control together — '
-                  '"Front", "Back", "Moving" — and it shows up as a one-tap shortcut in every scene.',
+                  context.l10n.scNoSavedGroupsYet,
                   textAlign: TextAlign.center,
                   style: TextStyle(color: AppColors.textFaint),
                 ),
@@ -70,8 +70,8 @@ class FixtureGroupsScreen extends ConsumerWidget {
                     title: Text(group.name, style: const TextStyle(fontWeight: FontWeight.w800)),
                     subtitle: Text(
                       liveCount == group.fixtureIds.length
-                          ? '$liveCount fixtures'
-                          : '$liveCount of ${group.fixtureIds.length} fixtures still patched',
+                          ? context.l10n.scFixtures2(liveCount)
+                          : context.l10n.scOfFixturesStillPatched(liveCount, group.fixtureIds.length),
                       style: const TextStyle(fontSize: 11.5, color: AppColors.textFaint),
                     ),
                     trailing: const Icon(Icons.chevron_right, color: AppColors.textFaint),
@@ -82,7 +82,7 @@ class FixtureGroupsScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton(
         heroTag: 'fixture-groups-fab',
         onPressed: () => _openEditor(context),
-        tooltip: 'New group',
+        tooltip: context.l10n.scNewGroup2,
         child: const Icon(Icons.add),
       ),
     );

@@ -9,6 +9,7 @@ import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/scene_providers.dart';
 import '../scenes/scene_editor_screen.dart';
+import '../../l10n/l10n.dart';
 
 /// What a cue is to start: a bank or chase ([target]), or one scene.
 class SongPick {
@@ -41,19 +42,20 @@ void resetSongPickFilter() => _lastFilter = SongPickFilter.all;
 /// Asks what a cue should start: any bank, scene or chase, narrowed by a
 /// filter and a search, with a way to make a new scene on the spot and to copy
 /// an existing one. Returns null when dismissed.
-Future<SongPick?> showSongTargetPicker(BuildContext context, {String title = 'Start what?'}) {
+Future<SongPick?> showSongTargetPicker(BuildContext context, {String? title}) {
+  final dialogTitle = title ?? context.l10n.songStartWhat;
   return showDialog<SongPick>(
     context: context,
     builder: (dialogContext) => AlertDialog(
       backgroundColor: AppColors.panel,
-      title: Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+      title: Text(dialogTitle, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
       contentPadding: const EdgeInsets.fromLTRB(0, 8, 0, 0),
       content: SizedBox(
         width: 380,
         height: 460,
         child: _PickerBody(dialogContext: dialogContext),
       ),
-      actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel'))],
+      actions: [TextButton(onPressed: () => Navigator.pop(dialogContext), child: Text(context.l10n.commonCancel))],
     ),
   );
 }
@@ -112,7 +114,12 @@ class _PickerBodyState extends ConsumerState<_PickerBody> {
               for (final f in SongPickFilter.values)
                 ChoiceChip(
                   key: ValueKey('pick-filter-${f.name}'),
-                  label: Text(f.label),
+                  label: Text(switch (f) {
+                    SongPickFilter.all => context.l10n.commonAll,
+                    SongPickFilter.banks => context.l10n.banksTitle,
+                    SongPickFilter.scenes => context.l10n.scScenes,
+                    SongPickFilter.chases => context.l10n.wChases,
+                  }),
                   selected: f == _filter,
                   onSelected: (_) => setState(() => _filter = _lastFilter = f),
                 ),
@@ -125,10 +132,10 @@ class _PickerBodyState extends ConsumerState<_PickerBody> {
             key: const ValueKey('target-search'),
             controller: _search,
             onChanged: (_) => setState(() {}),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isDense: true,
               prefixIcon: Icon(Icons.search, size: 18),
-              hintText: 'Search by name',
+              hintText: context.l10n.songSearchByName,
             ),
           ),
         ),
@@ -136,11 +143,11 @@ class _PickerBodyState extends ConsumerState<_PickerBody> {
           child: ListView(
             children: [
               if (bankRows.isEmpty && sceneRows.isEmpty && chaseRows.isEmpty)
-                const Padding(
+                Padding(
                   padding: EdgeInsets.all(16),
-                  child: Text('Nothing matches', style: TextStyle(color: AppColors.textFaint)),
+                  child: Text(context.l10n.songNothingMatches, style: TextStyle(color: AppColors.textFaint)),
                 ),
-              if (bankRows.isNotEmpty) const _Header('BANKS'),
+              if (bankRows.isNotEmpty) _Header(context.l10n.dashBanksHeader),
               for (final bank in bankRows)
                 ListTile(
                   key: ValueKey('target-bank-${bank.id}'),
@@ -153,7 +160,7 @@ class _PickerBodyState extends ConsumerState<_PickerBody> {
                   title: Text(bank.name, style: const TextStyle(fontSize: 13)),
                   onTap: () => Navigator.pop(context, SongPick.target(ProgramTarget(id: bank.id, isBank: true))),
                 ),
-              if (sceneRows.isNotEmpty) const _Header('SCENES'),
+              if (sceneRows.isNotEmpty) _Header(context.l10n.songScenes),
               for (final scene in sceneRows)
                 ListTile(
                   key: ValueKey('target-scene-${scene.id}'),
@@ -163,12 +170,12 @@ class _PickerBodyState extends ConsumerState<_PickerBody> {
                   trailing: IconButton(
                     key: ValueKey('copy-scene-${scene.id}'),
                     icon: const Icon(Icons.copy_outlined, size: 18),
-                    tooltip: 'Make a copy to change',
+                    tooltip: context.l10n.songMakeACopyTo,
                     onPressed: () => ref.read(scenesProvider.notifier).duplicate(scene.id),
                   ),
                   onTap: () => Navigator.pop(context, SongPick.scene(scene.id)),
                 ),
-              if (chaseRows.isNotEmpty) const _Header('CHASES'),
+              if (chaseRows.isNotEmpty) _Header(context.l10n.dashChasesHeader),
               for (final chase in chaseRows)
                 ListTile(
                   key: ValueKey('target-chase-${chase.id}'),
@@ -185,7 +192,7 @@ class _PickerBodyState extends ConsumerState<_PickerBody> {
           key: const ValueKey('new-scene'),
           dense: true,
           leading: const Icon(Icons.add, size: 18, color: AppColors.accent),
-          title: const Text('New scene…', style: TextStyle(fontSize: 13, color: AppColors.accent)),
+          title: Text(context.l10n.banksNewScene, style: TextStyle(fontSize: 13, color: AppColors.accent)),
           onTap: _newScene,
         ),
       ],
@@ -209,17 +216,17 @@ class _Header extends StatelessWidget {
 
 /// What a cue shows on its block: the bank, scene or chase it starts, "Stop",
 /// or a marker when what it pointed at was deleted.
-String songCueName(WidgetRef ref, SongCue cue) {
-  if (cue.action == SongCueAction.stop) return cue.stopBlackout ? 'Dark' : 'Stop';
+String songCueName(WidgetRef ref, SongCue cue, AppLocalizations l10n) {
+  if (cue.action == SongCueAction.stop) return cue.stopBlackout ? l10n.scLookDark : l10n.commonStop;
   final sceneId = cue.sceneId;
   if (sceneId != null) {
     for (final s in ref.read(scenesProvider)) {
       if (s.id == sceneId) return s.name;
     }
-    return '(deleted)';
+    return l10n.songDeleted;
   }
   final target = cue.target;
-  if (target == null) return 'Stop';
+  if (target == null) return l10n.commonStop;
   if (target.isBank) {
     for (final b in ref.read(banksProvider)) {
       if (b.id == target.id) return b.name;
@@ -229,5 +236,5 @@ String songCueName(WidgetRef ref, SongCue cue) {
       if (c.id == target.id) return c.name;
     }
   }
-  return '(deleted)';
+  return l10n.songDeleted;
 }

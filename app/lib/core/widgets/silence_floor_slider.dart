@@ -4,6 +4,7 @@ import '../../state/audio_providers.dart';
 import '../audio/beat_detector.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
+import '../../l10n/l10n.dart';
 
 /// The "below this loudness is silence" line for the microphone — see
 /// [BeatDetectorService.silenceFloorDb]. Shown next to Sensitivity, under
@@ -34,11 +35,11 @@ class _SilenceFloorSliderState extends State<SilenceFloorSlider> {
           padding: const EdgeInsets.only(top: 10, bottom: 2),
           child: Row(
             children: [
-              const Expanded(
-                child: Text('Silence floor', style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
+              Expanded(
+                child: Text(context.l10n.wSilenceFloor, style: TextStyle(fontSize: 11, color: AppColors.textFaint)),
               ),
               Text(
-                _off ? 'Off' : '${_value.round()} dB',
+                _off ? context.l10n.wOff : context.l10n.wDb(_value.round()),
                 style: appMonoStyle(fontSize: 11, color: _off ? AppColors.textFaint : AppColors.danger),
               ),
             ],
@@ -56,9 +57,8 @@ class _SilenceFloorSliderState extends State<SilenceFloorSlider> {
             setSilenceFloor(widget.service, v);
           },
         ),
-        const Text(
-          'Loudness (the Level bar) that counts as music. Below it for about 2 s, a Smart Program '
-          'blacks out; back above it, it comes back. Set it above the quiet room, below the music.',
+        Text(
+          context.l10n.wLoudnessTheLevelBar,
           style: TextStyle(fontSize: 9.5, color: AppColors.textFaint),
         ),
       ],

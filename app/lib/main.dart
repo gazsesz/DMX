@@ -13,6 +13,7 @@ import 'state/artnet_providers.dart';
 import 'state/audio_providers.dart';
 import 'state/control_dock_providers.dart';
 import 'state/dashboard_prefs_providers.dart';
+import 'state/locale_providers.dart';
 import 'state/remote_providers.dart';
 
 Future<void> main() async {
@@ -72,6 +73,9 @@ Future<void> main() async {
         controlDockProvider.overrideWith((ref) => ControlDockNotifier(initialDock)),
         remoteControlProvider.overrideWith((ref) => RemoteControlNotifier(initialRemote)),
         beatSourcePrefsProvider.overrideWith((ref) => BeatSourcePrefsNotifier(initialBeatSource)),
+        appLanguageProvider.overrideWith(
+          (ref) => AppLanguageNotifier(AppLanguage.fromName(prefs.getString(prefAppLanguage))),
+        ),
         initialSilenceFloorProvider.overrideWithValue(
           prefs.getDouble(prefBeatSilenceFloor) ?? BeatDetectorService.silenceFloorOff,
         ),

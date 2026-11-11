@@ -29,6 +29,8 @@ import '../../state/tempo_providers.dart';
 import 'chase_editor_screen.dart';
 import '../songs/song_shows_section.dart';
 import 'smart_program_editor_screen.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 class ChasesScreen extends ConsumerStatefulWidget {
   const ChasesScreen({super.key});
@@ -74,7 +76,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
 
   void _snack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   Future<void> _togglePlay(Chase chase) async {
@@ -84,7 +86,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     }
     final service = ref.read(artNetServiceProvider);
     if (!service.isConnected) {
-      _snack('Not connected — check Settings');
+      _snack(context.l10n.wNotConnectedCheckSettings);
       return;
     }
     // This screen used to call the player raw — no beat stream, no beat
@@ -97,7 +99,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       // than run the mic behind the dock's back, so what the dock shows and
       // what the rig does stay the same thing.
       final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(true);
-      if (error != null) _snack('$error — falling back to timed steps');
+      if (error != null) _snack(context.l10n.wFallingBackToTimed(error));
     }
     if (!mounted) return;
     final started = await startChase(
@@ -109,7 +111,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     );
     // A step whose scene or bank was since deleted flattens to nothing, and
     // the player quietly declines to run zero steps.
-    if (started.isEmpty) _snack('"${chase.name}" has no valid steps — check its scenes/banks still exist');
+    if (started.isEmpty) _snack(context.l10n.wHasNoValidSteps(chase.name));
   }
 
   Future<void> _toggleSmartProgram(SmartProgram program) async {
@@ -121,7 +123,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
   }
 
   Future<void> _newSmartProgram() async {
-    final program = ref.read(smartProgramsProvider.notifier).create('New Smart Program');
+    final program = ref.read(smartProgramsProvider.notifier).create(context.l10n.wNewSmartProgram);
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => SmartProgramEditorScreen(existing: program)));
   }
 
@@ -132,10 +134,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     ];
     final confirmed = await confirmDelete(
       context,
-      title: 'Delete "${chase.name}"?',
+      title: context.l10n.layersDeleteTitle(chase.name),
       message: [
-        'Its ${chase.steps.length} ${chase.steps.length == 1 ? 'step' : 'steps'} go with it. '
-            'The scenes and banks it stepped through stay in the project.',
+        context.l10n.chaseDeleteStepsGo(chase.steps.length),
         if (usedBy.isNotEmpty)
           'Used by ${usedBy.length == 1 ? 'the smart program' : 'smart programs'} '
               '${usedBy.join(', ')} — that zone will fall back to the base one.',
@@ -149,8 +150,8 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
   Future<void> _deleteProgram(SmartProgram program) async {
     final confirmed = await confirmDelete(
       context,
-      title: 'Delete "${program.name}"?',
-      message: 'The chases and banks it switches between stay in the project.',
+      title: context.l10n.layersDeleteTitle(program.name),
+      message: context.l10n.wTheChasesAndBanks,
     );
     if (!confirmed) return;
     if (_smartPlayer.activeProgramId == program.id) stopSmartProgram(ref.read);
@@ -163,9 +164,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
     if (line.targetName != null) {
       text = line.targetName!;
     } else if (line.onlyIn != null && line.onlyIn!.isNotEmpty) {
-      text = '— (csak ${line.onlyIn})';
+      text = context.l10n.wOnly(line.onlyIn!);
     } else {
-      text = '— most üres';
+      text = context.l10n.wEmptyNow;
     }
     final zone = line.sourceZone;
     return Padding(
@@ -209,11 +210,11 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Chases'),
+        title: Text(context.l10n.wChases),
         actions: [
           IconButton(
             icon: const Icon(Icons.file_open_outlined),
-            tooltip: 'Import chases / banks',
+            tooltip: context.l10n.wImportChasesBanks,
             onPressed: () => importShowItemsFromFile(context, ref),
           ),
           const NodeStatusAction(),
@@ -227,8 +228,8 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'SMART PROGRAMS',
+              Text(
+                context.l10n.dashSmartProgramsHeader,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w700,
@@ -238,20 +239,20 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
               ),
               IconButton(
                 icon: const Icon(Icons.add, size: 20),
-                tooltip: 'New Smart Program',
+                tooltip: context.l10n.wNewSmartProgram,
                 onPressed: _newSmartProgram,
               ),
             ],
           ),
-          const Text(
-            'Switches each layer between its own chases as the live music tempo speeds up or slows down',
+          Text(
+            context.l10n.wSwitchesEachLayerBetween,
             style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
           ),
           const SizedBox(height: 8),
           if (smartPrograms.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 8),
-              child: Text('No smart programs yet', style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
+              child: Text(context.l10n.wNoSmartProgramsYet, style: TextStyle(color: AppColors.textFaint, fontSize: 12)),
             )
           else
             for (final program in smartPrograms) ...[
@@ -261,7 +262,7 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                   final status = active ? _smartStatus : null;
                   final zone = active ? (status?.zone ?? _smartPlayer.currentZone) : null;
                   final zoneText = status?.isSilent == true
-                      ? 'NO MUSIC'
+                      ? context.l10n.wNoMusic
                       : zoneLabel(zone ?? SmartProgramZone.base).toUpperCase();
                   final lines = smartLayerLines(program, zone: zone, layers: layers, chases: chases, banks: banks);
                   return PlayToggleCard(
@@ -291,8 +292,8 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                               ),
                               Text(
                                 active
-                                    ? 'Zone $zoneText${status?.liveBpm != null ? ' · ${status!.liveBpm!.round()} BPM live' : ''}'
-                                    : '${program.baseBpm.round()} BPM base',
+                                    ? context.l10n.smartZoneLine(zoneText, status?.liveBpm != null ? context.l10n.smartLiveBpm(status!.liveBpm!.round()) : '')
+                                    : context.l10n.wBpmBase(program.baseBpm.round()),
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: active ? AppColors.accent2 : AppColors.textFaint,
@@ -300,10 +301,10 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                                 ),
                               ),
                               if (lines.isEmpty)
-                                const Padding(
+                                Padding(
                                   padding: EdgeInsets.only(top: 4),
                                   child: Text(
-                                    'Nothing set yet — tap to pick chases per layer',
+                                    context.l10n.wNothingSetYetTap,
                                     style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                                   ),
                                 ),
@@ -314,12 +315,12 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                         IconButton(
                           icon: const Icon(Icons.copy_outlined, size: 18),
                           onPressed: () => ref.read(smartProgramsProvider.notifier).duplicate(program.id),
-                          tooltip: 'Duplicate',
+                          tooltip: context.l10n.scDuplicate,
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline, size: 18),
                           onPressed: () => _deleteProgram(program),
-                          tooltip: 'Delete',
+                          tooltip: context.l10n.scDelete,
                         ),
                       ],
                     ),
@@ -330,15 +331,15 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
           const SizedBox(height: 20),
           const SongShowsSection(),
           const SizedBox(height: 20),
-          const Text(
-            'CHASES',
+          Text(
+            context.l10n.dashChasesHeader,
             style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint, letterSpacing: 1),
           ),
           const SizedBox(height: 8),
           if (chases.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
-              child: Text('No chases yet — tap + to create one', style: TextStyle(color: AppColors.textFaint)),
+              child: Text(context.l10n.wNoChasesYetTap, style: TextStyle(color: AppColors.textFaint)),
             )
           else
             for (final chase in chases) ...[
@@ -375,9 +376,9 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                                     child: Text(
                                       active
                                           ? (runningLayers.length < layerIds.length
-                                                ? 'Running on ${runningLayers.length} of ${layerIds.length} layers'
-                                                : 'Running…')
-                                          : '${chase.steps.length} steps · ${chase.stepSeconds.toStringAsFixed(2)}s/step',
+                                                ? context.l10n.wRunningOnOfLayers(runningLayers.length, layerIds.length)
+                                                : context.l10n.wRunning)
+                                          : context.l10n.wStepsSStep(chase.steps.length, chase.stepSeconds.toStringAsFixed(2)),
                                       style: TextStyle(
                                         fontSize: 11,
                                         color: active ? AppColors.accent : AppColors.textFaint,
@@ -409,31 +410,31 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
                             hoverColor: AppColors.accent.withValues(alpha: 0.15),
                             highlightColor: AppColors.accent.withValues(alpha: 0.25),
                           ),
-                          tooltip: onDashboard ? 'Remove from Dashboard' : 'Add to Dashboard',
+                          tooltip: onDashboard ? context.l10n.banksRemoveFromDashboard : context.l10n.banksAddToDashboard,
                           onPressed: () {
                             final notifier = ref.read(dashboardTriggersProvider.notifier);
                             notifier.toggle(chase.id, TriggerKind.chase);
                             _snack(
                               onDashboard
-                                  ? 'Removed "${chase.name}" from Dashboard'
-                                  : 'Added "${chase.name}" to Dashboard',
+                                  ? context.l10n.banksRemovedFromDashboard(chase.name)
+                                  : context.l10n.banksAddedToDashboard(chase.name),
                             );
                           },
                         ),
                         IconButton(
                           icon: const Icon(Icons.copy_outlined, size: 18),
                           onPressed: () => ref.read(chasesProvider.notifier).duplicate(chase.id),
-                          tooltip: 'Duplicate',
+                          tooltip: context.l10n.scDuplicate,
                         ),
                         IconButton(
                           icon: const Icon(Icons.upload_file, size: 18),
                           onPressed: () => exportShowItemsToFile(context, ref, chaseIds: [chase.id]),
-                          tooltip: 'Export (with its banks and scenes)',
+                          tooltip: context.l10n.wExportWithItsBanks,
                         ),
                         IconButton(
                           icon: const Icon(Icons.delete_outline, size: 18),
                           onPressed: () => _deleteChase(chase),
-                          tooltip: 'Delete',
+                          tooltip: context.l10n.scDelete,
                         ),
                       ],
                     ),
@@ -446,10 +447,10 @@ class _ChasesScreenState extends ConsumerState<ChasesScreen> {
       floatingActionButton: FloatingActionButton(
         heroTag: 'chases-fab',
         onPressed: () async {
-          final chase = ref.read(chasesProvider.notifier).create('New Chase');
+          final chase = ref.read(chasesProvider.notifier).create(context.l10n.wNewChase);
           await _open(chase);
         },
-        tooltip: 'New Chase',
+        tooltip: context.l10n.wNewChase,
         child: const Icon(Icons.add),
       ),
     );

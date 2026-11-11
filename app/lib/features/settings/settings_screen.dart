@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/control_dock.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
+import '../../l10n/l10n.dart';
 import '../../models/artnet_settings.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../models/output_protocol.dart';
@@ -21,8 +22,11 @@ import '../../state/audio_providers.dart';
 import '../../core/remote/background_service.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/network_providers.dart';
+import '../../state/locale_providers.dart';
 import '../../state/remote_providers.dart';
 import 'dmx_map_screen.dart';
+import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -89,11 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (!mounted) return;
     if (!opened) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'This device has no such screen — look for Battery / App launch in system settings',
-          ),
-        ),
+        SnackBar(content: Text(context.l10n.settingsNoBatteryScreen)),
       );
       return;
     }
@@ -152,11 +152,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: const Text('Edit Universe'),
+        title: Text(context.l10n.settingsEditUniverse),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameController, decoration: const InputDecoration(labelText: 'Name')),
+            TextField(controller: nameController, decoration: InputDecoration(labelText: context.l10n.commonName)),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -188,8 +188,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
         ],
       ),
     );
@@ -223,7 +223,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ref.read(beatSourcePrefsProvider.notifier).setMidiDevice(device.id, device.name);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(source.lastError ?? 'Could not connect to ${device.name}')),
+        SnackBar(content: Text(localizeStatusOrNull(source.lastError, context.l10n) ?? context.l10n.settingsMidiConnectFailed(device.name))),
       );
     }
     setState(() {});
@@ -250,7 +250,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       subtitle: Text(device.type.name, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
       trailing: OutlinedButton(
         onPressed: isThisOne ? _disconnectMidi : () => _connectMidi(device),
-        child: Text(isThisOne ? 'Disconnect' : 'Connect'),
+        child: Text(isThisOne ? context.l10n.settingsDisconnect : context.l10n.settingsConnect),
       ),
     );
   }
@@ -287,13 +287,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final remote = ref.watch(remoteControlProvider);
     final server = ref.watch(remoteControlServerProvider);
     final beatSource = ref.watch(beatSourcePrefsProvider);
+    final language = ref.watch(appLanguageProvider);
+    final l = context.l10n;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings'), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
+      appBar: AppBar(title: Text(l.settingsTitle), actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()]),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
         children: [
-          _SectionTitle('Art-Net Connection'),
+          // First, and titled in both languages, so it can be found even
+          // when the app is in a language the user cannot read.
+          _SectionTitle(l.settingsLanguageSection),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SegmentedButton<AppLanguage>(
+                    segments: [
+                      ButtonSegment(value: AppLanguage.system, label: Text(l.settingsLanguageSystem)),
+                      // Language names are always written in their own language.
+                      const ButtonSegment(value: AppLanguage.en, label: Text('English')),
+                      const ButtonSegment(value: AppLanguage.hu, label: Text('Magyar')),
+                    ],
+                    selected: {language},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (s) => ref.read(appLanguageProvider.notifier).set(s.first),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(l.settingsLanguageHint, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _SectionTitle(l.settingsArtNetSection),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -302,7 +331,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 children: [
                   TextField(
                     controller: _deviceNameController,
-                    decoration: const InputDecoration(labelText: 'Device Name'),
+                    decoration: InputDecoration(labelText: l.settingsDeviceName),
                     onChanged: (_) => _applyFieldsToProvider(),
                   ),
                   const SizedBox(height: 12),
@@ -312,7 +341,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         flex: 2,
                         child: TextField(
                           controller: _hostController,
-                          decoration: const InputDecoration(labelText: 'Host / IP Address'),
+                          decoration: InputDecoration(labelText: l.settingsHostIp),
                           onChanged: (_) => _applyFieldsToProvider(),
                         ),
                       ),
@@ -321,7 +350,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         child: TextField(
                           controller: _portController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Port'),
+                          decoration: InputDecoration(labelText: l.commonPort),
                           onChanged: (_) => _applyFieldsToProvider(),
                         ),
                       ),
@@ -347,15 +376,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  const Text(
-                    'OUTPUT PROTOCOL',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+                  Text(
+                    l.settingsOutputProtocol,
+                    style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 6),
                   SegmentedButton<OutputProtocol>(
                     segments: [
                       for (final protocol in OutputProtocol.values)
-                        ButtonSegment(value: protocol, label: Text(protocol.label)),
+                        ButtonSegment(value: protocol, label: Text(protocol.tr(l))),
                     ],
                     selected: {settings.protocol},
                     onSelectionChanged: (selection) async {
@@ -371,21 +400,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(height: 6),
                   Text(
                     settings.protocol.sendsSacn
-                        ? 'sACN goes to 239.255.0.<universe+1> on port 5568 — the Host above '
-                              'is only used for Art-Net. Set the node to the same universe number.'
-                        : 'Art-Net is sent to the Host above. Switch to sACN if your node is '
-                              'set up for E1.31 instead.',
+                        ? l.settingsSacnHint
+                        : l.settingsArtNetHint,
                     style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   if (settings.protocol.sendsSacn) ...[
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'sACN priority (0-200, default 100) — a higher number wins over '
-                            'another source on the same universe.',
-                            style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                            l.settingsSacnPriorityHint,
+                            style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -394,7 +420,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           child: TextField(
                             controller: _sacnPriorityController,
                             keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(labelText: 'Priority', isDense: true),
+                            decoration: InputDecoration(labelText: l.settingsPriority, isDense: true),
                             onChanged: (text) {
                               final value = int.tryParse(text.trim());
                               if (value == null || value < 0 || value > 200) return;
@@ -414,11 +440,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('Demo Mode (no node)', style: TextStyle(fontWeight: FontWeight.w600)),
+                            Text(l.settingsDemoMode, style: const TextStyle(fontWeight: FontWeight.w600)),
                             Text(
                               settings.demoMode
-                                  ? 'Nothing is transmitted — program offline and watch the Live Stage view'
-                                  : 'Turn on to write shows with no node on the network',
+                                  ? l.settingsDemoModeOn
+                                  : l.settingsDemoModeOff,
                               style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                             ),
                           ],
@@ -454,7 +480,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 height: 16,
                                 child: CircularProgressIndicator(strokeWidth: 2),
                               )
-                            : const Text('Test'),
+                            : Text(l.settingsTest),
                       ),
                     ],
                   ),
@@ -463,18 +489,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _SectionTitle('Remote Control'),
+          _SectionTitle(l.settingsRemoteSection),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Lets a phone, laptop or a MacroDroid macro on a watch fire triggers '
-                    'by name over Wi-Fi — no screen tapping, no coordinates. Everything on '
-                    'the node\'s network can reach it, so leave it off on public Wi-Fi.',
-                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  Text(
+                    l.settingsRemoteIntro,
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 6),
                   Row(
@@ -482,7 +506,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       Expanded(
                         child: SwitchListTile(
                           contentPadding: EdgeInsets.zero,
-                          title: const Text('Enable endpoint'),
+                          title: Text(l.settingsEnableEndpoint),
                           value: remote.enabled,
                           onChanged: (value) => _setRemote(remote.copyWith(enabled: value)),
                         ),
@@ -492,7 +516,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         child: TextField(
                           controller: _remotePortController,
                           keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(labelText: 'Port'),
+                          decoration: InputDecoration(labelText: l.commonPort),
                           onSubmitted: (text) {
                             final port = int.tryParse(text.trim());
                             if (port != null && port > 0 && port < 65536) {
@@ -505,36 +529,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   if (remote.enabled) ...[
                     const SizedBox(height: 10),
-                    const Text(
-                      'Point your macro at:',
-                      style: TextStyle(fontSize: 11, color: AppColors.textFaint),
+                    Text(
+                      l.settingsPointMacroAt,
+                      style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                     const SizedBox(height: 4),
                     SelectableText(
                       _wifiAddress == null
-                          ? 'No Wi-Fi address yet'
+                          ? l.settingsNoWifiAddress
                           : 'http://$_wifiAddress:${remote.port}/trigger?name=YOUR%20TILE',
                       style: appMonoStyle(fontSize: 11, color: AppColors.accent),
                     ),
                     const SizedBox(height: 6),
-                    const Text(
-                      'Also: /status (what it answers to), /stop, /blackout. The name is '
-                      'whatever the tile is called, so renaming a bank is the only thing '
-                      'that can break a macro.',
-                      style: TextStyle(fontSize: 10, color: AppColors.textFaint),
+                    Text(
+                      l.settingsRemoteAlso,
+                      style: const TextStyle(fontSize: 10, color: AppColors.textFaint),
                     ),
                     const SizedBox(height: 6),
                     // A macro running on this same device can reach the app
                     // without touching the network at all — worth spelling
                     // out, because it also works with Wi-Fi off.
                     SelectableText(
-                      'From a macro on this device: http://127.0.0.1:${remote.port}/trigger?name=…',
+                      l.settingsRemoteLocal(remote.port),
                       style: appMonoStyle(fontSize: 10, color: AppColors.textDim),
                     ),
                     if (server.lastError != null) ...[
                       const SizedBox(height: 6),
                       Text(
-                        'Could not start: ${server.lastError}',
+                        l.settingsRemoteStartFailed('${server.lastError}'),
                         style: const TextStyle(fontSize: 10.5, color: AppColors.danger),
                       ),
                     ],
@@ -550,12 +572,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         Expanded(
                           child: Text(
                             _batteryOptimized
-                                ? 'Android may still put this app to sleep. While the endpoint is on '
-                                      'a notification keeps it alive, but some phones (Huawei especially) '
-                                      'ignore that unless the app is also excluded from battery '
-                                      'optimisation — triggers then stop landing once the screen is off.'
-                                : 'Excluded from battery optimisation — the endpoint stays reachable '
-                                      'with the screen off.',
+                                ? l.settingsBatteryOptimized
+                                : l.settingsBatteryExcluded,
                             style: TextStyle(
                               fontSize: 10.5,
                               color: _batteryOptimized ? AppColors.text : AppColors.textFaint,
@@ -571,7 +589,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         child: OutlinedButton.icon(
                           onPressed: _requestBatteryExemption,
                           icon: const Icon(Icons.settings_suggest_outlined, size: 17),
-                          label: const Text('Exclude from battery optimisation'),
+                          label: Text(l.settingsExcludeBattery),
                         ),
                       ),
                     ],
@@ -581,24 +599,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _SectionTitle('Control Dock'),
+          _SectionTitle(l.settingsDockSection),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'A strip of live controls (now playing, stop, beat sync, blackout) '
-                    'pinned outside the tabs, so it stays reachable from every screen. '
-                    'Show or hide it with the icon in any screen\'s top bar.',
-                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  Text(
+                    l.settingsDockIntro,
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 12),
                   SegmentedButton<ControlDockPosition>(
                     segments: [
                       for (final position in ControlDockPosition.values)
-                        ButtonSegment(value: position, label: Text(position.label)),
+                        ButtonSegment(value: position, label: Text(position.tr(l))),
                     ],
                     selected: {ref.watch(controlDockProvider).position},
                     showSelectedIcon: false,
@@ -612,40 +628,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   // closes the panel instead.
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Open the control panel'),
-                    subtitle: const Text(
-                      'Tempo, fade and beat sync — also on the Tempo button in the dock',
-                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    title: Text(l.settingsOpenControlPanel),
+                    subtitle: Text(
+                      l.settingsOpenControlPanelHint,
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                     value: ref.watch(controlDockProvider).expanded,
                     onChanged: (_) => ref.read(controlDockProvider.notifier).toggleExpanded(),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Show the Live Stage strip'),
-                    subtitle: const Text(
-                      'The 2D rig along the bottom of every screen — pairs well with Demo Mode',
-                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    title: Text(l.settingsShowStageStrip),
+                    subtitle: Text(
+                      l.settingsShowStageStripHint,
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                     value: ref.watch(controlDockProvider).stageVisible,
                     onChanged: (_) => ref.read(controlDockProvider.notifier).toggleStageVisible(),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Show the Movement strip'),
-                    subtitle: const Text(
-                      'Live Size, Speed, Shift and Smooth knobs for the running Movement FX, above the dock',
-                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    title: Text(l.settingsShowMovementStrip),
+                    subtitle: Text(
+                      l.settingsShowMovementStripHint,
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                     value: ref.watch(controlDockProvider).movementBarVisible,
                     onChanged: (_) => ref.read(controlDockProvider.notifier).toggleMovementBar(),
                   ),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    title: const Text('Show the Colour strip'),
-                    subtitle: const Text(
-                      'Basic colours to override the scenes live, whole rig or one saved group, above the dock',
-                      style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                    title: Text(l.settingsShowColourStrip),
+                    subtitle: Text(
+                      l.settingsShowColourStripHint,
+                      style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                     ),
                     value: ref.watch(controlDockProvider).colorBarVisible,
                     onChanged: (_) => ref.read(controlDockProvider.notifier).toggleColorBar(),
@@ -655,24 +671,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _SectionTitle('Beat Source'),
+          _SectionTitle(l.settingsBeatSourceSection),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'What drives beat sync everywhere in the app — the microphone listening '
-                    'to the room, an exact MIDI clock over USB from a mixer or controller, or '
-                    'Rekordbox\'s master deck over Wi-Fi via rkbx_link on the DJ laptop. '
-                    'Device-level, like the dock — not saved with the show.',
-                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  Text(
+                    l.settingsBeatSourceIntro,
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                   const SizedBox(height: 10),
                   SegmentedButton<BeatSourceKind>(
                     segments: [
-                      for (final kind in BeatSourceKind.values) ButtonSegment(value: kind, label: Text(kind.label)),
+                      for (final kind in BeatSourceKind.values) ButtonSegment(value: kind, label: Text(kind.tr(l))),
                     ],
                     selected: {beatSource.kind},
                     showSelectedIcon: false,
@@ -682,10 +695,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        const Expanded(
+                        Expanded(
                           child: Text(
-                            'USB MIDI devices',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                            l.settingsUsbMidiDevices,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                           ),
                         ),
                         _scanningMidi
@@ -699,17 +712,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               )
                             : IconButton(
                                 icon: const Icon(Icons.refresh, size: 18),
-                                tooltip: 'Rescan',
+                                tooltip: l.settingsRescan,
                                 onPressed: _refreshMidiDevices,
                               ),
                       ],
                     ),
                     if (_midiDevices.isEmpty)
-                      const Text(
-                        'Nothing found. Plug the device in over USB-OTG, then rescan — needs a '
-                        'class-compliant USB MIDI interface; a plain data cable between two '
-                        'computers won\'t carry MIDI on its own.',
-                        style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                      Text(
+                        l.settingsNoMidiDevices,
+                        style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                       )
                     else
                       for (final device in _midiDevices) _midiDeviceTile(device),
@@ -720,23 +731,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     if (beatSource.midiDeviceName != null) ...[
                       const SizedBox(height: 6),
                       Text(
-                        'Last used: ${beatSource.midiDeviceName}',
+                        l.settingsLastUsed(beatSource.midiDeviceName!),
                         style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                       ),
                     ],
                   ],
                   if (beatSource.kind == BeatSourceKind.osc) ...[
                     const SizedBox(height: 14),
-                    const Text(
-                      'rkbx_link on the DJ laptop',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    Text(
+                      l.settingsRkbxTitle,
+                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'Same Wi-Fi as this tablet. In rkbx_link\'s config file set:\n'
+                      '${l.settingsRkbxConfig}\n'
                       '  osc.enabled true\n'
                       '  osc.source 0.0.0.0:4450\n'
-                      '  osc.destination ${_wifiAddress ?? '<this tablet\'s IP>'}:${OscBeatSource.defaultPort}\n'
+                      '  osc.destination ${_wifiAddress ?? l.settingsThisTabletIp}:${OscBeatSource.defaultPort}\n'
                       '  osc.msg.master/beat/trigger 1',
                       style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.textDim),
                     ),
@@ -747,7 +758,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       onListen: () async {
                         final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(true);
                         if (error != null && context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
                         }
                       },
                     ),
@@ -757,7 +768,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 20),
-          _SectionTitle('Universes', trailing: '${universes.length} active'),
+          _SectionTitle(l.settingsUniversesSection, trailing: l.settingsUniversesActive(universes.length)),
           Card(
             child: Column(
               children: [
@@ -785,16 +796,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           OutlinedButton.icon(
             onPressed: () => ref.read(universesProvider.notifier).addUniverse(),
             icon: const Icon(Icons.add),
-            label: const Text('Add Universe'),
+            label: Text(l.settingsAddUniverse),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
             onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const DmxMapScreen())),
             icon: const Icon(Icons.grid_view),
-            label: const Text('DMX channel map'),
+            label: Text(l.settingsDmxChannelMap),
           ),
           const SizedBox(height: 20),
-          _SectionTitle('About & Diagnostics'),
+          _SectionTitle(l.settingsAboutSection),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(14),
@@ -803,7 +814,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('App Version', style: TextStyle(color: AppColors.textFaint)),
+                      Text(l.settingsAppVersion, style: const TextStyle(color: AppColors.textFaint)),
                       Text(_version ?? '…', style: appMonoStyle()),
                     ],
                   ),
@@ -813,7 +824,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: OutlinedButton.icon(
                       onPressed: _sendTestPulse,
                       icon: const Icon(Icons.bolt_outlined),
-                      label: const Text('Send Test DMX Pulse'),
+                      label: Text(l.settingsSendTestPulse),
                     ),
                   ),
                   const Divider(height: 24),
@@ -821,11 +832,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   // redistributed, and the bundled fixture definitions are
                   // exactly that. The licence text ships as
                   // assets/fixtures/LICENSE.txt.
-                  const Text(
-                    'The built-in fixture library contains definitions from the Q Light '
-                    'Controller Plus project (qlcplus.org), used under the Apache License 2.0. '
-                    'Find them under Fixtures, then Fixture library.',
-                    style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                  Text(
+                    l.settingsQlcAttribution,
+                    style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
                   ),
                 ],
               ),
@@ -927,20 +936,19 @@ class _MidiActivityHintState extends State<_MidiActivityHint> {
     final beatIsCurrent =
         _lastBeatAt != null && DateTime.now().difference(_lastBeatAt!) < const Duration(seconds: 3);
 
+    final l = context.l10n;
     final String message;
     final Color color;
     if (beatIsCurrent) {
       message = _bpm == null
-          ? 'Beats arriving from ${device.name} — this is working.'
-          : 'Beats arriving from ${device.name} — ${_bpm!.toStringAsFixed(1)} BPM — this is working.';
+          ? l.settingsMidiBeats(device.name)
+          : l.settingsMidiBeatsBpm(device.name, _bpm!.toStringAsFixed(1));
       color = AppColors.success;
     } else if (recentActivity) {
-      message = 'Receiving data from ${device.name}, but none of it is clock — enable '
-          '"Sync" on that device\'s MIDI output (in your DAW/mixer\'s MIDI preferences), '
-          'and make sure it\'s actually playing.';
+      message = l.settingsMidiNoClock(device.name);
       color = AppColors.danger;
     } else {
-      message = 'Connected to ${device.name}, but nothing has arrived yet.';
+      message = l.settingsMidiNothingYet(device.name);
       color = AppColors.textFaint;
     }
     return Text(message, style: TextStyle(fontSize: 10.5, color: color));
@@ -1001,13 +1009,13 @@ class _OscListenRowState extends State<_OscListenRow> {
     if (!widget.listening || !widget.source.isListening) {
       return Row(
         children: [
-          const Expanded(
+          Expanded(
             child: Text(
-              'Not listening — starts with Beat sync.',
-              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+              context.l10n.settingsOscNotListening,
+              style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
             ),
           ),
-          OutlinedButton(onPressed: widget.onListen, child: const Text('Listen')),
+          OutlinedButton(onPressed: widget.onListen, child: Text(context.l10n.settingsListen)),
         ],
       );
     }
@@ -1016,22 +1024,21 @@ class _OscListenRowState extends State<_OscListenRow> {
     final recentActivity =
         _lastActivityAt != null && now.difference(_lastActivityAt!) < const Duration(seconds: 3);
     final bpm = widget.source.lastBpm;
-    final sender = widget.source.lastSender?.address;
+    final sender = widget.source.lastSender?.address ?? 'rkbx_link';
+    final l = context.l10n;
 
     final String message;
     final Color color;
     if (beatIsCurrent) {
       message = bpm == null
-          ? 'Beats arriving from ${sender ?? 'rkbx_link'} — this is working.'
-          : 'Beats arriving from ${sender ?? 'rkbx_link'} — ${bpm.toStringAsFixed(1)} BPM — this is working.';
+          ? l.settingsMidiBeats(sender)
+          : l.settingsMidiBeatsBpm(sender, bpm.toStringAsFixed(1));
       color = AppColors.success;
     } else if (recentActivity) {
-      message = 'Receiving from ${sender ?? 'rkbx_link'}, but no beats — check the '
-          '"osc.msg.master/beat/trigger 1" line, and that the master deck is playing.';
+      message = l.settingsOscNoBeats(sender);
       color = AppColors.danger;
     } else {
-      message = 'Listening on port ${widget.source.port}, nothing has arrived yet — check the IP in '
-          'rkbx_link\'s config, that it\'s running, and that both are on the same Wi-Fi.';
+      message = l.settingsOscNothingYet(widget.source.port);
       color = AppColors.textFaint;
     }
     return Text(message, style: TextStyle(fontSize: 10.5, color: color));
@@ -1047,10 +1054,10 @@ class _ConnectionStatusLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (testing) {
-      return const Text('Testing…', style: TextStyle(color: AppColors.textFaint));
+      return Text(context.l10n.settingsTesting, style: const TextStyle(color: AppColors.textFaint));
     }
     if (!status.attempted) {
-      return const Text('Not tested yet', style: TextStyle(color: AppColors.textFaint));
+      return Text(context.l10n.settingsNotTested, style: const TextStyle(color: AppColors.textFaint));
     }
     if (status.success) {
       return Row(
@@ -1063,14 +1070,14 @@ class _ConnectionStatusLine extends StatelessWidget {
           ),
           const SizedBox(width: 7),
           Text(
-            'Connected · ${status.latency?.inMilliseconds ?? 0}ms',
+            context.l10n.settingsConnectedLatency(status.latency?.inMilliseconds ?? 0),
             style: const TextStyle(color: AppColors.success, fontWeight: FontWeight.w600),
           ),
         ],
       );
     }
     return Text(
-      status.error ?? 'No reply received',
+      localizeStatusOrNull(status.error, context.l10n) ?? context.l10n.settingsNoReply,
       style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.w600),
       overflow: TextOverflow.ellipsis,
     );

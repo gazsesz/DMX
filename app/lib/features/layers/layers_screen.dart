@@ -14,6 +14,8 @@ import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import 'dimmer_dropout_card.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/status_messages.dart';
 
 /// Lists every playback layer — what's running on each, and lets the user
 /// stop one, rename it, or add/remove layers. Priority and merge-mode are
@@ -40,21 +42,21 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppColors.panel,
-        title: Text(isNew ? 'New Layer' : 'Rename Layer'),
+        title: Text(isNew ? context.l10n.layersNew : context.l10n.layersRename),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameController, autofocus: true, decoration: const InputDecoration(labelText: 'Name')),
+            TextField(controller: nameController, autofocus: true, decoration: InputDecoration(labelText: context.l10n.commonName)),
             const SizedBox(height: 8),
             TextField(
               controller: hintController,
-              decoration: const InputDecoration(labelText: 'Merge hint (informational)'),
+              decoration: InputDecoration(labelText: context.l10n.layersMergeHint),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(context.l10n.commonCancel)),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: Text(context.l10n.commonSave)),
         ],
       ),
     );
@@ -68,7 +70,7 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
 
   Future<void> _resume(Layer layer) async {
     final message = await resumeLayer(ref.read, layer.id);
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(message, context.l10n))));
   }
 
   /// For a layer a Smart Program drives: what it plays right now, and the
@@ -86,18 +88,18 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
       chases: ref.watch(chasesProvider),
       banks: ref.watch(banksProvider),
     ).where((l) => l.layer.id == layer.id).firstOrNull;
-    final zoneText = status?.isSilent == true ? 'No music' : zoneLabel(line?.sourceZone ?? zone);
-    return (line?.targetName ?? '— (sits this zone out)', '${current.name} · $zoneText');
+    final zoneText = status?.isSilent == true ? context.l10n.commonNoMusic : zoneLabel(line?.sourceZone ?? zone);
+    return (line?.targetName ?? context.l10n.dashSitsZoneOut, '${current.name} · $zoneText');
   }
 
   Future<void> _deleteLayer(Layer layer) async {
     final current = ref.read(nowPlayingForLayerProvider(layer.id));
     final ok = await confirmDelete(
       context,
-      title: 'Delete "${layer.name}"?',
+      title: context.l10n.layersDeleteTitle(layer.name),
       message: current == null
-          ? 'This layer is currently empty.'
-          : 'This will stop "${current.name}", currently running on this layer.',
+          ? context.l10n.layersDeleteEmpty
+          : context.l10n.layersDeleteRunning(current.name),
     );
     if (!ok || !mounted) return;
     stopLayer(ref.read, layer.id);
@@ -109,15 +111,15 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
     final layers = ref.watch(layersProvider);
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Layers'),
+        title: Text(context.l10n.layersTitle),
         actions: const [NodeStatusAction(), ControlDockAction(), SaveProjectAction()],
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
-            child: Text('Egyszerre futó programok', style: TextStyle(fontSize: 12.5, color: AppColors.textFaint)),
+            child: Text(context.l10n.layersSubtitle, style: TextStyle(fontSize: 12.5, color: AppColors.textFaint)),
           ),
           Expanded(
             child: ListView(
@@ -126,17 +128,17 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
                 for (var i = 0; i < layers.length; i++) _layerCard(layers[i], i),
                 ListTile(
                   leading: const Icon(Icons.add, color: AppColors.accent),
-                  title: const Text('Új réteg hozzáadása', style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
+                  title: Text(context.l10n.layersAdd, style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700)),
                   onTap: _addLayer,
                 ),
                 const DimmerDropoutCard(),
               ],
             ),
           ),
-          const Padding(
+          Padding(
             padding: EdgeInsets.fromLTRB(16, 0, 16, 16),
             child: Text(
-              'Csatorna-merge: dimmer → HTP · pan/tilt, szín → LTP (prioritás)',
+              context.l10n.layersMergeRule,
               style: TextStyle(fontSize: 11, color: AppColors.textFaint),
             ),
           ),
@@ -175,17 +177,17 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(color: AppColors.success, borderRadius: BorderRadius.circular(4)),
-                child: const Text('FUT', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.black)),
+                child: Text(context.l10n.layersRunningBadge, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w800, color: Colors.black)),
               ),
             ],
           ],
         ),
         subtitle: Text(
           lastPlayed != null
-              ? 'Utoljára: ${lastPlayed.name}\n'
-                    'Priority ${layer.priority}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}'
-              : '${smartLine?.$2 ?? (current == null ? 'Nincs program fut' : current.kind.name)}\n'
-                    'Priority ${layer.priority}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}',
+              ? '${context.l10n.layersLastPlayed(lastPlayed.name)}\n'
+                    '${context.l10n.layersPriority(layer.priority)}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}'
+              : '${smartLine?.$2 ?? (current == null ? context.l10n.layersNothingRunning : current.kind.name)}\n'
+                    '${context.l10n.layersPriority(layer.priority)}${layer.mergeHint.isEmpty ? '' : ' · ${layer.mergeHint}'}',
           style: const TextStyle(fontSize: 11, color: AppColors.textFaint),
         ),
         isThreeLine: true,
@@ -195,26 +197,26 @@ class _LayersScreenState extends ConsumerState<LayersScreen> {
             if (lastPlayed != null)
               IconButton(
                 icon: const Icon(Icons.play_circle_outline),
-                tooltip: 'Resume "${lastPlayed.name}"',
+                tooltip: context.l10n.layersResume(lastPlayed.name),
                 color: AppColors.accent,
                 onPressed: () => _resume(layer),
               )
             else
               IconButton(
                 icon: const Icon(Icons.stop_circle_outlined),
-                tooltip: 'Stop',
+                tooltip: context.l10n.commonStop,
                 color: isPlaying ? AppColors.danger : AppColors.textFaint,
                 onPressed: isPlaying ? () => stopLayer(ref.read, layer.id) : null,
               ),
             IconButton(
               icon: const Icon(Icons.delete_outline),
-              tooltip: 'Delete layer',
+              tooltip: context.l10n.layersDelete,
               color: isLayer1 ? AppColors.textFaint : AppColors.danger,
               onPressed: isLayer1 ? null : () => _deleteLayer(layer),
             ),
             IconButton(
               icon: const Icon(Icons.chevron_right),
-              tooltip: 'Edit layer',
+              tooltip: context.l10n.layersEdit,
               onPressed: () => _editLayer(layer),
             ),
           ],

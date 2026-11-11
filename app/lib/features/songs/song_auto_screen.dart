@@ -15,6 +15,8 @@ import '../../state/fixture_group_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/song_show_providers.dart';
 import 'song_timeline.dart';
+import '../../l10n/l10n.dart';
+import '../../l10n/labels.dart';
 
 /// Suggests a program for the song: it analyses the audio (tempo, beat grid,
 /// sections), then builds cues from the chosen banks in the chosen style.
@@ -65,7 +67,7 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
   Future<void> _run() async {
     final path = _show?.audio?.path;
     if (path == null) {
-      setState(() => _error = 'Link a song file in the editor first');
+      setState(() => _error = const _NoSongLinked());
       return;
     }
     setState(() {
@@ -89,11 +91,11 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
     if (!hasWork) return true;
     return confirmDelete(
       context,
-      title: 'Replace what is on the timeline?',
+      title: context.l10n.songReplaceWhatIsOn,
       message: cues
-          ? '${show.cues.length} cues and ${show.sections.length} sections are replaced by the generated ones.'
-          : 'The sections are replaced by the detected ones. Your cues stay where they are.',
-      confirmLabel: 'Replace',
+          ? context.l10n.songCuesAndSectionsAre(show.cues.length, show.sections.length)
+          : context.l10n.songTheSectionsAreReplaced,
+      confirmLabel: context.l10n.songReplace,
     );
   }
 
@@ -133,8 +135,8 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.pop(context, chosen.toList()), child: const Text('Done')),
+            TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
+            FilledButton(onPressed: () => Navigator.pop(context, chosen.toList()), child: Text(context.l10n.commonDone)),
           ],
         ),
       ),
@@ -161,7 +163,7 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
     final moveKinds = _options.style.movementKinds;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Auto program')),
+      appBar: AppBar(title: Text(context.l10n.songAutoProgram)),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
         children: [
@@ -169,22 +171,22 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
             Card(
               child: ListTile(
                 leading: const Icon(Icons.error_outline, color: AppColors.danger),
-                title: Text('$_error'),
-                trailing: TextButton(onPressed: _run, child: const Text('Retry')),
+                title: Text(_error is _NoSongLinked ? context.l10n.songLinkASongFile : '$_error'),
+                trailing: TextButton(onPressed: _run, child: Text(context.l10n.songRetry)),
               ),
             )
           else if (analysis == null)
-            const Card(
+            Card(
               child: ListTile(
                 leading: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
-                title: Text('Listening to the song…'),
-                subtitle: Text('Tempo, beat grid and sections'),
+                title: Text(context.l10n.songListeningToTheSong),
+                subtitle: Text(context.l10n.songTempoBeatGridAnd),
               ),
             )
           else ...[
             _Summary(analysis: analysis),
             const SizedBox(height: 12),
-            const _Heading('STYLE'),
+            _Heading(context.l10n.songStyle),
             Wrap(
               spacing: 8,
               children: [
@@ -197,11 +199,11 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                   ),
               ],
             ),
-            Text(_options.style.description, style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
+            Text(_options.style.trDescription(context.l10n), style: const TextStyle(fontSize: 11, color: AppColors.textFaint)),
             const SizedBox(height: 8),
             Row(
               children: [
-                const Text('Restlessness'),
+                Text(context.l10n.songRestlessness),
                 Expanded(
                   child: Slider(
                     key: const ValueKey('audacity'),
@@ -217,27 +219,27 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
             ),
             Row(
               children: [
-                Text('Seed ${_options.seed}', style: const TextStyle(fontSize: 12, color: AppColors.textDim)),
+                Text(context.l10n.songSeed(_options.seed), style: const TextStyle(fontSize: 12, color: AppColors.textDim)),
                 IconButton(
                   key: const ValueKey('reroll'),
                   icon: const Icon(Icons.casino_outlined),
-                  tooltip: 'Another arrangement',
+                  tooltip: context.l10n.songAnotherArrangement,
                   onPressed: () =>
                       setState(() => _options = _options.copyWith(seed: math.Random().nextInt(9000) + 1000)),
                 ),
               ],
             ),
-            const _Heading('LAYERS'),
+            _Heading(context.l10n.dashLayersHeader),
             Row(
               children: [
-                const Text('Looks on '),
+                Text(context.l10n.songLooksOn),
                 DropdownButton<String>(
                   value: layers.any((l) => l.id == _options.lookLayerId) ? _options.lookLayerId : layers.first.id,
                   items: [for (final l in layers) DropdownMenuItem(value: l.id, child: Text(l.name))],
                   onChanged: (v) => setState(() => _options = _options.copyWith(lookLayerId: v)),
                 ),
                 const SizedBox(width: 16),
-                const Text('Movement on '),
+                Text(context.l10n.songMovementOn),
                 DropdownButton<String?>(
                   key: const ValueKey('move-layer'),
                   value: layers.any((l) => l.id == _options.moveLayerId) ? _options.moveLayerId : null,
@@ -251,18 +253,18 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                 ),
               ],
             ),
-            const _Heading('BANKS TO USE'),
+            _Heading(context.l10n.songBanksToUse),
             for (final kind in kinds)
               ListTile(
                 key: ValueKey('pool-${kind.name}'),
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: Container(width: 6, height: 28, color: sectionColor(kind)),
-                title: Text(sectionKindLabel(kind)),
+                title: Text(sectionKindLabel(kind, context.l10n)),
                 subtitle: Text(_names(_options.lookPools[kind] ?? const [], banks), maxLines: 2, overflow: TextOverflow.ellipsis),
                 trailing: const Icon(Icons.edit_outlined, size: 18),
                 onTap: () => _editPool(
-                  '${sectionKindLabel(kind)} looks',
+                  context.l10n.songKindLooks(sectionKindLabel(kind, context.l10n)),
                   _options.lookPools[kind] ?? const [],
                   lightBanks,
                   (ids) => _options = _options.copyWith(lookPools: {..._options.lookPools, kind: ids}),
@@ -274,15 +276,15 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                 dense: true,
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(Icons.open_with, size: 20),
-                title: Text('Movement (${moveKinds.map((k) => sectionKindLabel(k).toLowerCase()).join(', ')})'),
-                subtitle: Text(fxBanks.isEmpty ? 'No Movement FX banks yet' : _names(_movePool, banks)),
+                title: Text(context.l10n.songMovementKinds(moveKinds.map((k) => sectionKindLabel(k, context.l10n).toLowerCase()).join(', '))),
+                subtitle: Text(fxBanks.isEmpty ? context.l10n.songNoMovementFxBanks : _names(_movePool, banks)),
                 trailing: const Icon(Icons.edit_outlined, size: 18),
                 onTap: fxBanks.isEmpty
                     ? null
-                    : () => _editPool('Movement banks', _movePool, fxBanks, (ids) => _movePool = ids),
+                    : () => _editPool(context.l10n.songMovementBanks, _movePool, fxBanks, (ids) => _movePool = ids),
               ),
             if (groups.isNotEmpty) ...[
-              const _Heading('FIXTURES'),
+              _Heading(context.l10n.scFixtures),
               Wrap(
                 spacing: 8,
                 children: [
@@ -296,8 +298,8 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                     ),
                 ],
               ),
-              const Text(
-                'Saved with the show. None selected means every fixture. Limiting playback to these groups arrives with export and scope.',
+              Text(
+                context.l10n.songSavedWithTheShow,
                 style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
               ),
             ],
@@ -308,7 +310,7 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                   child: OutlinedButton(
                     key: const ValueKey('apply-analysis'),
                     onPressed: () => _apply(full: false),
-                    child: const Text('Tempo and sections only'),
+                    child: Text(context.l10n.songTempoAndSectionsOnly),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -316,7 +318,7 @@ class _SongAutoScreenState extends ConsumerState<SongAutoScreen> {
                   child: FilledButton(
                     key: const ValueKey('generate-show'),
                     onPressed: () => _apply(full: true),
-                    child: const Text('Generate show'),
+                    child: Text(context.l10n.songGenerateShow),
                   ),
                 ),
               ],
@@ -357,20 +359,20 @@ class _Summary extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${analysis.bpm.toStringAsFixed(1)} BPM · grid ${analysis.beatOffsetMs} ms · $bars bars · ${analysis.sections.length} sections',
+              context.l10n.songBpmGridMsBars(analysis.bpm.toStringAsFixed(1), analysis.beatOffsetMs, bars, analysis.sections.length),
               style: const TextStyle(fontWeight: FontWeight.w700),
             ),
             if (unsure)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 4),
                 child: Text(
-                  'Not sure about the tempo — check it in the editor (double or half is the usual mistake).',
+                  context.l10n.songNotSureAboutThe,
                   style: TextStyle(fontSize: 11, color: AppColors.accent),
                 ),
               ),
             const SizedBox(height: 8),
             if (analysis.sections.isEmpty)
-              const Text('No sections found — the song may be too short or too even.', style: TextStyle(fontSize: 12))
+              Text(context.l10n.songNoSectionsFoundThe, style: TextStyle(fontSize: 12))
             else
               SizedBox(
                 height: 26,
@@ -384,7 +386,7 @@ class _Summary extends StatelessWidget {
                           alignment: Alignment.center,
                           decoration: BoxDecoration(color: sectionColor(s.kind), borderRadius: BorderRadius.circular(4)),
                           child: Text(
-                            sectionKindLabel(s.kind),
+                            sectionKindLabel(s.kind, context.l10n),
                             maxLines: 1,
                             overflow: TextOverflow.clip,
                             style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
@@ -399,4 +401,10 @@ class _Summary extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The "no song file linked" state, worded at build time (the message is
+/// set from initState, before localizations can be read).
+class _NoSongLinked {
+  const _NoSongLinked();
 }

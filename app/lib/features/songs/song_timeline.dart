@@ -11,6 +11,7 @@ import '../../models/layer.dart';
 import '../../models/song_show.dart';
 import 'pinch_zoom.dart';
 import 'song_lane.dart';
+import '../../l10n/l10n.dart';
 
 const timelineLabelWidth = 88.0;
 const _rulerHeight = 24.0;
@@ -32,13 +33,13 @@ Color sectionColor(SongSectionKind kind) => switch (kind) {
   SongSectionKind.custom => const Color(0xFF3F4756),
 };
 
-String sectionKindLabel(SongSectionKind kind) => switch (kind) {
+String sectionKindLabel(SongSectionKind kind, [AppLocalizations? l10n]) => switch (kind) {
   SongSectionKind.intro => 'Intro',
   SongSectionKind.build => 'Build',
   SongSectionKind.drop => 'Drop',
   SongSectionKind.breakdown => 'Break',
   SongSectionKind.outro => 'Outro',
-  SongSectionKind.custom => 'Section',
+  SongSectionKind.custom => l10n?.songSection ?? 'Section',
 };
 
 /// The song's timeline: ruler, waveform, section ribbon and one lane per
@@ -130,7 +131,7 @@ class SongTimeline extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: _rulerHeight + _waveHeight),
-              const _LabelCell(height: _sectionHeight, text: 'Sections'),
+              _LabelCell(height: _sectionHeight, text: context.l10n.songSections),
               for (var i = 0; i < layers.length; i++)
                 _LabelCell(height: _laneHeight, text: layers[i].name, color: layerColor(i)),
             ],
@@ -321,7 +322,7 @@ class _SectionRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 decoration: BoxDecoration(color: sectionColor(s.kind), borderRadius: BorderRadius.circular(4)),
                 child: Text(
-                  s.label.isEmpty ? sectionKindLabel(s.kind) : s.label,
+                  s.label.isEmpty ? sectionKindLabel(s.kind, context.l10n) : s.label,
                   maxLines: 1,
                   overflow: TextOverflow.clip,
                   style: TextStyle(
