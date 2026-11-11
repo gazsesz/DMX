@@ -1,0 +1,41 @@
+name: Build macOS app
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - 'app/macos/**'
+      - '.github/workflows/build-macos.yml'
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.2'
+          channel: 'stable'
+
+      - run: flutter pub get
+
+      - run: flutter build macos --release
+
+      # The app is not signed with a Developer ID, so on the Mac open it the
+      # first time with right-click → Open (or run
+      # `xattr -dr com.apple.quarantine "SmART DMX.app"` after unzipping).
+      - name: Zip the .app
+        run: |
+          APP=$(ls -d build/macos/Build/Products/Release/*.app | head -1)
+          ditto -c -k --sequesterRsrc --keepParent "$APP" build/dmx-controller-macos.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dmx-controller-macos
+          path: app/build/dmx-controller-macos.zip
