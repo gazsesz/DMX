@@ -26,6 +26,12 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The microphone is used to detect the beat of the music so the lights can follow it.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Bluetooth is used to connect wireless MIDI controllers.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>The local network is used to send DMX (Art-Net / sACN) to your lighting node and to receive beat data.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
