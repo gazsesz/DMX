@@ -2694,5 +2694,126 @@
         "type": "int"
       }
     }
+  },
+  "settingsMidiControlSection": "MIDI controllers",
+  "settingsMidiControlIntro": "Pads, buttons and faders of a USB or Bluetooth MIDI controller (APC mini, Launchpad, X-Touch Mini, a foot switch…) can start banks, chases and Smart Programs, or drive the master, tempo, colours and movement.",
+  "settingsMidiControlOpen": "Controllers & mapping",
+  "settingsMidiControlSummary": "{devices} connected · {mappings} mapped controls",
+  "@settingsMidiControlSummary": {
+    "placeholders": {
+      "devices": {
+        "type": "int"
+      },
+      "mappings": {
+        "type": "int"
+      }
+    }
+  },
+  "midiCtlTitle": "MIDI controllers",
+  "midiCtlAddMapping": "Add mapping",
+  "midiCtlIntro": "Connect a controller, tap Add mapping, press the pad or move the fader you want to use (MIDI learn), then pick what it does. Mappings are saved with the project; the connected controllers are remembered on this tablet and reconnect by themselves.",
+  "midiCtlDevices": "Devices",
+  "midiCtlScanning": "Scanning…",
+  "midiCtlScanBluetooth": "Scan Bluetooth",
+  "midiCtlNoDevices": "No MIDI device found. Plug a USB controller in with an OTG cable/adapter, then tap refresh.",
+  "midiCtlNoDevicesBle": "No MIDI device found. Plug a USB controller in with an OTG cable/adapter, or switch a Bluetooth MIDI controller on and tap Scan Bluetooth.",
+  "midiCtlConnectFailed": "Could not connect to {name}",
+  "@midiCtlConnectFailed": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "midiCtlConnected": "Connected",
+  "midiCtlConnect": "Connect",
+  "midiCtlDisconnect": "Disconnect",
+  "midiCtlMappings": "Mappings ({count})",
+  "@midiCtlMappings": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "midiCtlNoMappings": "Nothing mapped yet. Tap Add mapping.",
+  "midiCtlMonitorIdle": "Waiting for MIDI — press something on the controller",
+  "midiCtlMonitorLast": "Last: {message}",
+  "@midiCtlMonitorLast": {
+    "placeholders": {
+      "message": {
+        "type": "String"
+      }
+    }
+  },
+  "midiCtlTargetMissing": "(deleted)",
+  "midiCtlSceneColours": "Scene colours",
+  "midiActPlay": "Play / stop",
+  "midiActResume": "Start last played",
+  "midiActStop": "Stop",
+  "midiActBlackout": "Blackout",
+  "midiActBeatSync": "Beat sync on/off",
+  "midiActPredict": "Predict on/off",
+  "midiActAutoFade": "AutoFade on/off",
+  "midiActDropout": "Dropout on/off",
+  "midiActTapTempo": "Tap tempo",
+  "midiActColor": "Colour",
+  "midiActGrandMaster": "Grand master (fader)",
+  "midiActStepSpeed": "Step speed (fader)",
+  "midiActFadeTime": "Fade time (fader)",
+  "midiActMovementSize": "Movement size (fader)",
+  "midiActMovementSpeed": "Movement speed (fader)",
+  "midiActMovementShift": "Movement shift (fader)",
+  "midiActMovementSmooth": "Movement smooth (fader)",
+  "midiActMovementReset": "Movement reset",
+  "midiCtlKindBank": "Bank",
+  "midiCtlKindChase": "Chase",
+  "midiCtlKindSmart": "Smart",
+  "midiCtlNewMapping": "New mapping",
+  "midiCtlEditMapping": "Edit mapping",
+  "midiCtlControl": "Control",
+  "midiCtlLearnWaiting": "Press the pad or button on the controller…",
+  "midiCtlLearnWaitingFader": "Move the fader or knob on the controller…",
+  "midiCtlNotLearned": "Not learned yet",
+  "midiCtlLearn": "Learn",
+  "midiCtlReplaces": "This control already does \"{what}\" — saving replaces it.",
+  "@midiCtlReplaces": {
+    "placeholders": {
+      "what": {
+        "type": "String"
+      }
+    }
+  },
+  "midiCtlNoneConnected": "No controller is connected — connect one on the previous screen first.",
+  "midiCtlAction": "What it does",
+  "midiCtlContinuousHint": "Follows the fader/knob position (CC).",
+  "midiCtlButtonHint": "Fires on press; pressing again toggles back where that makes sense.",
+  "midiCtlWhatToPlay": "What to play",
+  "midiCtlNothingToPlay": "No banks, chases or Smart Programs in this project yet.",
+  "midiCtlPickTarget": "Pick a bank, chase or Smart Program",
+  "midiCtlDelete": "Delete",
+  "statusStoppedPlain": "Stopped",
+  "statusBlackoutDone": "Blackout",
+  "statusTapping": "Tap…",
+  "statusTapBpm": "Tap {bpm} BPM",
+  "@statusTapBpm": {
+    "placeholders": {
+      "bpm": {
+        "type": "int"
+      }
+    }
+  },
+  "statusMovementNeutral": "Movement knobs neutral",
+  "statusNoTargetPicked": "Nothing picked for this control",
+  "statusBleUnavailable": "Bluetooth MIDI is not available on this device",
+  "statusBleDenied": "Bluetooth permission was denied — allow \"Nearby devices\" for the app in Android settings",
+  "statusBleOff": "Bluetooth is off — turn it on and scan again",
+  "statusBleScanFailed": "Bluetooth scan failed: {error}",
+  "@statusBleScanFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
   }
 }

@@ -24,7 +24,9 @@ import '../../state/control_dock_providers.dart';
 import '../../state/network_providers.dart';
 import '../../state/locale_providers.dart';
 import '../../state/remote_providers.dart';
+import '../../state/midi_control_providers.dart';
 import 'dmx_map_screen.dart';
+import 'midi_control_screen.dart';
 import '../../l10n/labels.dart';
 import '../../l10n/status_messages.dart';
 
@@ -768,6 +770,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: 20),
+          _SectionTitle(l.settingsMidiControlSection),
+          const _MidiControlCard(),
+          const SizedBox(height: 20),
           _SectionTitle(l.settingsUniversesSection, trailing: l.settingsUniversesActive(universes.length)),
           Card(
             child: Column(
@@ -1084,3 +1089,46 @@ class _ConnectionStatusLine extends StatelessWidget {
   }
 }
 
+
+/// Setup's entry to the MIDI controller screen, with how many controllers
+/// are connected and how many controls are mapped.
+class _MidiControlCard extends ConsumerWidget {
+  const _MidiControlCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
+    final service = ref.watch(midiControlProvider).service;
+    final mappings = ref.watch(midiMappingsProvider).length;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              l.settingsMidiControlIntro,
+              style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
+            const SizedBox(height: 8),
+            ValueListenableBuilder<int>(
+              valueListenable: service.revision,
+              builder: (context, _, _) => Text(
+                l.settingsMidiControlSummary(service.connectedDevices.length, mappings),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(builder: (_) => const MidiControlScreen()),
+              ),
+              icon: const Icon(Icons.piano),
+              label: Text(l.settingsMidiControlOpen),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}

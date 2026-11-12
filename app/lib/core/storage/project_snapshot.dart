@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/midi_mapping.dart';
 import '../../models/project_data.dart';
 import '../../models/stage_plan.dart';
 import '../../state/artnet_providers.dart';
@@ -10,6 +11,7 @@ import '../../state/dimmer_dropout_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
+import '../../state/midi_control_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/smart_program_providers.dart';
@@ -39,6 +41,7 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     positionPresets: ref.read(positionPresetsProvider),
     lastSelectedBankId: ref.read(selectedBankIdProvider),
     dimmerDropout: ref.read(dimmerDropoutProvider),
+    midiMappings: ref.read(midiMappingsProvider),
   );
 }
 
@@ -105,6 +108,7 @@ void startProject(
       positionPresets: source.positionPresets,
       lastSelectedBankId: source.lastSelectedBankId,
       dimmerDropout: source.dimmerDropout,
+      midiMappings: source.midiMappings,
     ));
     return;
   }
@@ -136,6 +140,11 @@ void startProject(
   ref.read(layersProvider.notifier).reset();
   ref.read(dimmerDropoutProvider.notifier).update(const DropoutSettings());
   ref.read(selectedBankIdProvider.notifier).state = null;
+  // The controller's pads that start banks and chases point at things that
+  // are gone now; the rest (blackout, master, colours…) still mean the same.
+  ref.read(midiMappingsProvider.notifier).loadAll([
+    for (final m in source.midiMappings) if (m.action != MidiActionKind.playTarget) m,
+  ]);
 }
 
 /// The inverse of [buildProjectSnapshot] — pushes a loaded [ProjectData] into
@@ -160,4 +169,5 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(layersProvider.notifier).loadAll(data.layers);
   ref.read(dimmerDropoutProvider.notifier).update(data.dimmerDropout);
   ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;
+  ref.read(midiMappingsProvider.notifier).loadAll(data.midiMappings);
 }

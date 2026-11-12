@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-24 · app verzió: v1.44.1 (Song Show, mergelve a mainbe: a556e8a)_
+_Utolsó frissítés: 2026-11-12 · app verzió: v1.47.0 (MIDI learn, ág `claude/midi-learn`)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -95,3 +95,13 @@ _Utolsó frissítés: 2026-10-24 · app verzió: v1.44.1 (Song Show, mergelve a 
 - targetSdk: a Flutter 3.47.2 alapértéke 36, ez megfelel a Play 2026-08-31 óta érvényes követelményének.
 - Monetizáció/terv: ingyenes (1 univerzum, 8 fixture) + Pro (egyszeri vagy előfizetés), Play Billing; részletek a projekt „SmART DMX: ingyenes és Pro verzió, Play Store kiadás” dokumentumában. A Billing-kód még nincs.
 - Nyitott a Play-hez: `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (Play-korlátozott jogosultság, valószínűleg ki kell venni a Play buildből), `FOREGROUND_SERVICE_SPECIAL_USE` indoklása a Console-ban, adatvédelmi nyilatkozat (mikrofon), licencoldal (QLC+ fixture-ök, Apache 2.0).
+
+## MIDI vezérlők / MIDI learn (v1.47.0, 2026-11-12, ág `claude/midi-learn`)
+- Kérés: külső MIDI kontrollerek (USB és Bluetooth) gombjai/faderei funkciókhoz, programokhoz rendelhetők legyenek, beállítási felülettel. Első lépés az általános MIDI learn; eszköz-specifikus LED-visszajelzés (pl. APC mini mk2) **még nincs**, az a következő lépés lehet.
+- Setup → „MIDI controllers” kártya → `MidiControlScreen`: eszközlista (USB + „Scan Bluetooth”), élő monitor (utolsó üzenet + utolsó akció eredménye), hozzárendelés-lista (tüzeléskor felvillan). Új hozzárendelésnél azonnal learn módba lép; learn alatt a meglévő hozzárendelések nem tüzelnek.
+- A hozzárendelések **projekt-szintűek** (`ProjectData.midiMappings`, a fájlban csak ha nem üres), mert bank/chase/Smart id-kra mutatnak; „Keep fixtures” új projektnél a nem cél-függő hozzárendelések (blackout, master, színek…) megmaradnak. A csatlakoztatott vezérlők **eszköz-szintűek** (SharedPreferences `midiControl.devices`), induláskor maguktól újracsatlakoznak (USB: id vagy név; BLE: induláskor egy csendes 12 s-os keresés, ha van megjegyzett BLE eszköz; kihúzás/visszadugás: `onMidiSetupChanged`).
+- Akciók a meglévő közös `trigger_actions`-on át (ugyanaz, mint a Dashboard és a távvezérlő): indít/leállít bank/chase/Smart, utolsó indítása, Stop, Blackout, Beat sync/Predict/AutoFade/Dropout kapcsoló, Tap tempo, szín (Colour strip), és faderek: grand master, step speed (`stepSpeedScale`), fade (`fadeTimeScale`), Movement size/speed/shift/smooth, Movement reset. Step/fade fadernél a futó chase újraindítása 400 ms-mal a fader megállása után (különben minden CC lépés az 1. lépésre dobná).
+- Gomb-logika: Note On (vel>0) tüzel, Note Off semmi (kapcsoló, nem „flash”); CC gomb a 64-es küszöb alulról való átlépésekor; Program Change mindig. Egy vezérlőhöz egy hozzárendelés (mentéskor a régi lecserélődik, a szerkesztő figyelmeztet). Relatív (végtelen) enkóderek nincsenek kezelve, csak abszolút CC.
+- Közös eszközhasználat: `MidiConnections` referenciaszámlálás — a MIDI clock beat source és a vezérlő-bemenet ugyanazt az eszközt is használhatja, egyik sem zárja be a másik alól.
+- BLE: `flutter_midi_command_ble` (universal_ble), csak Androidon kapcsolva (`main()`, a MIDI stream-ek előtt kell). Az engedélyt (Közeli eszközök / Android ≤11-en helymeghatározás) csak az első Bluetooth kereséskor kéri. A manifest-jogosultságokat a csomag hozza (`BLUETOOTH_SCAN neverForLocation`). iOS/macOS Info.plist kapott `NSBluetoothAlwaysUsageDescription`-t.
+- Valódi vezérlővel még nem próbált (USB OTG a Tab S6 Lite-on, BLE párosítás, P20 Pro Android 8.1-en a BLE engedély).
