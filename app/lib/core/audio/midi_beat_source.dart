@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 
+import '../midi/midi_connections.dart';
 import 'beat_source.dart';
 import 'midi_clock_counter.dart';
 
@@ -17,6 +18,10 @@ import 'midi_clock_counter.dart';
 /// (re)connect to whatever [connect] last picked.
 class MidiBeatSource implements BeatSource {
   final MidiCommand _midi = MidiCommand();
+
+  /// This source's name in [MidiConnections] — the controller input may
+  /// hold the same device.
+  static const _owner = 'beatSource';
   final _beatController = StreamController<DateTime>.broadcast();
   final _activityController = StreamController<DateTime>.broadcast();
   final _bpmController = StreamController<double>.broadcast();
@@ -95,13 +100,13 @@ class MidiBeatSource implements BeatSource {
     // port open) even though nothing here is listening to it any more.
     final previous = _device;
     if (previous != null && previous.id != device.id) {
-      _midi.disconnectDevice(previous);
+      MidiConnections.release(_midi, previous, _owner);
     }
     lastError = null;
     lastMessageAt = null;
     _device = device;
     try {
-      await _midi.connectToDevice(device);
+      await MidiConnections.acquire(_midi, device, _owner);
     } catch (e) {
       lastError = 'Could not connect to ${device.name}: $e';
       return false;
@@ -122,7 +127,7 @@ class MidiBeatSource implements BeatSource {
     _sub?.cancel();
     _sub = null;
     final device = _device;
-    if (device != null) _midi.disconnectDevice(device);
+    if (device != null) MidiConnections.release(_midi, device, _owner);
   }
 
   /// Reconnects to whatever [connect] last picked — the [BeatSource]
