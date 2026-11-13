@@ -4,6 +4,9 @@ import '../../models/channel_function.dart';
 import '../../models/chase.dart';
 import '../../models/patched_fixture.dart';
 import '../../models/scene.dart';
+import '../../models/stage_plan.dart';
+
+export '../../models/stage_plan.dart' show FixtureOrder;
 
 enum GeneratorEffect {
   // Colour effects.
@@ -148,6 +151,44 @@ extension StrobeDirectionLabel on StrobeDirection {
     StrobeDirection.left => '← Left',
     StrobeDirection.bounce => '↔ Bounce',
   };
+}
+
+/// [fixtures] in [order]. Lamps that tie (e.g. stacked at the same stage
+/// spot, or never moved off the default centre) go upstage first, then keep
+/// their patch order, so a rig that was never laid out behaves as before.
+/// For [FixtureOrder.custom], [customOrder] lists fixture ids first-to-last;
+/// lamps missing from it go to the end in stage left-to-right order.
+List<PatchedFixture> orderFixtures(
+  List<PatchedFixture> fixtures,
+  FixtureOrder order, {
+  List<String> customOrder = const [],
+}) {
+  final patchIndex = {for (var i = 0; i < fixtures.length; i++) fixtures[i].id: i};
+  // Lamps within a few pixels of each other on the plan count as level.
+  int byStage(PatchedFixture a, PatchedFixture b, {required bool rightToLeft}) {
+    const epsilon = 0.005;
+    final dx = a.layoutX - b.layoutX;
+    if (dx.abs() > epsilon) return (rightToLeft ? -dx : dx).sign.toInt();
+    final dy = a.layoutY - b.layoutY;
+    if (dy.abs() > epsilon) return dy.sign.toInt();
+    return patchIndex[a.id]!.compareTo(patchIndex[b.id]!);
+  }
+
+  final sorted = [...fixtures];
+  switch (order) {
+    case FixtureOrder.stageLeftToRight:
+      sorted.sort((a, b) => byStage(a, b, rightToLeft: false));
+    case FixtureOrder.stageRightToLeft:
+      sorted.sort((a, b) => byStage(a, b, rightToLeft: true));
+    case FixtureOrder.custom:
+      final rank = {for (var i = 0; i < customOrder.length; i++) customOrder[i]: i};
+      sorted.sort((a, b) {
+        final ra = rank[a.id] ?? customOrder.length;
+        final rb = rank[b.id] ?? customOrder.length;
+        return ra != rb ? ra.compareTo(rb) : byStage(a, b, rightToLeft: false);
+      });
+  }
+  return sorted;
 }
 
 /// How many scenes a running strobe over [fixtureCount] lamps makes.

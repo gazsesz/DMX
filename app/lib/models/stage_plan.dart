@@ -38,6 +38,19 @@ class AimTarget {
   }
 }
 
+/// Which order effects walk the lamps in — where a running light, comet or
+/// running strobe starts and which way it travels.
+enum FixtureOrder {
+  /// Left to right on the stage plan, as seen from the audience.
+  stageLeftToRight,
+
+  /// Right to left on the stage plan.
+  stageRightToLeft,
+
+  /// Dragged into order by hand ([StagePlan.customFixtureOrder]).
+  custom,
+}
+
 /// The real-world size of the 2D stage layout, so a spot on the plan can be
 /// turned into metres for aiming, plus the named spots worth aiming at.
 class StagePlan {
@@ -47,16 +60,38 @@ class StagePlan {
   final double depthM;
   final List<AimTarget> targets;
 
+  /// The lamp order the program generator uses — part of the rig, so it is
+  /// saved with the project and kept by "Keep fixtures".
+  final FixtureOrder fixtureOrder;
+
+  /// Fixture ids first-to-last for [FixtureOrder.custom]. Lamps patched
+  /// later than the list was made go to the end.
+  final List<String> customFixtureOrder;
+
   static const defaultWidthM = 8.0;
   static const defaultDepthM = 6.0;
 
-  const StagePlan({this.widthM = defaultWidthM, this.depthM = defaultDepthM, this.targets = const []});
+  const StagePlan({
+    this.widthM = defaultWidthM,
+    this.depthM = defaultDepthM,
+    this.targets = const [],
+    this.fixtureOrder = FixtureOrder.stageLeftToRight,
+    this.customFixtureOrder = const [],
+  });
 
-  StagePlan copyWith({double? widthM, double? depthM, List<AimTarget>? targets}) {
+  StagePlan copyWith({
+    double? widthM,
+    double? depthM,
+    List<AimTarget>? targets,
+    FixtureOrder? fixtureOrder,
+    List<String>? customFixtureOrder,
+  }) {
     return StagePlan(
       widthM: widthM ?? this.widthM,
       depthM: depthM ?? this.depthM,
       targets: targets ?? this.targets,
+      fixtureOrder: fixtureOrder ?? this.fixtureOrder,
+      customFixtureOrder: customFixtureOrder ?? this.customFixtureOrder,
     );
   }
 
@@ -64,6 +99,8 @@ class StagePlan {
     'widthM': widthM,
     'depthM': depthM,
     'targets': [for (final t in targets) t.toJson()],
+    'fixtureOrder': fixtureOrder.name,
+    if (customFixtureOrder.isNotEmpty) 'customFixtureOrder': customFixtureOrder,
   };
 
   factory StagePlan.fromJson(Map<String, dynamic>? json) {
@@ -79,6 +116,8 @@ class StagePlan {
       targets: [
         for (final t in json['targets'] as List? ?? const []) AimTarget.fromJson(t as Map<String, dynamic>),
       ],
+      fixtureOrder: FixtureOrder.values.asNameMap()[json['fixtureOrder']] ?? FixtureOrder.stageLeftToRight,
+      customFixtureOrder: [for (final id in json['customFixtureOrder'] as List? ?? const []) id as String],
     );
   }
 }
