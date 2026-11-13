@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/fixture_select.dart';
 import '../../models/builtin_fixtures.dart';
 import '../../models/patched_fixture.dart';
+import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/fixture_providers.dart';
@@ -15,6 +16,11 @@ import '../../l10n/l10n.dart';
 import '../../l10n/labels.dart';
 
 const _uuid = Uuid();
+
+/// The generator's lamp order, kept while the app runs so reopening the
+/// generator doesn't throw away a hand-dragged order.
+final generatorFixtureOrderProvider = StateProvider<FixtureOrder>((ref) => FixtureOrder.stageLeftToRight);
+final generatorManualOrderProvider = StateProvider<List<String>>((ref) => const []);
 
 class ProgramGeneratorScreen extends ConsumerStatefulWidget {
   const ProgramGeneratorScreen({super.key});
@@ -58,10 +64,137 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
     });
   }
 
-  List<PatchedFixture> _targetFixtures() => [
-    for (final f in ref.read(patchedFixturesProvider))
-      if (_selectedFixtures.contains(f.id)) f,
-  ];
+  /// The picked lamps in the order the effect will walk them.
+  List<PatchedFixture> _targetFixtures() => orderFixtures(
+    [
+      for (final f in ref.read(patchedFixturesProvider))
+        if (_selectedFixtures.contains(f.id)) f,
+    ],
+    ref.read(generatorFixtureOrderProvider),
+    manualOrder: ref.read(generatorManualOrderProvider),
+    universeOrder: [for (final u in ref.read(universesProvider)) u.id],
+  );
+
+  void _setOrder(FixtureOrder order) {
+    // Switching to Manual starts from whatever order was showing, so the
+    // stage order is one or two drags away instead of a full re-sort.
+    if (order == FixtureOrder.manual && ref.read(generatorFixtureOrderProvider) != FixtureOrder.manual) {
+      final shown = [for (final f in _targetFixtures()) f.id];
+      final rest = ref.read(generatorManualOrderProvider).where((id) => !shown.contains(id));
+      ref.read(generatorManualOrderProvider.notifier).state = [...shown, ...rest];
+    }
+    ref.read(generatorFixtureOrderProvider.notifier).state = order;
+  }
+
+  void _reorder(List<PatchedFixture> shown, int oldIndex, int newIndex) {
+    final ids = [for (final f in shown) f.id];
+    ids.insert(newIndex, ids.removeAt(oldIndex));
+    final rest = ref.read(generatorManualOrderProvider).where((id) => !ids.contains(id));
+    ref.read(generatorManualOrderProvider.notifier).state = [...ids, ...rest];
+  }
+
+  Widget _orderSection() {
+    final order = ref.watch(generatorFixtureOrderProvider);
+    ref.watch(generatorManualOrderProvider);
+    ref.watch(patchedFixturesProvider);
+    final shown = _targetFixtures();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          context.l10n.genFixtureOrder,
+          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textFaint),
+        ),
+        Text(
+          context.l10n.genFixtureOrderHint,
+          style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final o in FixtureOrder.values)
+              ChoiceChip(
+                key: ValueKey('order-${o.name}'),
+                label: Text(o.tr(context.l10n)),
+                selected: order == o,
+                onSelected: (_) => _setOrder(o),
+              ),
+          ],
+        ),
+        if (shown.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: order == FixtureOrder.manual
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          context.l10n.genFixtureOrderDragHint,
+                          style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                        ),
+                        ReorderableListView(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          buildDefaultDragHandles: false,
+                          onReorderItem: (a, b) => _reorder(shown, a, b),
+                          children: [
+                            for (var i = 0; i < shown.length; i++)
+                              ListTile(
+                                key: ValueKey('ordered-${shown[i].id}'),
+                                dense: true,
+                                contentPadding: EdgeInsets.zero,
+                                leading: _orderBadge(i),
+                                title: Text(shown[i].label),
+                                trailing: ReorderableDragStartListener(
+                                  index: i,
+                                  child: const Icon(Icons.drag_handle),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        for (var i = 0; i < shown.length; i++)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              _orderBadge(i),
+                              const SizedBox(width: 4),
+                              Text(shown[i].label, style: const TextStyle(fontSize: 12)),
+                              if (i < shown.length - 1)
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 4),
+                                  child: Icon(Icons.chevron_right, size: 14, color: AppColors.textFaint),
+                                ),
+                            ],
+                          ),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _orderBadge(int index) => Container(
+    width: 20,
+    height: 20,
+    alignment: Alignment.center,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      border: Border.all(color: AppColors.border),
+    ),
+    child: Text('${index + 1}', style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700)),
+  );
 
   void _generate() {
     final targets = _targetFixtures();
@@ -333,6 +466,8 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          _orderSection(),
           const SizedBox(height: 20),
           Text(
             context.l10n.genOutput,

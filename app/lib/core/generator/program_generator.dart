@@ -150,6 +150,79 @@ extension StrobeDirectionLabel on StrobeDirection {
   };
 }
 
+/// Which order the generator walks the picked lamps in. Order-sensitive
+/// effects (running light, comet, running strobe, colour chase shift, fan,
+/// rainbow wave, carousel) treat the first lamp as the start of the run.
+enum FixtureOrder {
+  /// Left to right on the stage plan, as seen from the audience.
+  stageLeftToRight,
+
+  /// Right to left on the stage plan.
+  stageRightToLeft,
+
+  /// The order the lamps were patched in.
+  patch,
+
+  /// Universe, then DMX start address.
+  dmxAddress,
+
+  /// Dragged into order by hand.
+  manual,
+}
+
+/// [fixtures] in [order]. Lamps that tie (e.g. stacked at the same stage
+/// spot, or never moved off the default centre) keep their patch order,
+/// so a rig that was never laid out behaves exactly as before. For
+/// [FixtureOrder.manual], [manualOrder] lists fixture ids first-to-last;
+/// lamps missing from it go to the end in patch order.
+List<PatchedFixture> orderFixtures(
+  List<PatchedFixture> fixtures,
+  FixtureOrder order, {
+  List<String> manualOrder = const [],
+  List<String> universeOrder = const [],
+}) {
+  final patchIndex = {for (var i = 0; i < fixtures.length; i++) fixtures[i].id: i};
+  int byPatch(PatchedFixture a, PatchedFixture b) => patchIndex[a.id]!.compareTo(patchIndex[b.id]!);
+  // Lamps within a few pixels of each other on the plan count as level.
+  int byStage(PatchedFixture a, PatchedFixture b, {required bool rightToLeft}) {
+    const epsilon = 0.005;
+    final dx = a.layoutX - b.layoutX;
+    if (dx.abs() > epsilon) return (rightToLeft ? -dx : dx).sign.toInt();
+    final dy = a.layoutY - b.layoutY;
+    if (dy.abs() > epsilon) return dy.sign.toInt();
+    return byPatch(a, b);
+  }
+
+  final sorted = [...fixtures];
+  switch (order) {
+    case FixtureOrder.patch:
+      return sorted;
+    case FixtureOrder.stageLeftToRight:
+      sorted.sort((a, b) => byStage(a, b, rightToLeft: false));
+    case FixtureOrder.stageRightToLeft:
+      sorted.sort((a, b) => byStage(a, b, rightToLeft: true));
+    case FixtureOrder.dmxAddress:
+      int universeRank(String id) {
+        final i = universeOrder.indexOf(id);
+        return i < 0 ? universeOrder.length : i;
+      }
+      sorted.sort((a, b) {
+        final u = universeRank(a.universeId).compareTo(universeRank(b.universeId));
+        if (u != 0) return u;
+        final c = a.startChannel.compareTo(b.startChannel);
+        return c != 0 ? c : byPatch(a, b);
+      });
+    case FixtureOrder.manual:
+      final rank = {for (var i = 0; i < manualOrder.length; i++) manualOrder[i]: i};
+      sorted.sort((a, b) {
+        final ra = rank[a.id] ?? manualOrder.length;
+        final rb = rank[b.id] ?? manualOrder.length;
+        return ra != rb ? ra.compareTo(rb) : byPatch(a, b);
+      });
+  }
+  return sorted;
+}
+
 /// How many scenes a running strobe over [fixtureCount] lamps makes.
 int runningStrobeSceneCount(int fixtureCount, int groupSize, StrobeDirection direction) {
   if (fixtureCount <= 0) return 0;

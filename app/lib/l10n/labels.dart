@@ -106,6 +106,16 @@ extension FixturePatternL10n on FixturePattern {
   };
 }
 
+extension FixtureOrderL10n on FixtureOrder {
+  String tr(AppLocalizations l) => switch (this) {
+    FixtureOrder.stageLeftToRight => l.enumOrderStageLtr,
+    FixtureOrder.stageRightToLeft => l.enumOrderStageRtl,
+    FixtureOrder.patch => l.enumOrderPatch,
+    FixtureOrder.dmxAddress => l.enumOrderDmx,
+    FixtureOrder.manual => l.enumOrderManual,
+  };
+}
+
 extension ProjectCarryOverL10n on ProjectCarryOver {
   String tr(AppLocalizations l) => switch (this) {
     ProjectCarryOver.empty => l.enumCarryEmpty,

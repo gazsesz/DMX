@@ -95,3 +95,9 @@ _Utolsó frissítés: 2026-10-24 · app verzió: v1.44.1 (Song Show, mergelve a 
 - targetSdk: a Flutter 3.47.2 alapértéke 36, ez megfelel a Play 2026-08-31 óta érvényes követelményének.
 - Monetizáció/terv: ingyenes (1 univerzum, 8 fixture) + Pro (egyszeri vagy előfizetés), Play Billing; részletek a projekt „SmART DMX: ingyenes és Pro verzió, Play Store kiadás” dokumentumában. A Billing-kód még nincs.
 - Nyitott a Play-hez: `REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` (Play-korlátozott jogosultság, valószínűleg ki kell venni a Play buildből), `FOREGROUND_SERVICE_SPECIAL_USE` indoklása a Console-ban, adatvédelmi nyilatkozat (mikrofon), licencoldal (QLC+ fixture-ök, Apache 2.0).
+
+## Lámpasorrend a programgenerátorban (v1.48.0, 2026-11-13, ág `claude/fixture-order`)
+- Gabor jelzése: a runlight nem a stage-en beállított sorrendben futott. Ok: a generátor a kijelölt lámpákat **patch-sorrendben** (a `patchedFixturesProvider` listájának sorrendjében) adta át a `generateScenes`-nek; a DMX cím és a stage pozíció nem számított.
+- Új „LÁMPASORREND” blokk a generátorban (`FixtureOrder`, `orderFixtures` a `program_generator.dart`-ban): Stage balról jobbra (**alapértelmezett**), Stage jobbról balra, Patch sorrend, DMX cím (univerzum, majd kezdőcím), Kézi (húzható lista). Az aktuális sorrend számozva látszik. Holtverseny (pl. a stage-en el sem mozdított lámpák, mind 0.5/0.5): fentebb (upstage) lévő előbb, utána patch-sorrend — így a stage nélküli rig a régi módon viselkedik.
+- Kézire váltáskor a lista az épp mutatott sorrendből indul. A választás és a kézi sorrend csak az app futása alatt marad meg (`generatorFixtureOrderProvider`, `generatorManualOrderProvider`), **nem** mentődik a projektbe. Ha kell, következő lépés: projektbe menteni.
+- Csak a bank programgenerátort érinti; a már legenerált jelenetek nem változnak (újragenerálás kell).
