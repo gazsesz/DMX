@@ -110,9 +110,7 @@ extension FixtureOrderL10n on FixtureOrder {
   String tr(AppLocalizations l) => switch (this) {
     FixtureOrder.stageLeftToRight => l.enumOrderStageLtr,
     FixtureOrder.stageRightToLeft => l.enumOrderStageRtl,
-    FixtureOrder.patch => l.enumOrderPatch,
-    FixtureOrder.dmxAddress => l.enumOrderDmx,
-    FixtureOrder.manual => l.enumOrderManual,
+    FixtureOrder.custom => l.enumOrderCustom,
   };
 }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dmx_controller/core/generator/program_generator.dart';
 import 'package:dmx_controller/core/theme/app_theme.dart';
 import 'package:dmx_controller/features/banks/program_generator_screen.dart';
@@ -5,10 +7,14 @@ import 'package:dmx_controller/models/channel_function.dart';
 import 'package:dmx_controller/models/fixture_channel.dart';
 import 'package:dmx_controller/models/fixture_profile.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
+import 'package:dmx_controller/models/project_data.dart';
 import 'package:dmx_controller/models/scene.dart';
+import 'package:dmx_controller/models/stage_plan.dart';
+import 'package:dmx_controller/models/artnet_settings.dart';
 import 'package:dmx_controller/state/bank_providers.dart';
 import 'package:dmx_controller/state/fixture_providers.dart';
 import 'package:dmx_controller/state/scene_providers.dart';
+import 'package:dmx_controller/state/stage_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,15 +33,14 @@ void main() {
       FixtureChannel(offset: 3, function: ChannelFunction.blue),
     ],
   );
-  PatchedFixture lamp(String id, {double x = 0.5, double y = 0.5, int start = 0, String universe = 'u1'}) =>
-      PatchedFixture(id: id, label: id, profile: rgbPar, universeId: universe, startChannel: start, layoutX: x, layoutY: y);
+  PatchedFixture lamp(String id, {double x = 0.5, double y = 0.5}) =>
+      PatchedFixture(id: id, label: id, profile: rgbPar, universeId: 'u1', startChannel: 0, layoutX: x, layoutY: y);
 
-  // Patched C, A, B — but standing A, B, C left to right on the stage,
-  // and addressed B, C, A.
+  // Patched C, A, B — but standing A, B, C left to right on the stage.
   final rig = [
-    lamp('C', x: 0.9, start: 4),
-    lamp('A', x: 0.1, start: 8),
-    lamp('B', x: 0.5, start: 0),
+    lamp('C', x: 0.9),
+    lamp('A', x: 0.1),
+    lamp('B', x: 0.5),
   ];
   List<String> ids(List<PatchedFixture> fs) => [for (final f in fs) f.id];
 
@@ -45,22 +50,10 @@ void main() {
       expect(ids(orderFixtures(rig, FixtureOrder.stageRightToLeft)), ['C', 'B', 'A']);
     });
 
-    test('patch order is the list as patched', () {
-      expect(ids(orderFixtures(rig, FixtureOrder.patch)), ['C', 'A', 'B']);
-    });
-
-    test('DMX order goes by universe, then start address', () {
-      final twoUniverses = [...rig, lamp('D', start: 0, universe: 'u0')];
-      expect(ids(orderFixtures(rig, FixtureOrder.dmxAddress)), ['B', 'C', 'A']);
-      expect(
-        ids(orderFixtures(twoUniverses, FixtureOrder.dmxAddress, universeOrder: ['u0', 'u1'])),
-        ['D', 'B', 'C', 'A'],
-      );
-    });
-
     test('lamps never laid out keep their patch order', () {
       final unplaced = [lamp('C'), lamp('A'), lamp('B')];
       expect(ids(orderFixtures(unplaced, FixtureOrder.stageLeftToRight)), ['C', 'A', 'B']);
+      expect(ids(orderFixtures(unplaced, FixtureOrder.stageRightToLeft)), ['C', 'A', 'B']);
     });
 
     test('lamps level on X go upstage first', () {
@@ -68,10 +61,29 @@ void main() {
       expect(ids(orderFixtures(column, FixtureOrder.stageLeftToRight)), ['back', 'front']);
     });
 
-    test('manual order wins, unknown lamps go last in patch order', () {
-      expect(ids(orderFixtures(rig, FixtureOrder.manual, manualOrder: ['B'])), ['B', 'C', 'A']);
-      expect(ids(orderFixtures(rig, FixtureOrder.manual, manualOrder: ['A', 'C', 'B'])), ['A', 'C', 'B']);
+    test('custom order wins, lamps missing from it go last in stage order', () {
+      expect(ids(orderFixtures(rig, FixtureOrder.custom, customOrder: ['A', 'C', 'B'])), ['A', 'C', 'B']);
+      expect(ids(orderFixtures(rig, FixtureOrder.custom, customOrder: ['C'])), ['C', 'A', 'B']);
     });
+  });
+
+  test('the lamp order is saved with the project', () {
+    final data = ProjectData(
+      name: 'Club',
+      settings: const ArtNetSettings(),
+      universes: const [],
+      customFixtureProfiles: const [],
+      patchedFixtures: const [],
+      scenes: const [],
+      banks: const [],
+      chases: const [],
+      stagePlan: const StagePlan(fixtureOrder: FixtureOrder.custom, customFixtureOrder: ['C', 'A', 'B']),
+    );
+    final back = ProjectData.fromJson(jsonDecode(jsonEncode(data.toJson())) as Map<String, dynamic>, builtIns: const []);
+    expect(back.stagePlan.fixtureOrder, FixtureOrder.custom);
+    expect(back.stagePlan.customFixtureOrder, ['C', 'A', 'B']);
+    // Older project files have no lamp order: stage left to right.
+    expect(StagePlan.fromJson(const {'widthM': 8, 'depthM': 6}).fixtureOrder, FixtureOrder.stageLeftToRight);
   });
 
   group('Program generator screen', () {
@@ -139,19 +151,20 @@ void main() {
       expect(litPerScene(container).take(3), ['A', 'B', 'C']);
     });
 
-    testWidgets('patch order is still there to pick', (tester) async {
+    testWidgets('stage right to left runs the other way and lands in the project', (tester) async {
       final container = await open(tester);
-      await tester.tap(find.byKey(const ValueKey('order-patch')));
+      await tester.tap(find.byKey(const ValueKey('order-stageRightToLeft')));
       await tester.pump();
+      expect(container.read(stagePlanProvider).fixtureOrder, FixtureOrder.stageRightToLeft);
       await generateRunningLight(tester);
-      expect(litPerScene(container).take(3), ['C', 'A', 'B']);
+      expect(litPerScene(container).take(3), ['C', 'B', 'A']);
     });
 
-    testWidgets('manual order starts from the stage order and can be dragged', (tester) async {
+    testWidgets('custom order starts from the stage order and can be dragged', (tester) async {
       final container = await open(tester);
-      await tester.tap(find.byKey(const ValueKey('order-manual')));
+      await tester.tap(find.byKey(const ValueKey('order-custom')));
       await tester.pump();
-      expect(container.read(generatorManualOrderProvider), ['A', 'B', 'C']);
+      expect(container.read(stagePlanProvider).customFixtureOrder, ['A', 'B', 'C']);
       // Drag C (last) to the top.
       final handle = find.descendant(
         of: find.byKey(const ValueKey('ordered-C')),
@@ -163,7 +176,7 @@ void main() {
       await tester.pump();
       await gesture.up();
       await tester.pumpAndSettle();
-      expect(container.read(generatorManualOrderProvider).take(3), ['C', 'A', 'B']);
+      expect(container.read(stagePlanProvider).customFixtureOrder.take(3), ['C', 'A', 'B']);
       await generateRunningLight(tester);
       expect(litPerScene(container).take(3), ['C', 'A', 'B']);
       expect(tester.takeException(), isNull);

@@ -7,20 +7,15 @@ import '../../core/theme/app_colors.dart';
 import '../../core/widgets/fixture_select.dart';
 import '../../models/builtin_fixtures.dart';
 import '../../models/patched_fixture.dart';
-import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/scene_providers.dart';
+import '../../state/stage_providers.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/labels.dart';
 
 const _uuid = Uuid();
-
-/// The generator's lamp order, kept while the app runs so reopening the
-/// generator doesn't throw away a hand-dragged order.
-final generatorFixtureOrderProvider = StateProvider<FixtureOrder>((ref) => FixtureOrder.stageLeftToRight);
-final generatorManualOrderProvider = StateProvider<List<String>>((ref) => const []);
 
 class ProgramGeneratorScreen extends ConsumerStatefulWidget {
   const ProgramGeneratorScreen({super.key});
@@ -64,38 +59,42 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
     });
   }
 
-  /// The picked lamps in the order the effect will walk them.
-  List<PatchedFixture> _targetFixtures() => orderFixtures(
-    [
-      for (final f in ref.read(patchedFixturesProvider))
-        if (_selectedFixtures.contains(f.id)) f,
-    ],
-    ref.read(generatorFixtureOrderProvider),
-    manualOrder: ref.read(generatorManualOrderProvider),
-    universeOrder: [for (final u in ref.read(universesProvider)) u.id],
-  );
+  /// The picked lamps in the order the effect will walk them — the
+  /// project's lamp order (saved with the stage plan).
+  List<PatchedFixture> _targetFixtures() {
+    final plan = ref.read(stagePlanProvider);
+    return orderFixtures(
+      [
+        for (final f in ref.read(patchedFixturesProvider))
+          if (_selectedFixtures.contains(f.id)) f,
+      ],
+      plan.fixtureOrder,
+      customOrder: plan.customFixtureOrder,
+    );
+  }
 
   void _setOrder(FixtureOrder order) {
-    // Switching to Manual starts from whatever order was showing, so the
+    final stage = ref.read(stagePlanProvider.notifier);
+    // Switching to Custom starts from whatever order was showing, so the
     // stage order is one or two drags away instead of a full re-sort.
-    if (order == FixtureOrder.manual && ref.read(generatorFixtureOrderProvider) != FixtureOrder.manual) {
+    if (order == FixtureOrder.custom && ref.read(stagePlanProvider).fixtureOrder != FixtureOrder.custom) {
       final shown = [for (final f in _targetFixtures()) f.id];
-      final rest = ref.read(generatorManualOrderProvider).where((id) => !shown.contains(id));
-      ref.read(generatorManualOrderProvider.notifier).state = [...shown, ...rest];
+      final rest = ref.read(stagePlanProvider).customFixtureOrder.where((id) => !shown.contains(id));
+      stage.setCustomFixtureOrder([...shown, ...rest]);
     }
-    ref.read(generatorFixtureOrderProvider.notifier).state = order;
+    stage.setFixtureOrder(order);
   }
 
   void _reorder(List<PatchedFixture> shown, int oldIndex, int newIndex) {
     final ids = [for (final f in shown) f.id];
     ids.insert(newIndex, ids.removeAt(oldIndex));
-    final rest = ref.read(generatorManualOrderProvider).where((id) => !ids.contains(id));
-    ref.read(generatorManualOrderProvider.notifier).state = [...ids, ...rest];
+    // Lamps not ticked right now keep their place after the ones shown.
+    final rest = ref.read(stagePlanProvider).customFixtureOrder.where((id) => !ids.contains(id));
+    ref.read(stagePlanProvider.notifier).setCustomFixtureOrder([...ids, ...rest]);
   }
 
   Widget _orderSection() {
-    final order = ref.watch(generatorFixtureOrderProvider);
-    ref.watch(generatorManualOrderProvider);
+    final order = ref.watch(stagePlanProvider).fixtureOrder;
     ref.watch(patchedFixturesProvider);
     final shown = _targetFixtures();
     return Column(
@@ -128,7 +127,7 @@ class _ProgramGeneratorScreenState extends ConsumerState<ProgramGeneratorScreen>
           Card(
             child: Padding(
               padding: const EdgeInsets.all(12),
-              child: order == FixtureOrder.manual
+              child: order == FixtureOrder.custom
                   ? Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [

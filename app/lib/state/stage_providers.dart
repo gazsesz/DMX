@@ -38,6 +38,10 @@ class StagePlanNotifier extends StateNotifier<StagePlan> {
     state = state.copyWith(targets: state.targets.where((t) => t.id != id).toList());
   }
 
+  void setFixtureOrder(FixtureOrder order) => state = state.copyWith(fixtureOrder: order);
+
+  void setCustomFixtureOrder(List<String> ids) => state = state.copyWith(customFixtureOrder: List.unmodifiable(ids));
+
   void load(StagePlan plan) => state = plan;
 }
 
