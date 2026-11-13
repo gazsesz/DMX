@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -184,19 +185,69 @@ class _EdgeLabel extends StatelessWidget {
   }
 }
 
-class _DraggableFixtureIcon extends ConsumerWidget {
+class _DraggableFixtureIcon extends ConsumerStatefulWidget {
   final PatchedFixture fixture;
   final Size canvasSize;
 
   const _DraggableFixtureIcon({super.key, required this.fixture, required this.canvasSize});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DraggableFixtureIcon> createState() => _DraggableFixtureIconState();
+}
+
+/// The lamp follows the finger from where the drag started (absolute, not
+/// by summing per-event deltas against a position that may be a frame
+/// stale), shows its spot locally while dragging, and only writes it to
+/// the patch when the finger lifts — every patch change re-runs the DMX
+/// output's channel scan, which was what made dragging lag behind.
+class _DraggableFixtureIconState extends ConsumerState<_DraggableFixtureIcon> {
+  Offset? _dragStartGlobal;
+  Offset? _dragStartPos;
+  Offset? _dragPos;
+
+  Size get _canvas => widget.canvasSize;
+
+  void _onPanStart(DragStartDetails details) {
+    _dragStartGlobal = details.globalPosition;
+    _dragStartPos = Offset(widget.fixture.layoutX, widget.fixture.layoutY);
+  }
+
+  void _onPanUpdate(DragUpdateDetails details) {
+    final start = _dragStartPos;
+    final startGlobal = _dragStartGlobal;
+    if (start == null || startGlobal == null || _canvas.width <= 0 || _canvas.height <= 0) return;
+    final moved = details.globalPosition - startGlobal;
+    setState(() {
+      _dragPos = Offset(
+        (start.dx + moved.dx / _canvas.width).clamp(0.0, 1.0),
+        (start.dy + moved.dy / _canvas.height).clamp(0.0, 1.0),
+      );
+    });
+  }
+
+  void _onPanEnd() {
+    final pos = _dragPos;
+    if (pos != null) {
+      ref.read(patchedFixturesProvider.notifier).setLayoutPosition(widget.fixture.id, pos.dx, pos.dy);
+    }
+    setState(() {
+      _dragPos = null;
+      _dragStartPos = null;
+      _dragStartGlobal = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fixture = widget.fixture;
+    final canvasSize = _canvas;
     const iconSize = 52.0;
+    final x = _dragPos?.dx ?? fixture.layoutX;
+    final y = _dragPos?.dy ?? fixture.layoutY;
     final maxLeft = (canvasSize.width - iconSize).clamp(0.0, double.infinity);
     final maxTop = (canvasSize.height - iconSize).clamp(0.0, double.infinity);
-    final left = (fixture.layoutX * canvasSize.width - iconSize / 2).clamp(0.0, maxLeft);
-    final top = (fixture.layoutY * canvasSize.height - iconSize / 2).clamp(0.0, maxTop);
+    final left = (x * canvasSize.width - iconSize / 2).clamp(0.0, maxLeft);
+    final top = (y * canvasSize.height - iconSize / 2).clamp(0.0, maxTop);
     final color = fixtureCategoryColor(fixture.profile.category);
     final isMover = fixture.profile.channels.any((c) => c.function.isPanTilt);
     final mounting = fixture.mounting;
@@ -206,12 +257,13 @@ class _DraggableFixtureIcon extends ConsumerWidget {
       top: top,
       child: GestureDetector(
         onTap: isMover ? () => showFixtureMountingSheet(context, fixture.id) : null,
-        onPanUpdate: (details) {
-          if (canvasSize.width <= 0 || canvasSize.height <= 0) return;
-          final newX = (left + details.delta.dx + iconSize / 2) / canvasSize.width;
-          final newY = (top + details.delta.dy + iconSize / 2) / canvasSize.height;
-          ref.read(patchedFixturesProvider.notifier).setLayoutPosition(fixture.id, newX, newY);
-        },
+        // Count the movement from the touch-down point, so the first few
+        // pixels the gesture needs to recognise a drag aren't lost.
+        dragStartBehavior: DragStartBehavior.down,
+        onPanStart: _onPanStart,
+        onPanUpdate: _onPanUpdate,
+        onPanEnd: (_) => _onPanEnd(),
+        onPanCancel: _onPanEnd,
         child: SizedBox(
           width: iconSize + 20,
           child: Column(
