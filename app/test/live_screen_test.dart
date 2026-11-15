@@ -1,4 +1,10 @@
 import 'package:dmx_controller/features/live/live_screen.dart';
+import 'package:dmx_controller/models/channel_capability.dart';
+import 'package:dmx_controller/models/channel_function.dart';
+import 'package:dmx_controller/models/fixture_channel.dart';
+import 'package:dmx_controller/models/fixture_profile.dart';
+import 'package:dmx_controller/models/patched_fixture.dart';
+import 'package:dmx_controller/state/fixture_providers.dart';
 import 'package:dmx_controller/models/live_grid.dart';
 import 'package:dmx_controller/state/live_providers.dart';
 import 'package:dmx_controller/state/playback_providers.dart';
@@ -100,6 +106,53 @@ void main() {
     expect(lanes.length, before + 1);
     expect(lanes.last.kind, LiveLaneKind.show);
     expect(lanes.last.id, 'show-2');
+
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
+  testWidgets('Beam editor: a prism whose "in" is a span can be set', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = ProviderContainer();
+    const head = FixtureProfile(
+      id: 'head',
+      name: 'Head',
+      category: FixtureCategory.movingHead,
+      channels: [
+        FixtureChannel(offset: 0, function: ChannelFunction.pan),
+        FixtureChannel(offset: 1, function: ChannelFunction.tilt),
+        FixtureChannel(
+          offset: 2,
+          function: ChannelFunction.prism,
+          capabilities: [
+            ChannelCapability(min: 0, max: 7, label: 'No prism', kind: CapabilityKind.off),
+            ChannelCapability(min: 8, max: 255, label: 'Prism rotation', kind: CapabilityKind.range),
+          ],
+        ),
+      ],
+    );
+    container.read(patchedFixturesProvider.notifier).loadAll([
+      const PatchedFixture(id: 'h1', label: 'h1', profile: head, universeId: 'u', startChannel: 0),
+    ]);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LiveScreen())),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.longPress(find.text('Strobe'));
+    await tester.pumpAndSettle();
+    expect(find.text('Prism'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Prism rotation'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('live-clip-save')));
+    await tester.pumpAndSettle();
+    expect(container.read(liveGridProvider).clipAt('beam', 2)!.beam!.prism, 8);
 
     await tester.pumpWidget(const SizedBox());
     container.dispose();
