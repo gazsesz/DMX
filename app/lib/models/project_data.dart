@@ -6,6 +6,7 @@ import 'dashboard_trigger.dart';
 import 'fixture_group.dart';
 import 'fixture_profile.dart';
 import 'layer.dart';
+import 'live_grid.dart';
 import 'midi_mapping.dart';
 import 'patched_fixture.dart';
 import 'position_preset.dart';
@@ -48,6 +49,10 @@ class ProjectData {
   /// [MidiMapping] for why it lives in the project.
   final List<MidiMapping> midiMappings;
 
+  /// The Live screen's grid (lanes, rows, clips). Null in files saved
+  /// before it existed; the screen then starts from [LiveGrid.starter].
+  final LiveGrid? liveGrid;
+
   const ProjectData({
     required this.name,
     required this.settings,
@@ -67,6 +72,7 @@ class ProjectData {
     this.lastSelectedBankId,
     this.dimmerDropout = const DropoutSettings(),
     this.midiMappings = const [],
+    this.liveGrid,
   });
 
   Map<String, dynamic> toJson() => {
@@ -89,6 +95,7 @@ class ProjectData {
     if (lastSelectedBankId != null) 'lastSelectedBankId': lastSelectedBankId,
     'dimmerDropout': dimmerDropout.toJson(),
     if (midiMappings.isNotEmpty) 'midiMappings': midiMappings.map((m) => m.toJson()).toList(),
+    if (liveGrid != null && !liveGrid!.isEmpty) 'liveGrid': liveGrid!.toJson(),
   };
 
   factory ProjectData.fromJson(Map<String, dynamic> json, {required List<FixtureProfile> builtIns}) {
@@ -130,6 +137,7 @@ class ProjectData {
         for (final m in json['midiMappings'] as List? ?? const [])
           if (m is Map) ?MidiMapping.fromJson(m.cast<String, dynamic>()),
       ],
+      liveGrid: json['liveGrid'] is Map ? LiveGrid.fromJson((json['liveGrid'] as Map).cast<String, dynamic>()) : null,
     );
   }
 }

@@ -11,6 +11,7 @@ import '../../state/dimmer_dropout_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
+import '../../state/live_providers.dart';
 import '../../state/midi_control_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
@@ -42,6 +43,7 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     lastSelectedBankId: ref.read(selectedBankIdProvider),
     dimmerDropout: ref.read(dimmerDropoutProvider),
     midiMappings: ref.read(midiMappingsProvider),
+    liveGrid: ref.read(liveGridProvider),
   );
 }
 
@@ -109,6 +111,7 @@ void startProject(
       lastSelectedBankId: source.lastSelectedBankId,
       dimmerDropout: source.dimmerDropout,
       midiMappings: source.midiMappings,
+      liveGrid: source.liveGrid,
     ));
     return;
   }
@@ -123,6 +126,8 @@ void startProject(
     // The stage and the saved positions describe the rig, not the show.
     ref.read(stagePlanProvider.notifier).load(source.stagePlan);
     ref.read(positionPresetsProvider.notifier).loadAll(source.positionPresets);
+    // The lanes point at this rig's groups, so the grid carries over with it.
+    ref.read(liveGridProvider.notifier).load(source.liveGrid);
   } else {
     ref.read(universesProvider.notifier).reset();
     ref.read(fixtureLibraryProvider.notifier).loadAll(const []);
@@ -130,6 +135,7 @@ void startProject(
     ref.read(fixtureGroupsProvider.notifier).loadAll(const []);
     ref.read(stagePlanProvider.notifier).load(const StagePlan());
     ref.read(positionPresetsProvider.notifier).loadAll(const []);
+    ref.read(liveGridProvider.notifier).load(null);
   }
   ref.read(scenesProvider.notifier).loadAll(const []);
   ref.read(banksProvider.notifier).reset();
@@ -170,4 +176,5 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(dimmerDropoutProvider.notifier).update(data.dimmerDropout);
   ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;
   ref.read(midiMappingsProvider.notifier).loadAll(data.midiMappings);
+  ref.read(liveGridProvider.notifier).load(data.liveGrid);
 }
