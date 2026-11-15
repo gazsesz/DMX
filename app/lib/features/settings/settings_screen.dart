@@ -17,6 +17,8 @@ import '../../models/artnet_settings.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../models/output_protocol.dart';
 import '../../models/universe_config.dart';
+import '../../models/live_grid.dart';
+import '../../state/live_providers.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
 import '../../core/remote/background_service.dart';
@@ -773,6 +775,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SectionTitle(l.settingsMidiControlSection),
           const _MidiControlCard(),
           const SizedBox(height: 20),
+          _SectionTitle(l.liveSettingsTitle),
+          const _LiveSettingsCard(),
+          const SizedBox(height: 20),
           _SectionTitle(l.settingsUniversesSection, trailing: l.settingsUniversesActive(universes.length)),
           Card(
             child: Column(
@@ -1126,6 +1131,42 @@ class _MidiControlCard extends ConsumerWidget {
               icon: const Icon(Icons.piano),
               label: Text(l.settingsMidiControlOpen),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+
+/// How the Live Grid's pads behave on this device.
+class _LiveSettingsCard extends ConsumerWidget {
+  const _LiveSettingsCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
+    final mode = ref.watch(livePrefsProvider.select((p) => p.padMode));
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(l.liveSettingsPads, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 8),
+            SegmentedButton<LivePadMode>(
+              key: const ValueKey('live-pad-mode'),
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(value: LivePadMode.selectThenGo, label: Text(l.livePadsSelectGo)),
+                ButtonSegment(value: LivePadMode.launchDirectly, label: Text(l.livePadsDirect)),
+              ],
+              selected: {mode},
+              onSelectionChanged: (s) => ref.read(livePrefsProvider.notifier).setPadMode(s.first),
+            ),
+            const SizedBox(height: 8),
+            Text(l.liveSettingsPadsHint, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
           ],
         ),
       ),

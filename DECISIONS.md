@@ -114,7 +114,7 @@ _Utolsó frissítés: 2026-11-12 · app verzió: v1.47.0 (MIDI learn, ág `claud
 - BLE: `flutter_midi_command_ble` (universal_ble), csak Androidon kapcsolva (`main()`, a MIDI stream-ek előtt kell). Az engedélyt (Közeli eszközök / Android ≤11-en helymeghatározás) csak az első Bluetooth kereséskor kéri. A manifest-jogosultságokat a csomag hozza (`BLUETOOTH_SCAN neverForLocation`). iOS/macOS Info.plist kapott `NSBluetoothAlwaysUsageDescription`-t.
 - Valódi vezérlővel még nem próbált (USB OTG a Tab S6 Lite-on, BLE párosítás, P20 Pro Android 8.1-en a BLE engedély).
 
-## Live képernyő + MIDI (terv, 2026-11-15, ág `claude/live-midi` — kód még nincs)
+## Live képernyő + MIDI (2026-11-15, ág `claude/live-midi`, v1.49.0 — Grid kész, Mixer/MIDI még nincs)
 - Terv: https://claude.ai/artifact/MvQ9DAErT41WG7zEUoykzJ · Layer motor mockupok: https://claude.ai/artifact/KyyAw6ViEAwZdWsTeaBaCm
 - Eldöntve: a futás gerince a **B · Grid** (oszlop = sáv, sor = klip, quantize-olt indítás), másodlagos nézet a **D · Mixer**; az A · Stage később pozíció-szerkesztő (3D színpad), a C · Look Map opcionális. A Desk (mai csatorna-csúszkás nézet) marad.
 - Telefonon (P20 Pro) és tableten (Tab S6 Lite) is; telefonon sávonként fülekkel.
@@ -122,4 +122,7 @@ _Utolsó frissítés: 2026-11-12 · app verzió: v1.47.0 (MIDI learn, ág `claud
 - **Cue + GO** az alap: a pad csak kijelöl (NEXT), a GO vált. Settings: `Pads: Select + GO / Launch directly`.
 - Nyitott: Look = Layer Preset?
 - MIDI-réteg: BeatSource (MIDI clock 24 ppqn), eszköz-szintű Settings, learn + profilok (pozíció-alapú célok), pickup mód, LED-visszajelzés. A v1.47.0 MIDI learn (`claude/midi-learn`, PR #12) erre az ágra az alap.
-- Következő: MIDI-mockupok a Design canvasban (sötét, borostyán/cián, angol UI), majd a vezérlő kiválasztása (termékadatokat a felhasználó adja). Kód csak a terv elfogadása és a felhasználó kifejezett OK-ja után.
+- MIDI-mockupok (SMC-PAD-hoz igazítva): https://claude.ai/artifact/R9L9kiBYbN4NyPStXDtMaz. Vezérlő még nincs megrendelve.
+- **Kész (v1.49.0, Grid):** `models/live_grid.dart` (sávok/sorok/klipek, projektfájlba mentve `liveGrid` kulccsal), `core/live/live_engine.dart` (sávonként saját `live:<laneId>` layer LTP-vel, `live:shutter` háttér-layer a Level-only fejeknek; saját ütemszámlálás beat-forrásból, nélküle tempoProvider BPM; quantize Now/Beat/Bar, óra-chip tap = downbeat), `state/live_providers.dart` (25 ms ticker csak aktív motornál), `features/live/` (Grid tablet ≥840 dp, telefonon sáv-chipek; Desk = régi ManualControlScreen). Settings → Live → Pads mód.
+- A Dashboard és a Wear OS remote változatlan (a Live additív).
+- Hátra: Mixer nézet, MIDI Grid-célok (sáv/sor) + LED-visszajelzés, opcionálisan Wear OS GO/NEXT végpont. Valódi eszközön még nincs tesztelve.

@@ -129,34 +129,33 @@ final liveEngineProvider = Provider<LiveEngine>((ref) {
   final clock = Stopwatch()..start();
   double seconds() => clock.elapsedMicroseconds / 1e6;
 
+  final notifier = ref.read(liveStatusProvider.notifier);
   Timer? ticker;
+  var ticks = 0;
   void ensureTicking() {
     if (engine.isActive) {
       ticker ??= Timer.periodic(const Duration(milliseconds: 25), (_) {
         engine.tick(seconds());
+        // The beat readout on screen moves even when nothing new is selected.
+        if (++ticks % 5 == 0) notifier.state = engine.status;
         if (!engine.isActive) {
           ticker?.cancel();
           ticker = null;
+          notifier.state = engine.status;
         }
       });
     }
   }
 
-  final notifier = ref.read(liveStatusProvider.notifier);
   engine.onChange = () {
     ensureTicking();
     notifier.state = engine.status;
   };
 
   final beats = ref.watch(beatPredictorProvider).events.listen((_) => engine.onBeat(seconds()));
-  // The beat readout on screen moves even when nothing new is selected.
-  final readout = Timer.periodic(const Duration(milliseconds: 120), (_) {
-    if (engine.isActive) notifier.state = engine.status;
-  });
 
   ref.onDispose(() {
     ticker?.cancel();
-    readout.cancel();
     beats.cancel();
     engine.stopAll();
   });

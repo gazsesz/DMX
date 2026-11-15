@@ -15,7 +15,7 @@ import '../dashboard/dashboard_screen.dart';
 import '../files/files_screen.dart';
 import '../fixtures/fixtures_screen.dart';
 import '../layers/layers_screen.dart';
-import '../manual_control/manual_control_screen.dart';
+import '../live/live_screen.dart';
 import '../settings/settings_screen.dart';
 
 /// Tablet layout kicks in above this width (matches the reviewed wireframes'
@@ -33,7 +33,7 @@ class _NavSection {
 
 final _sections = [
   _NavSection(label: (l) => l.navHome, icon: Icons.dashboard_outlined, screen: DashboardScreen()),
-  _NavSection(label: (l) => l.navLive, icon: Icons.tune, screen: ManualControlScreen()),
+  _NavSection(label: (l) => l.navLive, icon: Icons.tune, screen: LiveScreen()),
   _NavSection(label: (l) => l.navFiles, icon: Icons.folder_outlined, screen: FilesScreen()),
   _NavSection(label: (l) => l.navFixture, icon: Icons.lightbulb_outline, screen: FixturesScreen()),
   _NavSection(label: (l) => l.navBank, icon: Icons.grid_view_outlined, screen: BanksScreen()),

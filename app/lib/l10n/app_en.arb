@@ -2821,5 +2821,70 @@
         "type": "String"
       }
     }
-  }
+  },
+  "liveViewGrid": "Grid",
+  "liveViewDesk": "Desk",
+  "liveScenes": "SCENES",
+  "liveGo": "GO",
+  "liveLaunch": "LAUNCH",
+  "liveQuantizeNow": "Now",
+  "liveQuantizeBeat": "Beat",
+  "liveQuantizeBar": "Bar",
+  "liveNextNone": "Tap clips to mark them NEXT, then GO.",
+  "liveArmedIn": "Starts in {beats} beats",
+  "@liveArmedIn": {
+    "placeholders": {
+      "beats": {
+        "type": "int"
+      }
+    }
+  },
+  "liveMain": "MAIN",
+  "liveFreeze": "Freeze",
+  "liveStopAll": "Stop all",
+  "livePadsHint": "Pads: {mode} · change in Setup",
+  "@livePadsHint": {
+    "placeholders": {
+      "mode": {
+        "type": "String"
+      }
+    }
+  },
+  "livePadsSelectGo": "Select + GO",
+  "livePadsDirect": "Launch directly",
+  "liveTargetAll": "All",
+  "liveTargetHeads": "Heads",
+  "liveTargetPars": "PARs",
+  "liveTargetGroups": "Groups",
+  "liveLaneSpeed": "Speed",
+  "liveLaneStop": "Stop lane",
+  "liveLaneSettings": "Lane settings",
+  "liveLaneTarget": "Drives",
+  "liveEditClip": "Edit clip",
+  "liveNewClip": "New clip",
+  "liveDeleteClip": "Delete clip",
+  "liveShape": "Shape",
+  "liveSize": "Size",
+  "liveSpread": "Spread across fixtures",
+  "liveBeats": "Beats per cycle",
+  "liveBeatLocked": "Lock to the beat",
+  "liveSecondsPerLap": "Seconds per lap",
+  "livePattern": "Pattern",
+  "liveColors": "Colours",
+  "liveFade": "Fade",
+  "liveLow": "Low",
+  "liveHigh": "High",
+  "liveStrobe": "Strobe",
+  "liveStrobeOpen": "Open",
+  "liveGobo": "Gobo",
+  "liveLeaveAsIs": "Leave as is",
+  "liveZoom": "Zoom",
+  "liveNoTargets": "No fixture this lane can drive",
+  "liveDownbeatHint": "Tap: this beat is the first of the bar",
+  "liveRenameRow": "Rename row",
+  "liveAddRow": "Add row",
+  "liveSettingsTitle": "Live screen",
+  "liveSettingsPads": "Pads",
+  "liveSettingsPadsHint": "Select + GO: a tap marks the clip NEXT and GO switches every marked lane together. Launch directly: a tap starts the clip on the next beat or bar.",
+  "liveRunning": "running"
 }
