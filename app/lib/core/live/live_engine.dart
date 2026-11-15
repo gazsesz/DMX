@@ -75,7 +75,9 @@ class LiveStatus {
 /// Starts and stops a Show lane's Banks / Chases / Scenes on the app's
 /// regular players. The engine only decides *when*.
 abstract class LiveShowHost {
-  void start(LiveLane lane, LiveShowRef show);
+  /// Completes once the player has taken its layers (a Chase may first
+  /// wait for the beat source).
+  Future<void> start(LiveLane lane, LiveShowRef show);
   void stop(LiveLane lane);
 
   /// Whether what [lane] started is still playing (it may have been
@@ -297,6 +299,18 @@ class LiveEngine {
     return any;
   }
 
+  /// Re-claims every running effect lane's layer, oldest first, so they
+  /// win their channels over a Bank / Chase / Scene started after them.
+  void _keepEffectsOnTop() {
+    final effects = [
+      for (final laneId in _running.keys)
+        if (!_showLanes.contains(laneId)) laneId,
+    ]..sort((a, b) => (_startBeat[a] ?? 0).compareTo(_startBeat[b] ?? 0));
+    for (final laneId in effects) {
+      output.claimLayer(liveLayerId(laneId));
+    }
+  }
+
   void _stopShow(String laneId) {
     if (!_showLanes.remove(laneId)) return;
     final lane = grid().lane(laneId);
@@ -344,7 +358,11 @@ class LiveEngine {
       _startBeat[laneId] = atBeat;
       _glideStart[laneId] = _now;
       _showLanes.add(laneId);
-      shows?.start(lane, show);
+      final started = shows?.start(lane, show);
+      // Effect lanes stay on top of what the Grid starts: the Bank / Chase
+      // / Scene is the base look, the lanes override only their own part.
+      _keepEffectsOnTop();
+      started?.then((_) => _keepEffectsOnTop());
       return;
     }
     if (!_shutterClaimed) {

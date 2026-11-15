@@ -111,7 +111,7 @@ class _PlayerShowHost implements LiveShowHost {
   final Map<String, ({LiveShowRef show, String layerId})> _started = {};
 
   @override
-  void start(LiveLane lane, LiveShowRef show) {
+  Future<void> start(LiveLane lane, LiveShowRef show) async {
     final layerId = lane.layerId ?? layer1Id;
     _started[lane.id] = (show: show, layerId: layerId);
     switch (show.kind) {
@@ -127,13 +127,11 @@ class _PlayerShowHost implements LiveShowHost {
         final chase = chases.first;
         // Restart from the top if it is already running somewhere.
         stopEverywhere(read, chase.id);
-        unawaited(
-          startChase(
-            read,
-            chaseAsDashboardPlaysIt(read, chase),
-            playing: NowPlaying(id: chase.id, kind: PlaybackKind.chase, name: chase.name),
-            dashboardTiming: read(tempoProvider).overrideTiming,
-          ),
+        await startChase(
+          read,
+          chaseAsDashboardPlaysIt(read, chase),
+          playing: NowPlaying(id: chase.id, kind: PlaybackKind.chase, name: chase.name),
+          dashboardTiming: read(tempoProvider).overrideTiming,
         );
     }
   }
