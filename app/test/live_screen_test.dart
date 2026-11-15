@@ -84,6 +84,13 @@ void main() {
     expect(clip.colors, isNull);
     expect(find.text('Bank 1'), findsOneWidget);
 
+    // The Beam editor opens fine with no fixtures patched.
+    await tester.longPress(find.text('Strobe'));
+    await tester.pumpAndSettle();
+    expect(find.text('Gobo'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
     final before = container.read(liveGridProvider).lanes.length;
     await tester.tap(find.byKey(const ValueKey('live-add-lane')));
     await tester.pumpAndSettle();

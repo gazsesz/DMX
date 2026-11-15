@@ -290,27 +290,46 @@ class LiveBeamFx {
   final double? zoom;
   final double? goboRotation;
 
-  const LiveBeamFx({this.gobo, this.strobe, this.zoom, this.goboRotation});
+  /// Prism channel DMX value (in/out, facets), null = leave as is.
+  final int? prism;
+
+  /// Prism rotation 0..1, null = leave as is.
+  final double? prismRotation;
+
+  const LiveBeamFx({this.gobo, this.strobe, this.zoom, this.goboRotation, this.prism, this.prismRotation});
 
   LiveBeamFx copyWith({
     int? Function()? gobo,
     double? Function()? strobe,
     double? Function()? zoom,
     double? Function()? goboRotation,
+    int? Function()? prism,
+    double? Function()? prismRotation,
   }) => LiveBeamFx(
     gobo: gobo != null ? gobo() : this.gobo,
     strobe: strobe != null ? strobe() : this.strobe,
     zoom: zoom != null ? zoom() : this.zoom,
     goboRotation: goboRotation != null ? goboRotation() : this.goboRotation,
+    prism: prism != null ? prism() : this.prism,
+    prismRotation: prismRotation != null ? prismRotation() : this.prismRotation,
   );
 
-  Map<String, dynamic> toJson() => {'gobo': ?gobo, 'strobe': ?strobe, 'zoom': ?zoom, 'goboRotation': ?goboRotation};
+  Map<String, dynamic> toJson() => {
+    'gobo': ?gobo,
+    'strobe': ?strobe,
+    'zoom': ?zoom,
+    'goboRotation': ?goboRotation,
+    'prism': ?prism,
+    'prismRotation': ?prismRotation,
+  };
 
   factory LiveBeamFx.fromJson(Map<String, dynamic> json) => LiveBeamFx(
     gobo: (json['gobo'] as num?)?.toInt(),
     strobe: (json['strobe'] as num?)?.toDouble(),
     zoom: (json['zoom'] as num?)?.toDouble(),
     goboRotation: (json['goboRotation'] as num?)?.toDouble(),
+    prism: (json['prism'] as num?)?.toInt(),
+    prismRotation: (json['prismRotation'] as num?)?.toDouble(),
   );
 }
 

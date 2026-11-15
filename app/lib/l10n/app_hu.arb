@@ -1106,7 +1106,7 @@
   "liveRunning": "fut",
   "liveDockRunning": "Live Grid",
   "liveHelpTitle": "Hogyan működik a Grid",
-  "liveHelpBody": "Az oszlopok a sávok: Moves (pan/tilt), Colors (szín), Level (dimmer) és Beam (gobó, stroboszkóp, zoom). A sorok a jelenetek (Intro, Build, Drop…), minden cella egy klip.\n\n1. Koppints egy klipre: borostyán lesz (NEXT). A színpadon még nem történik semmi.\n2. Nyomd meg a GO-t: minden NEXT klip a következő ütemre vagy ütemsorra indul (Quantize), és futás közben cián.\n3. A bal oldali jelenetgombbal az egész sort egyszerre jelölöd ki.\n\nSávonként egy klip fut, így egy Colors és egy Moves klip együtt szól. Hosszú nyomással szerkeszted a klipet, a sáv fejlécére koppintva választod ki a lámpáit. A Stop all vagy a dokk Stop gombja mindent leállít.\n\nHa azt szeretnéd, hogy egy koppintás azonnal indítson: Beállítások → Live → Pads: Launch directly.",
+  "liveHelpBody": "Az oszlopok a sávok: Moves (pan/tilt), Colors (szín), Level (dimmer) és Beam (gobó, stroboszkóp, zoom). A sorok a jelenetek (Intro, Build, Drop…), minden cella egy klip.\n\n1. Koppints egy klipre: borostyán lesz (NEXT). A színpadon még nem történik semmi.\n2. Nyomd meg a GO-t: minden NEXT klip a következő ütemre vagy ütemsorra indul (Quantize), és futás közben cián.\n3. A bal oldali jelenetgombbal az egész sort egyszerre jelölöd ki.\n\nSávonként egy klip fut, így egy Colors és egy Moves klip együtt szól. Hosszú nyomással szerkeszted a klipet, a sáv fejlécére koppintva választod ki a lámpáit. A Stop all vagy a dokk Stop gombja mindent leállít.\n\nHa azt szeretnéd, hogy egy koppintás azonnal indítson: Beállítások → Live → Pads: Launch directly.\n\nSorrend: a Moves, Colors, Level és Beam sáv mindig felülírja a saját csatornáit a Gridről indított Bank, Chase vagy Scene fölött. A Moves csak mozgat: a fényt egy Level klip (vagy egy Bank) adja.",
   "liveAddLane": "Sáv hozzáadása",
   "liveDeleteLane": "Sáv törlése",
   "liveLaneLayer": "Réteg",
@@ -1116,5 +1116,11 @@
   "liveShowScene": "Scene",
   "liveShowNone": "Ebből még nincs mentve semmi.",
   "liveClipEffect": "Effekt",
-  "liveClipShow": "Bank / Chase / Scene"
+  "liveClipShow": "Bank / Chase / Scene",
+  "livePrism": "Prizma",
+  "livePrismIn": "Be",
+  "livePrismOut": "Ki",
+  "livePrismRotation": "Prizma forgatás",
+  "liveGoboRotation": "Gobó forgatás",
+  "liveDmxValue": "DMX érték"
 }

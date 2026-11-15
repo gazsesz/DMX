@@ -31,6 +31,8 @@ const _head = FixtureProfile(
       ],
     ),
     FixtureChannel(offset: 4, function: ChannelFunction.gobo),
+    FixtureChannel(offset: 5, function: ChannelFunction.prism),
+    FixtureChannel(offset: 6, function: ChannelFunction.prismRotation),
   ],
 );
 
@@ -53,7 +55,7 @@ class _Shows implements LiveShowHost {
   final stopped = <String>[];
 
   @override
-  void start(LiveLane lane, LiveShowRef show) => started[lane.id] = show;
+  Future<void> start(LiveLane lane, LiveShowRef show) async => started[lane.id] = show;
 
   @override
   void stop(LiveLane lane) {
@@ -369,6 +371,35 @@ void main() {
       expect(back.clipAt('show-2', 0)!.show, const LiveShowRef(kind: LiveShowKind.chase, id: 'c9'));
       expect(back.removeLane('show-2').clipAt('show-2', 0), isNull);
       expect(back.freeLaneId('show'), 'show-3');
+    });
+
+    test('effect lanes stay on top of a Bank started after them', () async {
+      grid = grid.withClip('show', 0, const LiveClip(name: 'B', show: LiveShowRef(kind: LiveShowKind.bank, id: 'b1')));
+      engine.tick(0);
+      engine.select('moves', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.go(quantize: LiveQuantize.now);
+      out.claimed.clear();
+      engine.select('show', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.go(quantize: LiveQuantize.now);
+      await Future<void>.delayed(Duration.zero);
+      // Claimed again after the bank's start, on both the sync and async path.
+      expect(out.claimed.where((l) => l == liveLayerId('moves')).length, 2);
+    });
+
+    test('a Beam clip sets prism and prism rotation; JSON keeps them', () {
+      const beam = LiveBeamFx(prism: 200, prismRotation: 0.5);
+      grid = grid.withClip('beam', 1, const LiveClip(name: 'Prism', beam: beam));
+      engine.tick(0);
+      engine.select('beam', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.go(quantize: LiveQuantize.now);
+      runTo(engine, 0.1);
+      final layer = out.values[liveLayerId('beam')]!;
+      expect(layer[5], 200); // h1 prism
+      expect(layer[6], 128); // h1 prism rotation
+      expect(layer[15], 200); // h2 prism
+      final back = LiveBeamFx.fromJson(beam.toJson());
+      expect(back.prism, 200);
+      expect(back.prismRotation, 0.5);
     });
   });
 }
