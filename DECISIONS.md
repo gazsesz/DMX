@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-10-24 · app verzió: v1.44.1 (Song Show, mergelve a mainbe: a556e8a)_
+_Utolsó frissítés: 2026-11-12 · app verzió: v1.47.0 (MIDI learn, ág `claude/midi-learn`)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -103,3 +103,26 @@ _Utolsó frissítés: 2026-10-24 · app verzió: v1.44.1 (Song Show, mergelve a 
 - Beállítás helye: a programgenerátor „LÁMPASORREND” blokkja (számozott előnézet; Egyedinél húzható lista, ami az épp látott sorrendből indul). A Stage layout képernyőn nincs külön kezelője.
 - Csak a bank programgenerátort érinti; a már legenerált jelenetek nem változnak (újragenerálás kell).
 - **Stage elrendező húzás (ugyanebben a PR-ban, Gabor jelzése):** a lámpa lassan és kevésbé követte az ujjat. Ok: (1) minden mozgás-esemény a *legutóbbi build* pozíciójához adta a saját deltáját — ha egy frame alatt több esemény jött, a mozgás egy része elveszett (tesztben 200 px-ből ~108 px maradt); (2) a húzás elején a felismeréshez kellő néhány pixel is elveszett; (3) minden esemény írta a patchet, ami az Art-Net csatorna-újraszámolást is futtatta. Most: abszolút követés a húzás kezdőpontjától (`DragStartBehavior.down`), húzás közben csak helyi állapot, a patch egyszer íródik, az ujj felemelésekor (`stage_layout_drag_test.dart`).
+
+## MIDI vezérlők / MIDI learn (v1.47.0, 2026-11-12, ág `claude/midi-learn`)
+- Kérés: külső MIDI kontrollerek (USB és Bluetooth) gombjai/faderei funkciókhoz, programokhoz rendelhetők legyenek, beállítási felülettel. Első lépés az általános MIDI learn; eszköz-specifikus LED-visszajelzés (pl. APC mini mk2) **még nincs**, az a következő lépés lehet.
+- Setup → „MIDI controllers” kártya → `MidiControlScreen`: eszközlista (USB + „Scan Bluetooth”), élő monitor (utolsó üzenet + utolsó akció eredménye), hozzárendelés-lista (tüzeléskor felvillan). Új hozzárendelésnél azonnal learn módba lép; learn alatt a meglévő hozzárendelések nem tüzelnek.
+- A hozzárendelések **projekt-szintűek** (`ProjectData.midiMappings`, a fájlban csak ha nem üres), mert bank/chase/Smart id-kra mutatnak; „Keep fixtures” új projektnél a nem cél-függő hozzárendelések (blackout, master, színek…) megmaradnak. A csatlakoztatott vezérlők **eszköz-szintűek** (SharedPreferences `midiControl.devices`), induláskor maguktól újracsatlakoznak (USB: id vagy név; BLE: induláskor egy csendes 12 s-os keresés, ha van megjegyzett BLE eszköz; kihúzás/visszadugás: `onMidiSetupChanged`).
+- Akciók a meglévő közös `trigger_actions`-on át (ugyanaz, mint a Dashboard és a távvezérlő): indít/leállít bank/chase/Smart, utolsó indítása, Stop, Blackout, Beat sync/Predict/AutoFade/Dropout kapcsoló, Tap tempo, szín (Colour strip), és faderek: grand master, step speed (`stepSpeedScale`), fade (`fadeTimeScale`), Movement size/speed/shift/smooth, Movement reset. Step/fade fadernél a futó chase újraindítása 400 ms-mal a fader megállása után (különben minden CC lépés az 1. lépésre dobná).
+- Gomb-logika: Note On (vel>0) tüzel, Note Off semmi (kapcsoló, nem „flash”); CC gomb a 64-es küszöb alulról való átlépésekor; Program Change mindig. Egy vezérlőhöz egy hozzárendelés (mentéskor a régi lecserélődik, a szerkesztő figyelmeztet). Relatív (végtelen) enkóderek nincsenek kezelve, csak abszolút CC.
+- Közös eszközhasználat: `MidiConnections` referenciaszámlálás — a MIDI clock beat source és a vezérlő-bemenet ugyanazt az eszközt is használhatja, egyik sem zárja be a másik alól.
+- BLE: `flutter_midi_command_ble` (universal_ble), csak Androidon kapcsolva (`main()`, a MIDI stream-ek előtt kell). Az engedélyt (Közeli eszközök / Android ≤11-en helymeghatározás) csak az első Bluetooth kereséskor kéri. A manifest-jogosultságokat a csomag hozza (`BLUETOOTH_SCAN neverForLocation`). iOS/macOS Info.plist kapott `NSBluetoothAlwaysUsageDescription`-t.
+- Valódi vezérlővel még nem próbált (USB OTG a Tab S6 Lite-on, BLE párosítás, P20 Pro Android 8.1-en a BLE engedély).
+
+## Live képernyő + MIDI (2026-11-15, ág `claude/live-midi`, v1.49.0 — Grid kész, Mixer/MIDI még nincs)
+- Terv: https://claude.ai/artifact/MvQ9DAErT41WG7zEUoykzJ · Layer motor mockupok: https://claude.ai/artifact/KyyAw6ViEAwZdWsTeaBaCm
+- Eldöntve: a futás gerince a **B · Grid** (oszlop = sáv, sor = klip, quantize-olt indítás), másodlagos nézet a **D · Mixer**; az A · Stage később pozíció-szerkesztő (3D színpad), a C · Look Map opcionális. A Desk (mai csatorna-csúszkás nézet) marad.
+- Telefonon (P20 Pro) és tableten (Tab S6 Lite) is; telefonon sávonként fülekkel.
+- A **Level** (dimmer-minta) külön sáv; a **Main** a grand master.
+- **Cue + GO** az alap: a pad csak kijelöl (NEXT), a GO vált. Settings: `Pads: Select + GO / Launch directly`.
+- Nyitott: Look = Layer Preset?
+- MIDI-réteg: BeatSource (MIDI clock 24 ppqn), eszköz-szintű Settings, learn + profilok (pozíció-alapú célok), pickup mód, LED-visszajelzés. A v1.47.0 MIDI learn (`claude/midi-learn`, PR #12) erre az ágra az alap.
+- MIDI-mockupok (SMC-PAD-hoz igazítva): https://claude.ai/artifact/R9L9kiBYbN4NyPStXDtMaz. Vezérlő még nincs megrendelve.
+- **Kész (v1.49.0, Grid):** `models/live_grid.dart` (sávok/sorok/klipek, projektfájlba mentve `liveGrid` kulccsal), `core/live/live_engine.dart` (sávonként saját `live:<laneId>` layer LTP-vel, `live:shutter` háttér-layer a Level-only fejeknek; saját ütemszámlálás beat-forrásból, nélküle tempoProvider BPM; quantize Now/Beat/Bar, óra-chip tap = downbeat), `state/live_providers.dart` (25 ms ticker csak aktív motornál), `features/live/` (Grid tablet ≥840 dp, telefonon sáv-chipek; Desk = régi ManualControlScreen). Settings → Live → Pads mód.
+- A Dashboard és a Wear OS remote változatlan (a Live additív).
+- Hátra: Mixer nézet, MIDI Grid-célok (sáv/sor) + LED-visszajelzés, opcionálisan Wear OS GO/NEXT végpont. Valódi eszközön még nincs tesztelve.

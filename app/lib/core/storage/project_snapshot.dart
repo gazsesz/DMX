@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../models/midi_mapping.dart';
 import '../../models/project_data.dart';
 import '../../models/stage_plan.dart';
 import '../../state/artnet_providers.dart';
@@ -10,6 +11,8 @@ import '../../state/dimmer_dropout_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
+import '../../state/live_providers.dart';
+import '../../state/midi_control_providers.dart';
 import '../../state/project_providers.dart';
 import '../../state/scene_providers.dart';
 import '../../state/smart_program_providers.dart';
@@ -39,6 +42,8 @@ ProjectData buildProjectSnapshot(WidgetRef ref) {
     positionPresets: ref.read(positionPresetsProvider),
     lastSelectedBankId: ref.read(selectedBankIdProvider),
     dimmerDropout: ref.read(dimmerDropoutProvider),
+    midiMappings: ref.read(midiMappingsProvider),
+    liveGrid: ref.read(liveGridProvider),
   );
 }
 
@@ -105,6 +110,8 @@ void startProject(
       positionPresets: source.positionPresets,
       lastSelectedBankId: source.lastSelectedBankId,
       dimmerDropout: source.dimmerDropout,
+      midiMappings: source.midiMappings,
+      liveGrid: source.liveGrid,
     ));
     return;
   }
@@ -119,6 +126,8 @@ void startProject(
     // The stage and the saved positions describe the rig, not the show.
     ref.read(stagePlanProvider.notifier).load(source.stagePlan);
     ref.read(positionPresetsProvider.notifier).loadAll(source.positionPresets);
+    // The lanes point at this rig's groups, so the grid carries over with it.
+    ref.read(liveGridProvider.notifier).load(source.liveGrid);
   } else {
     ref.read(universesProvider.notifier).reset();
     ref.read(fixtureLibraryProvider.notifier).loadAll(const []);
@@ -126,6 +135,7 @@ void startProject(
     ref.read(fixtureGroupsProvider.notifier).loadAll(const []);
     ref.read(stagePlanProvider.notifier).load(const StagePlan());
     ref.read(positionPresetsProvider.notifier).loadAll(const []);
+    ref.read(liveGridProvider.notifier).load(null);
   }
   ref.read(scenesProvider.notifier).loadAll(const []);
   ref.read(banksProvider.notifier).reset();
@@ -136,6 +146,11 @@ void startProject(
   ref.read(layersProvider.notifier).reset();
   ref.read(dimmerDropoutProvider.notifier).update(const DropoutSettings());
   ref.read(selectedBankIdProvider.notifier).state = null;
+  // The controller's pads that start banks and chases point at things that
+  // are gone now; the rest (blackout, master, colours…) still mean the same.
+  ref.read(midiMappingsProvider.notifier).loadAll([
+    for (final m in source.midiMappings) if (m.action != MidiActionKind.playTarget) m,
+  ]);
 }
 
 /// The inverse of [buildProjectSnapshot] — pushes a loaded [ProjectData] into
@@ -160,4 +175,6 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(layersProvider.notifier).loadAll(data.layers);
   ref.read(dimmerDropoutProvider.notifier).update(data.dimmerDropout);
   ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;
+  ref.read(midiMappingsProvider.notifier).loadAll(data.midiMappings);
+  ref.read(liveGridProvider.notifier).load(data.liveGrid);
 }

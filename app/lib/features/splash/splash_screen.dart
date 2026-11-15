@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_providers.dart';
+import '../../state/midi_control_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/remote_providers.dart';
 import '../../state/tempo_providers.dart';
@@ -49,6 +50,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     // And this one follows the detected beat into the tempo, which has to
     // keep happening whether or not the control panel is open.
     watchBeatTempo(ref.read);
+    watchMidiControl(ref.read);
     await _loadLastProject();
     await _connectToNode();
     // Bring the remote-control endpoint up before the UI, so a watch macro
