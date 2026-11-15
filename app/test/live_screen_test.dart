@@ -54,6 +54,51 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
+  testWidgets('a pad can hold a Bank / Chase / Scene; lanes can be added', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = ProviderContainer();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LiveScreen())),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.longPress(find.text('Warm wash'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Bank / Chase / Scene'));
+    await tester.pumpAndSettle();
+    // Nothing picked yet: Save stays off.
+    expect(tester.widget<FilledButton>(find.byKey(const ValueKey('live-clip-save'))).onPressed, isNull);
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Bank 1'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('live-clip-save')));
+    await tester.pumpAndSettle();
+    final clip = container.read(liveGridProvider).clipAt('colors-pars', 0)!;
+    expect(clip.show?.kind, LiveShowKind.bank);
+    expect(clip.name, 'Bank 1');
+    expect(clip.colors, isNull);
+    expect(find.text('Bank 1'), findsOneWidget);
+
+    final before = container.read(liveGridProvider).lanes.length;
+    await tester.tap(find.byKey(const ValueKey('live-add-lane')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('live-add-lane-show')));
+    await tester.pumpAndSettle();
+    final lanes = container.read(liveGridProvider).lanes;
+    expect(lanes.length, before + 1);
+    expect(lanes.last.kind, LiveLaneKind.show);
+    expect(lanes.last.id, 'show-2');
+
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
   testWidgets('phone Grid shows lane chips and a GO button', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(360, 740);

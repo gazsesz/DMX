@@ -4,9 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/live/live_engine.dart';
 import '../../core/theme/app_colors.dart';
 import '../../l10n/l10n.dart';
+import '../../models/layer.dart';
 import '../../models/live_grid.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_group_providers.dart';
+import '../../state/layer_providers.dart';
 import '../../state/live_providers.dart';
 import '../../state/playback_providers.dart';
 import 'live_clip_editor.dart';
@@ -39,7 +41,19 @@ String liveLaneKindLabel(LiveLaneKind kind) => switch (kind) {
   LiveLaneKind.colors => 'Colors',
   LiveLaneKind.level => 'Level',
   LiveLaneKind.beam => 'Beam',
+  LiveLaneKind.show => 'Show',
 };
+
+/// The second line under a lane's name: its fixtures, or for a Show lane
+/// the layer its Banks / Scenes play on.
+String liveLaneSubtitle(BuildContext context, WidgetRef ref, LiveLane lane) {
+  if (lane.kind != LiveLaneKind.show) return liveTargetLabel(context.l10n, lane.target);
+  final layers = ref.watch(layersProvider);
+  for (final layer in layers) {
+    if (layer.id == (lane.layerId ?? layer1Id)) return layer.name;
+  }
+  return layers.isEmpty ? '' : layers.first.name;
+}
 
 /// The BPM and where in the bar the clock is. A tap makes this beat the
 /// first of the bar.
@@ -155,13 +169,46 @@ Future<String?> _askName(BuildContext context, String title, String initial) {
     context: context,
     builder: (context) => AlertDialog(
       title: Text(title),
-      content: TextField(controller: controller, autofocus: true, decoration: InputDecoration(labelText: context.l10n.commonName)),
+      content: TextField(
+        controller: controller,
+        autofocus: true,
+        decoration: InputDecoration(labelText: context.l10n.commonName),
+      ),
       actions: [
         TextButton(onPressed: () => Navigator.pop(context), child: Text(context.l10n.commonCancel)),
         FilledButton(onPressed: () => Navigator.pop(context, controller.text), child: Text(context.l10n.commonSave)),
       ],
     ),
   );
+}
+
+Future<void> _addLane(BuildContext context, WidgetRef ref) async {
+  final kind = await showDialog<LiveLaneKind>(
+    context: context,
+    builder: (context) => SimpleDialog(
+      title: Text(context.l10n.liveAddLane),
+      children: [
+        for (final k in LiveLaneKind.values)
+          SimpleDialogOption(
+            key: ValueKey('live-add-lane-${k.name}'),
+            onPressed: () => Navigator.pop(context, k),
+            child: Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: Text(liveLaneKindLabel(k))),
+          ),
+      ],
+    ),
+  );
+  if (kind == null) return;
+  final grid = ref.read(liveGridProvider);
+  ref
+      .read(liveGridProvider.notifier)
+      .addLane(
+        LiveLane(
+          id: grid.freeLaneId(kind.name),
+          name: liveLaneKindLabel(kind),
+          kind: kind,
+          target: kind == LiveLaneKind.moves || kind == LiveLaneKind.beam ? LiveTargetKind.heads : LiveTargetKind.all,
+        ),
+      );
 }
 
 Future<void> _laneSettings(BuildContext context, WidgetRef ref, LiveLane lane) async {
@@ -183,6 +230,7 @@ class _GridTable extends ConsumerWidget {
     final l = context.l10n;
     const sceneWidth = 112.0;
     const gap = 8.0;
+    const addWidth = 44.0;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       child: Column(
@@ -192,12 +240,22 @@ class _GridTable extends ConsumerWidget {
             children: [
               SizedBox(
                 width: sceneWidth,
-                child: Text(l.liveScenes, style: const TextStyle(color: AppColors.textDim, fontSize: 11, letterSpacing: 0.8)),
+                child: Text(
+                  l.liveScenes,
+                  style: const TextStyle(color: AppColors.textDim, fontSize: 11, letterSpacing: 0.8),
+                ),
               ),
-              for (final lane in grid.lanes) ...[
-                const SizedBox(width: gap),
-                Expanded(child: _LaneHeader(lane: lane)),
-              ],
+              for (final lane in grid.lanes) ...[const SizedBox(width: gap), Expanded(child: _LaneHeader(lane: lane))],
+              const SizedBox(width: gap),
+              SizedBox(
+                width: addWidth,
+                child: IconButton.outlined(
+                  key: const ValueKey('live-add-lane'),
+                  tooltip: l.liveAddLane,
+                  onPressed: () => _addLane(context, ref),
+                  icon: const Icon(Icons.add),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: gap),
@@ -212,11 +270,17 @@ class _GridTable extends ConsumerWidget {
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          SizedBox(width: sceneWidth, child: _SceneButton(row: row)),
+                          SizedBox(
+                            width: sceneWidth,
+                            child: _SceneButton(row: row),
+                          ),
                           for (final lane in grid.lanes) ...[
                             const SizedBox(width: gap),
-                            Expanded(child: _ClipCell(lane: lane, row: row)),
+                            Expanded(
+                              child: _ClipCell(lane: lane, row: row),
+                            ),
                           ],
+                          const SizedBox(width: gap + addWidth),
                         ],
                       ),
                     ),
@@ -236,10 +300,8 @@ class _GridTable extends ConsumerWidget {
           Row(
             children: [
               const SizedBox(width: sceneWidth),
-              for (final lane in grid.lanes) ...[
-                const SizedBox(width: gap),
-                Expanded(child: _LaneFooter(lane: lane)),
-              ],
+              for (final lane in grid.lanes) ...[const SizedBox(width: gap), Expanded(child: _LaneFooter(lane: lane))],
+              const SizedBox(width: gap + addWidth),
             ],
           ),
         ],
@@ -269,9 +331,14 @@ class _LaneHeader extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(lane.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
                     Text(
-                      liveTargetLabel(context.l10n, lane.target),
+                      lane.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                    Text(
+                      liveLaneSubtitle(context, ref, lane),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(color: AppColors.textDim, fontSize: 11),
@@ -297,17 +364,20 @@ class _LaneFooter extends ConsumerWidget {
     final l = context.l10n;
     return Row(
       children: [
-        Expanded(
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44), padding: EdgeInsets.zero),
-            onPressed: () {
-              final i = liveLaneSpeeds.indexOf(lane.speed);
-              final next = liveLaneSpeeds[(i + 1) % liveLaneSpeeds.length];
-              ref.read(liveGridProvider.notifier).updateLane(lane.copyWith(speed: next));
-            },
-            child: Text('${l.liveLaneSpeed} ${liveSpeedLabel(lane.speed)}', style: const TextStyle(fontSize: 12)),
+        if (lane.kind == LiveLaneKind.show)
+          const Spacer()
+        else
+          Expanded(
+            child: OutlinedButton(
+              style: OutlinedButton.styleFrom(minimumSize: const Size(0, 44), padding: EdgeInsets.zero),
+              onPressed: () {
+                final i = liveLaneSpeeds.indexOf(lane.speed);
+                final next = liveLaneSpeeds[(i + 1) % liveLaneSpeeds.length];
+                ref.read(liveGridProvider.notifier).updateLane(lane.copyWith(speed: next));
+              },
+              child: Text('${l.liveLaneSpeed} ${liveSpeedLabel(lane.speed)}', style: const TextStyle(fontSize: 12)),
+            ),
           ),
-        ),
         const SizedBox(width: 6),
         SizedBox(
           width: 44,
@@ -439,7 +509,12 @@ class LiveClipTile extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(c.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                        Text(
+                          c.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
                         Text(
                           clipSummary(c),
                           maxLines: 1,
@@ -450,7 +525,12 @@ class LiveClipTile extends StatelessWidget {
                         if (next)
                           Text(
                             armedIn == null ? 'NEXT' : 'NEXT · ${l.liveArmedIn(armedIn!)}',
-                            style: const TextStyle(color: AppColors.accent, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 0.5),
+                            style: const TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 0.5,
+                            ),
                           )
                         else if (running)
                           Text(
@@ -471,6 +551,13 @@ String _beats(double b) => b == b.roundToDouble() ? b.toStringAsFixed(0) : b.toS
 
 /// One line under a clip's name: what it does and how fast.
 String clipSummary(LiveClip clip) {
+  if (clip.show != null) {
+    return switch (clip.show!.kind) {
+      LiveShowKind.bank => 'Bank',
+      LiveShowKind.chase => 'Chase',
+      LiveShowKind.scene => 'Scene',
+    };
+  }
   if (clip.moves != null) {
     final m = clip.moves!;
     final timing = m.beatLocked ? '${_beats(m.beats)} beats' : '${m.periodSec.toStringAsFixed(0)} s';
@@ -573,7 +660,9 @@ class _SidePanel extends ConsumerWidget {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Expanded(child: _PanelButton(label: l.liveStopAll, onPressed: engine.stopAll)),
+                        Expanded(
+                          child: _PanelButton(label: l.liveStopAll, onPressed: engine.stopAll),
+                        ),
                         const SizedBox(height: 8),
                         Expanded(
                           child: _PanelButton(
@@ -712,12 +801,18 @@ class _PhoneGridState extends ConsumerState<_PhoneGrid> {
                 Padding(
                   padding: const EdgeInsets.only(right: 6),
                   child: ChoiceChip(
-                    label: Text('${ln.name} · ${liveTargetLabel(l, ln.target)}'),
+                    label: Text('${ln.name} · ${liveLaneSubtitle(context, ref, ln)}'),
                     avatar: status.running.containsKey(ln.id) ? const Icon(Icons.graphic_eq, size: 16) : null,
                     selected: ln.id == lane.id,
                     onSelected: (_) => setState(() => _laneId = ln.id),
                   ),
                 ),
+              ActionChip(
+                key: const ValueKey('live-add-lane'),
+                avatar: const Icon(Icons.add, size: 16),
+                label: Text(l.liveAddLane),
+                onPressed: () => _addLane(context, ref),
+              ),
             ],
           ),
         ),
@@ -733,7 +828,9 @@ class _PhoneGridState extends ConsumerState<_PhoneGrid> {
                 children: [
                   SizedBox(width: 88, child: _SceneButton(row: row)),
                   const SizedBox(width: 8),
-                  Expanded(child: _ClipCell(lane: lane, row: row)),
+                  Expanded(
+                    child: _ClipCell(lane: lane, row: row),
+                  ),
                 ],
               ),
             ),
@@ -766,7 +863,10 @@ class _PhoneGridState extends ConsumerState<_PhoneGrid> {
                     child: SizedBox(
                       height: 56,
                       child: FilledButton(
-                        style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: AppColors.accentOn),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.accent,
+                          foregroundColor: AppColors.accentOn,
+                        ),
                         onPressed: status.queued.isEmpty ? null : () => engine.go(quantize: prefs.quantize),
                         child: Text(l.liveGo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
                       ),
@@ -785,7 +885,10 @@ class _PhoneGridState extends ConsumerState<_PhoneGrid> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  SizedBox(height: 56, child: OutlinedButton(onPressed: engine.stopAll, child: Text(l.commonStop))),
+                  SizedBox(
+                    height: 56,
+                    child: OutlinedButton(onPressed: engine.stopAll, child: Text(l.commonStop)),
+                  ),
                 ],
               ),
             ],
@@ -807,6 +910,7 @@ class _LaneSettingsSheet extends ConsumerWidget {
     final l = context.l10n;
     final lane = ref.watch(liveGridProvider.select((g) => g.lane(laneId)));
     final groups = ref.watch(fixtureGroupsProvider);
+    final layers = ref.watch(layersProvider);
     if (lane == null) return const SizedBox.shrink();
     void update(LiveLane next) => ref.read(liveGridProvider.notifier).updateLane(next);
     return SafeArea(
@@ -818,58 +922,100 @@ class _LaneSettingsSheet extends ConsumerWidget {
           children: [
             Text('${lane.name} · ${liveLaneKindLabel(lane.kind)}', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 16),
-            Text(l.liveLaneTarget, style: const TextStyle(color: AppColors.textDim)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 6,
-              children: [
-                for (final t in LiveTargetKind.values)
-                  if (t != LiveTargetKind.groups || groups.isNotEmpty)
-                    ChoiceChip(
-                      label: Text(liveTargetLabel(l, t)),
-                      selected: lane.target == t,
-                      onSelected: (_) => update(lane.copyWith(target: t)),
-                    ),
-              ],
-            ),
-            if (lane.target == LiveTargetKind.groups) ...[
-              const SizedBox(height: 8),
+            if (lane.kind == LiveLaneKind.show) ...[
+              Text(l.liveLaneLayer, style: const TextStyle(color: AppColors.textDim)),
+              const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
                 children: [
-                  for (final g in groups)
-                    FilterChip(
-                      label: Text(g.name),
-                      selected: lane.groupIds.contains(g.id),
-                      onSelected: (on) => update(
-                        lane.copyWith(groupIds: on ? [...lane.groupIds, g.id] : [for (final id in lane.groupIds) if (id != g.id) id]),
+                  for (final layer in layers)
+                    ChoiceChip(
+                      label: Text(layer.name),
+                      selected: (lane.layerId ?? layer1Id) == layer.id,
+                      onSelected: (_) => update(lane.copyWith(layerId: layer.id)),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(l.liveLaneLayerHint, style: const TextStyle(color: AppColors.textDim, fontSize: 12)),
+            ] else ...[
+              Text(l.liveLaneTarget, style: const TextStyle(color: AppColors.textDim)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final t in LiveTargetKind.values)
+                    if (t != LiveTargetKind.groups || groups.isNotEmpty)
+                      ChoiceChip(
+                        label: Text(liveTargetLabel(l, t)),
+                        selected: lane.target == t,
+                        onSelected: (_) => update(lane.copyWith(target: t)),
                       ),
+                ],
+              ),
+              if (lane.target == LiveTargetKind.groups) ...[
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  children: [
+                    for (final g in groups)
+                      FilterChip(
+                        label: Text(g.name),
+                        selected: lane.groupIds.contains(g.id),
+                        onSelected: (on) => update(
+                          lane.copyWith(
+                            groupIds: on
+                                ? [...lane.groupIds, g.id]
+                                : [
+                                    for (final id in lane.groupIds)
+                                      if (id != g.id) id,
+                                  ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
+              Text(l.liveLaneSpeed, style: const TextStyle(color: AppColors.textDim)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 6,
+                children: [
+                  for (final s in liveLaneSpeeds)
+                    ChoiceChip(
+                      label: Text(liveSpeedLabel(s)),
+                      selected: lane.speed == s,
+                      onSelected: (_) => update(lane.copyWith(speed: s)),
                     ),
                 ],
               ),
             ],
             const SizedBox(height: 16),
-            Text(l.liveLaneSpeed, style: const TextStyle(color: AppColors.textDim)),
-            const SizedBox(height: 6),
             Wrap(
-              spacing: 6,
+              spacing: 8,
+              runSpacing: 8,
               children: [
-                for (final s in liveLaneSpeeds)
-                  ChoiceChip(
-                    label: Text(liveSpeedLabel(s)),
-                    selected: lane.speed == s,
-                    onSelected: (_) => update(lane.copyWith(speed: s)),
-                  ),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    ref.read(liveEngineProvider).stopLane(lane.id);
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(Icons.stop),
+                  label: Text(l.liveLaneStop),
+                ),
+                TextButton.icon(
+                  key: const ValueKey('live-delete-lane'),
+                  style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                  onPressed: () {
+                    ref.read(liveEngineProvider).stopLane(lane.id);
+                    ref.read(liveGridProvider.notifier).removeLane(lane.id);
+                    Navigator.pop(context);
+                  },
+                  icon: const Icon(Icons.delete_outline),
+                  label: Text(l.liveDeleteLane),
+                ),
               ],
-            ),
-            const SizedBox(height: 16),
-            OutlinedButton.icon(
-              onPressed: () {
-                ref.read(liveEngineProvider).stopLane(lane.id);
-                Navigator.pop(context);
-              },
-              icon: const Icon(Icons.stop),
-              label: Text(l.liveLaneStop),
             ),
           ],
         ),

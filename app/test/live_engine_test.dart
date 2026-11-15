@@ -48,6 +48,23 @@ const _par = FixtureProfile(
 PatchedFixture _fx(String id, FixtureProfile p, int start, double x) =>
     PatchedFixture(id: id, label: id, profile: p, universeId: 'u', startChannel: start, layoutX: x, layoutY: 0.2);
 
+class _Shows implements LiveShowHost {
+  final started = <String, LiveShowRef>{};
+  final stopped = <String>[];
+
+  @override
+  void start(LiveLane lane, LiveShowRef show) => started[lane.id] = show;
+
+  @override
+  void stop(LiveLane lane) {
+    stopped.add(lane.id);
+    started.remove(lane.id);
+  }
+
+  @override
+  bool isPlaying(LiveLane lane) => started.containsKey(lane.id);
+}
+
 class _Out implements LiveOutput {
   final values = <String, Map<int, int>>{};
   final buffer = List<int>.filled(512, 0);
@@ -288,6 +305,70 @@ void main() {
       expect(back.clipAt('colors-heads', 2)!.colors!.colors, [0xFF0000, 0xFFFFFF]);
       expect(back.clipAt('moves', 0)!.moves!.shape, MovementShape.circle);
       expect(back.clipAt('beam', 2)!.beam!.strobe, 0.6);
+    });
+  });
+
+  group('Bank / Chase / Scene clips', () {
+    late _Shows shows;
+    setUp(() {
+      shows = _Shows();
+      engine = LiveEngine(output: out, grid: () => grid, rig: () => rig, fallbackBpm: () => 120, shows: shows);
+    });
+
+    test('a Show lane clip starts on GO and stops with the lane', () {
+      const bank = LiveShowRef(kind: LiveShowKind.bank, id: 'b1');
+      grid = grid.withClip('show', 0, const LiveClip(name: 'Bank 1', show: bank));
+      engine.tick(0);
+      engine.select('show', 0, mode: LivePadMode.selectThenGo, quantize: LiveQuantize.now);
+      expect(shows.started, isEmpty);
+      engine.go(quantize: LiveQuantize.now);
+      expect(shows.started, {'show': bank});
+      expect(engine.status.running, {'show': 0});
+      expect(out.claimed, isNot(contains(liveLayerId('show'))));
+      engine.stopLane('show');
+      expect(shows.stopped, ['show']);
+      expect(engine.status.running, isEmpty);
+    });
+
+    test('any lane can hold one; switching back to an effect stops it', () {
+      const chase = LiveShowRef(kind: LiveShowKind.chase, id: 'c1');
+      grid = grid.withClip('colors-pars', 4, const LiveClip(name: 'My chase', show: chase));
+      engine.tick(0);
+      engine.select('colors-pars', 4, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.go(quantize: LiveQuantize.now);
+      expect(shows.started, {'colors-pars': chase});
+      runTo(engine, 0.5);
+      // The engine writes nothing of its own for that lane.
+      expect(out.values[liveLayerId('colors-pars')], isNull);
+
+      engine.select('colors-pars', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.go(quantize: LiveQuantize.now);
+      runTo(engine, 0.6);
+      expect(shows.stopped, ['colors-pars']);
+      expect(out.values[liveLayerId('colors-pars')], isNotEmpty);
+    });
+
+    test('stopped from elsewhere: the lane stops counting as running', () {
+      grid = grid.withClip('show', 1, const LiveClip(name: 'S', show: LiveShowRef(kind: LiveShowKind.scene, id: 's1')));
+      engine.tick(0);
+      engine.select('show', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.go(quantize: LiveQuantize.now);
+      shows.started.clear(); // e.g. Dashboard Stop
+      runTo(engine, 0.5);
+      expect(engine.status.running, {'show': 1}); // grace period
+      runTo(engine, 1.2);
+      expect(engine.status.running, isEmpty);
+    });
+
+    test('show clips and lane layers survive JSON', () {
+      final g = LiveGrid.starter()
+          .addLane(const LiveLane(id: 'show-2', name: 'Show', kind: LiveLaneKind.show, layerId: 'layer-2'))
+          .withClip('show-2', 0, const LiveClip(name: 'X', show: LiveShowRef(kind: LiveShowKind.chase, id: 'c9')));
+      final back = LiveGrid.fromJson(g.toJson());
+      expect(back.lane('show-2')!.layerId, 'layer-2');
+      expect(back.clipAt('show-2', 0)!.show, const LiveShowRef(kind: LiveShowKind.chase, id: 'c9'));
+      expect(back.removeLane('show-2').clipAt('show-2', 0), isNull);
+      expect(back.freeLaneId('show'), 'show-3');
     });
   });
 }
