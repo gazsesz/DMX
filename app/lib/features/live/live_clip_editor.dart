@@ -68,6 +68,9 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
   /// of the lane's own effect.
   late bool _useShow;
 
+  /// Wheel/prism channels being set by raw DMX value rather than by name.
+  final Set<ChannelFunction> _raw = {};
+
   @override
   void initState() {
     super.initState();
@@ -435,23 +438,12 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
             selected: b.gobo == null,
             onSelected: (_) => set(b.copyWith(gobo: () => null)),
           ),
-          for (final cap in gobos)
-            ChoiceChip(
-              label: Text(cap.label),
-              selected: b.gobo == cap.pickValue,
-              onSelected: (_) => set(b.copyWith(gobo: () => cap.pickValue)),
-            ),
-          // A wheel with no named slots in its profile: set the raw value.
-          if (gobos.isEmpty && _laneHas(ChannelFunction.gobo))
-            ChoiceChip(
-              label: Text(l.liveDmxValue),
-              selected: b.gobo != null,
-              onSelected: (_) => set(b.copyWith(gobo: () => b.gobo ?? 0)),
-            ),
+          ..._capChips(ChannelFunction.gobo, gobos, b.gobo, (v) => set(b.copyWith(gobo: () => v))),
         ],
       ),
-      if (gobos.isEmpty && b.gobo != null) _dmxSlider(b.gobo!, (v) => set(b.copyWith(gobo: () => v))),
-      if (hasGoboRotation) ..._rotation(l.liveGoboRotation, b.goboRotation, (v) => set(b.copyWith(goboRotation: () => v))),
+      ..._capSlider(ChannelFunction.gobo, gobos, b.gobo, (v) => set(b.copyWith(gobo: () => v))),
+      if (hasGoboRotation)
+        ..._rotation(l.liveGoboRotation, b.goboRotation, (v) => set(b.copyWith(goboRotation: () => v))),
       if (hasPrism) ...[
         _label(l.livePrism),
         Wrap(
@@ -464,39 +456,20 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
               selected: b.prism == null,
               onSelected: (_) => set(b.copyWith(prism: () => null)),
             ),
-            if (prisms.isNotEmpty)
-              for (final cap in prisms)
-                ChoiceChip(
-                  label: Text(cap.label),
-                  selected: b.prism == cap.pickValue,
-                  onSelected: (_) => set(b.copyWith(prism: () => cap.pickValue)),
-                )
-            else ...[
-              // No named ranges in the profile: out at 0, in at the top.
-              ChoiceChip(
-                label: Text(l.livePrismOut),
-                selected: b.prism == 0,
-                onSelected: (_) => set(b.copyWith(prism: () => 0)),
-              ),
-              ChoiceChip(
-                label: Text(l.livePrismIn),
-                selected: b.prism != null && b.prism! > 0,
-                onSelected: (_) => set(b.copyWith(prism: () => 255)),
-              ),
-            ],
+            ..._capChips(ChannelFunction.prism, prisms, b.prism, (v) => set(b.copyWith(prism: () => v))),
           ],
         ),
-        if (prisms.isEmpty && b.prism != null && b.prism! > 0)
-          _dmxSlider(b.prism!, (v) => set(b.copyWith(prism: () => v))),
+        ..._capSlider(ChannelFunction.prism, prisms, b.prism, (v) => set(b.copyWith(prism: () => v))),
       ],
       if (hasPrismRotation)
         ..._rotation(l.livePrismRotation, b.prismRotation, (v) => set(b.copyWith(prismRotation: () => v))),
-      SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        title: Text(l.liveZoom),
-        value: b.zoom != null,
-        onChanged: (on) => set(b.copyWith(zoom: () => on ? 0.5 : null)),
-      ),
+      if (_laneHas(ChannelFunction.zoom) || b.zoom != null)
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: Text(l.liveZoom),
+          value: b.zoom != null,
+          onChanged: (on) => set(b.copyWith(zoom: () => on ? 0.5 : null)),
+        ),
       if (b.zoom != null)
         Slider(
           value: b.zoom!.clamp(0.0, 1.0),
@@ -504,15 +477,6 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
         ),
     ];
   }
-
-  Widget _dmxSlider(int value, ValueChanged<int> onChanged) => Row(
-    children: [
-      Expanded(
-        child: Slider(value: value.clamp(0, 255).toDouble(), max: 255, onChanged: (v) => onChanged(v.round())),
-      ),
-      SizedBox(width: 40, child: Text('$value', textAlign: TextAlign.end)),
-    ],
-  );
 
   /// A rotation channel: off (leave as is) or a speed/position 0..100 %.
   List<Widget> _rotation(String label, double? value, ValueChanged<double?> onChanged) => [
@@ -536,7 +500,62 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
   bool _laneHas(ChannelFunction fn) =>
       targetsOf(widget.lane, _rig()).any((f) => f.profile.channels.any((c) => c.function == fn));
 
-  /// Named slots of [fn] on the first fixture this lane drives that has them.
+  /// One chip per named range of a wheel/prism channel, plus "DMX value"
+  /// for anything the names don't cover. [value] null = leave as is.
+  List<Widget> _capChips(ChannelFunction fn, List<ChannelCapability> caps, int? value, ValueChanged<int> onPick) {
+    final raw = value != null && (_raw.contains(fn) || !caps.any((c) => c.contains(value)));
+    return [
+      for (final cap in caps)
+        ChoiceChip(
+          label: Text(cap.label),
+          selected: !raw && value != null && cap.contains(value),
+          onSelected: (_) {
+            _raw.remove(fn);
+            onPick(cap.pickValue);
+          },
+        ),
+      ChoiceChip(
+        label: Text(context.l10n.liveDmxValue),
+        selected: raw,
+        onSelected: (_) {
+          _raw.add(fn);
+          onPick(value ?? 0);
+        },
+      ),
+    ];
+  }
+
+  /// Under the chips: a fine slider inside a picked span (e.g. "prism
+  /// rotation slow → fast"), or the whole 0–255 for a raw DMX value.
+  List<Widget> _capSlider(ChannelFunction fn, List<ChannelCapability> caps, int? value, ValueChanged<int> onChanged) {
+    if (value == null) return const [];
+    ChannelCapability? cap;
+    if (!_raw.contains(fn)) {
+      for (final c in caps) {
+        if (c.contains(value)) cap = c;
+      }
+    }
+    if (cap != null && (cap.kind != CapabilityKind.range || cap.max <= cap.min)) return const [];
+    final lo = cap?.min ?? 0;
+    final hi = cap?.max ?? 255;
+    return [
+      Row(
+        children: [
+          Expanded(
+            child: Slider(
+              value: value.clamp(lo, hi).toDouble(),
+              min: lo.toDouble(),
+              max: hi.toDouble(),
+              onChanged: (v) => onChanged(v.round()),
+            ),
+          ),
+          SizedBox(width: 40, child: Text('$value', textAlign: TextAlign.end)),
+        ],
+      ),
+    ];
+  }
+
+  /// Named ranges of [fn] on the first fixture this lane drives that has them.
   List<ChannelCapability> _slots(ChannelFunction fn) {
     final rig = LiveRig(
       fixtures: ref.read(patchedFixturesProvider),
@@ -547,10 +566,7 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
     for (final f in targetsOf(widget.lane, rig)) {
       for (final c in f.profile.channels) {
         if (c.function == fn && c.capabilities.isNotEmpty) {
-          return [
-            for (final cap in c.capabilities)
-              if (cap.kind != CapabilityKind.range) cap,
-          ];
+          return [for (final cap in c.capabilities) cap];
         }
       }
     }
