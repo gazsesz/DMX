@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../features/dashboard/live_stage_view.dart';
 import '../../models/control_dock_prefs.dart';
 import '../../state/audio_providers.dart';
+import '../../state/live_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/dimmer_dropout_providers.dart';
 import '../../state/playback_providers.dart';
@@ -183,6 +184,9 @@ class _DockControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final nowPlaying = ref.watch(nowPlayingProvider);
+    // The Live Grid runs outside the player/layer system, so it counts as
+    // "playing" here on its own.
+    final liveRunning = ref.watch(liveStatusProvider.select((s) => s.anyRunning));
     final beatSync = ref.watch(beatSyncEnabledProvider);
     final beatPrediction = ref.watch(beatPredictionEnabledProvider);
     final lastPlayed = ref.watch(lastPlayedProvider);
@@ -199,11 +203,11 @@ class _DockControls extends ConsumerWidget {
     // one of these is a fixed size anyway.
     final items = <_DockItem>[
       _DockItem(
-        _NowPlayingChip(nowPlaying: nowPlaying, zone: zone, vertical: vertical),
-        vertical ? 62 : (nowPlaying == null ? 96 : 150),
+        _NowPlayingChip(nowPlaying: nowPlaying, zone: zone, vertical: vertical, liveRunning: liveRunning),
+        vertical ? 62 : (nowPlaying == null && !liveRunning ? 96 : 150),
       ),
       _DockItem(
-        nowPlaying == null
+        nowPlaying == null && !liveRunning
             ? _DockButton(
                 icon: Icons.play_arrow_rounded,
                 label: 'Start',
@@ -437,7 +441,10 @@ class _NowPlayingChip extends StatelessWidget {
   final SmartProgramStatus? zone;
   final bool vertical;
 
-  const _NowPlayingChip({required this.nowPlaying, required this.zone, required this.vertical});
+  /// Live Grid lanes are running (shown when nothing else is playing).
+  final bool liveRunning;
+
+  const _NowPlayingChip({required this.nowPlaying, required this.zone, required this.vertical, this.liveRunning = false});
 
   static String _zoneLabel(BuildContext context, SmartProgramStatus status) {
     if (status.isSilent) return context.l10n.wWaitingForMusic;
@@ -453,6 +460,22 @@ class _NowPlayingChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final playing = nowPlaying;
+    if (playing == null && liveRunning) {
+      return SizedBox(
+        width: vertical ? 62 : 150,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.grid_on, size: 14, color: AppColors.accent),
+            Text(
+              context.l10n.liveDockRunning,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.accent),
+            ),
+          ],
+        ),
+      );
+    }
     if (playing == null) {
       return SizedBox(
         width: vertical ? 62 : 96,

@@ -2886,5 +2886,8 @@
   "liveSettingsTitle": "Live screen",
   "liveSettingsPads": "Pads",
   "liveSettingsPadsHint": "Select + GO: a tap marks the clip NEXT and GO switches every marked lane together. Launch directly: a tap starts the clip on the next beat or bar.",
-  "liveRunning": "running"
+  "liveRunning": "running",
+  "liveDockRunning": "Live Grid",
+  "liveHelpTitle": "How the Grid works",
+  "liveHelpBody": "Columns are lanes: Moves (pan/tilt), Colors, Level (dimmer) and Beam (gobo, strobe, zoom). Rows are scenes (Intro, Build, Drop…), each cell is a clip.\n\n1. Tap a clip: it turns amber (NEXT). Nothing changes on stage yet.\n2. Press GO: every NEXT clip starts on the next beat or bar (Quantize), and turns cyan while it runs.\n3. Tap a scene button on the left to pick the whole row at once.\n\nOne clip runs per lane, so a Colors clip and a Moves clip play together. Long-press a clip to edit it, tap a lane header to choose its fixtures. Stop all or the dock's Stop ends everything.\n\nWant a tap to start straight away? Settings → Live → Pads: Launch directly."
 }

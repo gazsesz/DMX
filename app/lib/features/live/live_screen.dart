@@ -41,6 +41,12 @@ class _LiveScreenState extends State<LiveScreen> {
               child: Row(
                 children: [
                   switcher,
+                  IconButton(
+                    key: const ValueKey('live-help'),
+                    tooltip: l.liveHelpTitle,
+                    icon: const Icon(Icons.help_outline),
+                    onPressed: () => _showHelp(context),
+                  ),
                   const Spacer(),
                   if (_view == 0)
                     const Flexible(
@@ -61,4 +67,16 @@ class _LiveScreenState extends State<LiveScreen> {
       ],
     );
   }
+}
+
+void _showHelp(BuildContext context) {
+  final l = context.l10n;
+  showDialog<void>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text(l.liveHelpTitle),
+      content: SingleChildScrollView(child: Text(l.liveHelpBody)),
+      actions: [TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonDone))],
+    ),
+  );
 }

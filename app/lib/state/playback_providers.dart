@@ -17,6 +17,7 @@ import 'chase_providers.dart';
 import 'dimmer_dropout_providers.dart';
 import 'fixture_providers.dart';
 import 'layer_providers.dart';
+import 'live_providers.dart';
 import 'momentary_fx_providers.dart';
 import 'movement_live_providers.dart';
 import 'provider_reader.dart';
@@ -176,6 +177,7 @@ Future<void> blackoutEverything(ReadProvider read) async {
   // else on the way out, blackout included. The panic button has to win.
   read(momentaryFxProvider.notifier).releaseAll();
   stopSmartProgram(read);
+  stopLive(read);
   for (final layer in read(layersProvider)) {
     stopLayer(read, layer.id);
   }
@@ -190,9 +192,17 @@ Future<void> blackoutEverything(ReadProvider read) async {
 /// hold their current look.
 void stopPlayback(ReadProvider read) {
   stopSmartProgram(read);
+  stopLive(read);
   for (final layer in read(layersProvider)) {
     stopLayer(read, layer.id);
   }
+}
+
+/// Stops every Live Grid lane (and drops what's queued). Leaves the engine
+/// alone when it's idle, so a Stop never has to create it.
+void stopLive(ReadProvider read) {
+  final status = read(liveStatusProvider);
+  if (status.anyRunning || status.queued.isNotEmpty) read(liveEngineProvider).stopAll();
 }
 
 /// What last played on a given layer id before it stopped — the per-layer

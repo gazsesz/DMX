@@ -1,6 +1,7 @@
 import 'package:dmx_controller/features/live/live_screen.dart';
 import 'package:dmx_controller/models/live_grid.dart';
 import 'package:dmx_controller/state/live_providers.dart';
+import 'package:dmx_controller/state/playback_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,6 +36,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
     expect(container.read(liveStatusProvider).running['colors-pars'], 0);
     expect(find.text('NEXT'), findsNothing);
+
+    // The dock's Stop (and the remote's /stop) ends the Grid too.
+    stopPlayback(container.read);
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(container.read(liveStatusProvider).anyRunning, isFalse);
+
+    // The help explains the two-step pick + GO.
+    await tester.tap(find.byKey(const ValueKey('live-help')));
+    await tester.pumpAndSettle();
+    expect(find.text('How the Grid works'), findsWidgets);
+    await tester.tap(find.text('Done'));
+    await tester.pump(const Duration(milliseconds: 300));
 
     await tester.pumpWidget(const SizedBox());
     container.dispose();
