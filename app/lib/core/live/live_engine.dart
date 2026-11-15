@@ -32,7 +32,12 @@ class LiveRig {
   final List<FixtureGroup> groups;
   final StagePlan stage;
 
-  const LiveRig({this.fixtures = const [], this.universes = const [], this.groups = const [], this.stage = const StagePlan()});
+  const LiveRig({
+    this.fixtures = const [],
+    this.universes = const [],
+    this.groups = const [],
+    this.stage = const StagePlan(),
+  });
 }
 
 /// What the screen draws: which row runs on each lane, which is NEXT, and
@@ -67,6 +72,17 @@ class LiveStatus {
   bool get anyRunning => running.isNotEmpty;
 }
 
+/// Starts and stops a Show lane's Banks / Chases / Scenes on the app's
+/// regular players. The engine only decides *when*.
+abstract class LiveShowHost {
+  void start(LiveLane lane, LiveShowRef show);
+  void stop(LiveLane lane);
+
+  /// Whether what [lane] started is still playing (it may have been
+  /// stopped from the Dashboard or another screen).
+  bool isPlaying(LiveLane lane);
+}
+
 /// The layer id a lane's clips write on (see `ArtNetService.claimLayer`).
 String liveLayerId(String laneId) => 'live:$laneId';
 
@@ -86,6 +102,7 @@ class LiveEngine {
   final LiveRig Function() rig;
   final double Function() fallbackBpm;
   final MovementLive Function() movementLive;
+  final LiveShowHost? shows;
 
   LiveEngine({
     required this.output,
@@ -93,6 +110,7 @@ class LiveEngine {
     required this.rig,
     double Function()? fallbackBpm,
     MovementLive Function()? movementLive,
+    this.shows,
   }) : fallbackBpm = fallbackBpm ?? (() => 120),
        movementLive = movementLive ?? (() => MovementLive.neutral);
 
@@ -106,6 +124,10 @@ class LiveEngine {
   final Map<String, Map<String, PanTilt>> _glideFrom = {};
   final Map<String, Map<String, PanTilt>> _previous = {};
   final Map<String, double> _glideStart = {};
+
+  /// Lanes whose running clip is a Bank / Chase / Scene on the regular
+  /// players rather than an effect this engine writes.
+  final Set<String> _showLanes = {};
 
   double _beat = 0;
   double _bpm = 120;
@@ -174,6 +196,7 @@ class LiveEngine {
   }
 
   void stopLane(String laneId) {
+    _stopShow(laneId);
     _running.remove(laneId);
     _queued.remove(laneId);
     _armed.remove(laneId);
@@ -184,6 +207,9 @@ class LiveEngine {
   }
 
   void stopAll() {
+    for (final laneId in _showLanes.toList()) {
+      _stopShow(laneId);
+    }
     for (final laneId in {..._running.keys, ..._queued.keys}) {
       output.releaseLayer(liveLayerId(laneId));
       _forgetLane(laneId);
@@ -245,8 +271,36 @@ class LiveEngine {
       }
     }
     final committed = _commitDue();
+    final dropped = _dropFinishedShows();
     if (!_frozen) _render();
-    if (committed) _changed();
+    if (committed || dropped) _changed();
+  }
+
+  /// A lane whose Bank / Chase / Scene clip was stopped somewhere else stops
+  /// counting as running. Checked a second after start, so a chase still
+  /// opening its beat source isn't taken for stopped.
+  bool _dropFinishedShows() {
+    final host = shows;
+    if (host == null) return false;
+    final g = grid();
+    var any = false;
+    for (final laneId in _showLanes.toList()) {
+      final lane = g.lane(laneId);
+      if (lane != null && _now - (_glideStart[laneId] ?? _now) < 1) continue;
+      if (lane != null && host.isPlaying(lane)) continue;
+      _showLanes.remove(laneId);
+      _running.remove(laneId);
+      _forgetLane(laneId);
+      any = true;
+    }
+    if (any && _running.isEmpty) _releaseShutter();
+    return any;
+  }
+
+  void _stopShow(String laneId) {
+    if (!_showLanes.remove(laneId)) return;
+    final lane = grid().lane(laneId);
+    if (lane != null) shows?.stop(lane);
   }
 
   void _arm(String laneId, LiveQuantize quantize) {
@@ -272,6 +326,27 @@ class LiveEngine {
   }
 
   void _start(String laneId, int row, double atBeat) {
+    final g = grid();
+    final lane = g.lane(laneId);
+    final show = g.clipAt(laneId, row)?.show;
+    // Whatever Bank / Chase / Scene this lane had going makes way first.
+    _stopShow(laneId);
+    if (lane != null && (show != null || lane.kind == LiveLaneKind.show)) {
+      // Any lane's clip can start one of the project's own Banks, Chases or
+      // Scenes instead of an effect.
+      output.releaseLayer(liveLayerId(laneId));
+      _forgetLane(laneId);
+      if (show == null) {
+        _running.remove(laneId);
+        return;
+      }
+      _running[laneId] = row;
+      _startBeat[laneId] = atBeat;
+      _glideStart[laneId] = _now;
+      _showLanes.add(laneId);
+      shows?.start(lane, show);
+      return;
+    }
     if (!_shutterClaimed) {
       output.claimLayer(liveShutterLayer);
       _shutterClaimed = true;
@@ -315,7 +390,7 @@ class LiveEngine {
     for (final entry in _running.entries) {
       final lane = g.lane(entry.key);
       final clip = g.clipAt(entry.key, entry.value);
-      if (lane == null || clip == null) continue;
+      if (lane == null || clip == null || _showLanes.contains(lane.id)) continue;
       if (lane.kind == LiveLaneKind.beam) {
         for (final f in targetsOf(lane, r)) {
           beamLanes.add(f.id);
@@ -331,7 +406,7 @@ class LiveEngine {
     for (final entry in _running.entries) {
       final lane = g.lane(entry.key);
       final clip = g.clipAt(entry.key, entry.value);
-      if (lane == null || clip == null) continue;
+      if (lane == null || clip == null || _showLanes.contains(lane.id)) continue;
       final layer = liveLayerId(lane.id);
       final fixtures = targetsOf(lane, r);
       void write(PatchedFixture f, int offset, int value) {
@@ -367,6 +442,9 @@ class LiveEngine {
           for (final f in fixtures) {
             _writeBeam(f, clip.beam!, write);
           }
+        case LiveLaneKind.show:
+          // Played by the regular players; nothing to write here.
+          break;
       }
     }
 
@@ -493,7 +571,9 @@ class LiveEngine {
     // RGB fixtures without a white emitter still need white as R=G=B.
     if (white > 0 && !f.profile.channels.any((c) => c.function == ChannelFunction.white)) {
       for (final c in f.profile.channels) {
-        if (c.function == ChannelFunction.red || c.function == ChannelFunction.green || c.function == ChannelFunction.blue) {
+        if (c.function == ChannelFunction.red ||
+            c.function == ChannelFunction.green ||
+            c.function == ChannelFunction.blue) {
           write(f, c.offset, s(white));
         }
       }
@@ -538,8 +618,13 @@ bool _drives(LiveLaneKind kind, PatchedFixture f) {
     LiveLaneKind.colors => fns.any((fn) => fn.isColorMix || fn == ChannelFunction.colorWheel),
     LiveLaneKind.level => fns.any((fn) => fn.isDimmer || fn.isColorMix),
     LiveLaneKind.beam => fns.any(
-      (fn) => fn == ChannelFunction.gobo || fn == ChannelFunction.strobe || fn == ChannelFunction.zoom || fn == ChannelFunction.goboRotation,
+      (fn) =>
+          fn == ChannelFunction.gobo ||
+          fn == ChannelFunction.strobe ||
+          fn == ChannelFunction.zoom ||
+          fn == ChannelFunction.goboRotation,
     ),
+    LiveLaneKind.show => false,
   };
 }
 

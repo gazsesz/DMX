@@ -10,6 +10,9 @@ import '../../models/channel_function.dart';
 import '../../models/live_grid.dart';
 import '../../models/movement_fx.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/bank_providers.dart';
+import '../../state/chase_providers.dart';
+import '../../state/scene_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
@@ -30,6 +33,8 @@ LiveClip defaultClipFor(LiveLaneKind kind) => switch (kind) {
   LiveLaneKind.colors => const LiveClip(name: 'White', colors: LiveColorFx()),
   LiveLaneKind.level => const LiveClip(name: 'Full', level: LiveLevelFx()),
   LiveLaneKind.beam => const LiveClip(name: 'Open', beam: LiveBeamFx(strobe: 0)),
+  // Nothing picked yet: Save stays off until a Bank / Chase / Scene is.
+  LiveLaneKind.show => const LiveClip(name: ''),
 };
 
 Future<LiveClipEditResult?> showLiveClipEditor(BuildContext context, {required LiveLane lane, LiveClip? clip}) {
@@ -57,6 +62,11 @@ class _LiveClipEditor extends ConsumerStatefulWidget {
 class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
   late LiveClip _clip;
   late final TextEditingController _name;
+  late LiveShowKind _showKind;
+
+  /// Effect lanes: whether this clip starts a Bank / Chase / Scene instead
+  /// of the lane's own effect.
+  late bool _useShow;
 
   @override
   void initState() {
@@ -71,6 +81,8 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
             level: initial.level ?? base.level,
             beam: initial.beam ?? base.beam,
           );
+    _showKind = _clip.show?.kind ?? LiveShowKind.bank;
+    _useShow = widget.lane.kind == LiveLaneKind.show || _clip.show != null;
     _name = TextEditingController(text: _clip.name);
   }
 
@@ -98,14 +110,34 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 12),
-            TextField(controller: _name, decoration: InputDecoration(labelText: l.commonName)),
+            TextField(
+              controller: _name,
+              decoration: InputDecoration(labelText: l.commonName),
+            ),
             const SizedBox(height: 12),
-            ...switch (widget.lane.kind) {
-              LiveLaneKind.moves => _movesFields(),
-              LiveLaneKind.colors => _colorFields(),
-              LiveLaneKind.level => _levelFields(),
-              LiveLaneKind.beam => _beamFields(),
-            },
+            if (widget.lane.kind != LiveLaneKind.show) ...[
+              SegmentedButton<bool>(
+                key: const ValueKey('live-clip-source'),
+                showSelectedIcon: false,
+                segments: [
+                  ButtonSegment(value: false, label: Text(l.liveClipEffect)),
+                  ButtonSegment(value: true, label: Text(l.liveClipShow)),
+                ],
+                selected: {_useShow},
+                onSelectionChanged: (v) => setState(() => _useShow = v.first),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (_useShow)
+              ..._showFields()
+            else
+              ...switch (widget.lane.kind) {
+                LiveLaneKind.moves => _movesFields(),
+                LiveLaneKind.colors => _colorFields(),
+                LiveLaneKind.level => _levelFields(),
+                LiveLaneKind.beam => _beamFields(),
+                LiveLaneKind.show => _showFields(),
+              },
             const SizedBox(height: 16),
             Row(
               children: [
@@ -120,10 +152,13 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
                 TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
                 const SizedBox(width: 8),
                 FilledButton(
-                  onPressed: () {
-                    final name = _name.text.trim().isEmpty ? _clip.name : _name.text.trim();
-                    Navigator.pop(context, LiveClipEditResult.save(_onlyOwnKind(_clip.copyWith(name: name))));
-                  },
+                  key: const ValueKey('live-clip-save'),
+                  onPressed: _useShow && _clip.show == null
+                      ? null
+                      : () {
+                          final name = _name.text.trim().isEmpty ? _clip.name : _name.text.trim();
+                          Navigator.pop(context, LiveClipEditResult.save(_onlyOwnKind(_clip.copyWith(name: name))));
+                        },
                   child: Text(l.commonSave),
                 ),
               ],
@@ -135,12 +170,67 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
   }
 
   /// Keeps only the settings for this lane's kind, so the file stays small.
-  LiveClip _onlyOwnKind(LiveClip c) => switch (widget.lane.kind) {
-    LiveLaneKind.moves => LiveClip(name: c.name, moves: c.moves),
-    LiveLaneKind.colors => LiveClip(name: c.name, colors: c.colors),
-    LiveLaneKind.level => LiveClip(name: c.name, level: c.level),
-    LiveLaneKind.beam => LiveClip(name: c.name, beam: c.beam),
-  };
+  LiveClip _onlyOwnKind(LiveClip c) => _useShow
+      ? LiveClip(name: c.name, show: c.show)
+      : switch (widget.lane.kind) {
+          LiveLaneKind.moves => LiveClip(name: c.name, moves: c.moves),
+          LiveLaneKind.colors => LiveClip(name: c.name, colors: c.colors),
+          LiveLaneKind.level => LiveClip(name: c.name, level: c.level),
+          LiveLaneKind.beam => LiveClip(name: c.name, beam: c.beam),
+          LiveLaneKind.show => LiveClip(name: c.name, show: c.show),
+        };
+
+  /// Show lanes: pick one of the project's Banks, Chases or Scenes.
+  List<Widget> _showFields() {
+    final l = context.l10n;
+    final items = switch (_showKind) {
+      LiveShowKind.bank => [for (final b in ref.watch(banksProvider)) (id: b.id, name: b.name)],
+      LiveShowKind.chase => [for (final c in ref.watch(chasesProvider)) (id: c.id, name: c.name)],
+      LiveShowKind.scene => [for (final sc in ref.watch(scenesProvider)) (id: sc.id, name: sc.name)],
+    };
+    return [
+      SegmentedButton<LiveShowKind>(
+        showSelectedIcon: false,
+        segments: [
+          ButtonSegment(value: LiveShowKind.bank, label: Text(l.liveShowBank)),
+          ButtonSegment(value: LiveShowKind.chase, label: Text(l.liveShowChase)),
+          ButtonSegment(value: LiveShowKind.scene, label: Text(l.liveShowScene)),
+        ],
+        selected: {_showKind},
+        onSelectionChanged: (v) => setState(() => _showKind = v.first),
+      ),
+      const SizedBox(height: 8),
+      if (items.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Text(l.liveShowNone, style: const TextStyle(color: AppColors.textDim)),
+        )
+      else
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final item in items)
+              ChoiceChip(
+                label: Text(item.name),
+                selected: _clip.show == LiveShowRef(kind: _showKind, id: item.id),
+                onSelected: (_) {
+                  final previous = _clip.show;
+                  _set(
+                    _clip.copyWith(
+                      show: LiveShowRef(kind: _showKind, id: item.id),
+                    ),
+                  );
+                  // Name follows the pick unless it was typed by hand.
+                  if (_name.text.trim().isEmpty || previous == null || _name.text == _clip.name) {
+                    _name.text = item.name;
+                  }
+                },
+              ),
+          ],
+        ),
+    ];
+  }
 
   Widget _label(String text) => Padding(
     padding: const EdgeInsets.only(top: 10, bottom: 4),
@@ -204,10 +294,19 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
         _beatsChips(m.beats, (b) => set(m.copyWith(beats: b))),
       ] else ...[
         _label('${l.liveSecondsPerLap}: ${m.periodSec.toStringAsFixed(0)}'),
-        Slider(value: m.periodSec.clamp(1.0, 30.0), min: 1, max: 30, divisions: 29, onChanged: (v) => set(m.copyWith(periodSec: v))),
+        Slider(
+          value: m.periodSec.clamp(1.0, 30.0),
+          min: 1,
+          max: 30,
+          divisions: 29,
+          onChanged: (v) => set(m.copyWith(periodSec: v)),
+        ),
       ],
       _label('${l.liveSpread}: ${(m.phaseSpread * 100).round()}%'),
-      Slider(value: m.phaseSpread.clamp(0.0, 1.0), onChanged: (v) => set(m.copyWith(phaseSpread: v))),
+      Slider(
+        value: m.phaseSpread.clamp(0.0, 1.0),
+        onChanged: (v) => set(m.copyWith(phaseSpread: v)),
+      ),
     ];
   }
 
@@ -221,7 +320,11 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
         spacing: 6,
         children: [
           for (final p in LiveColorPattern.values)
-            ChoiceChip(label: Text(_title(p.name)), selected: c.pattern == p, onSelected: (_) => set(c.copyWith(pattern: p))),
+            ChoiceChip(
+              label: Text(_title(p.name)),
+              selected: c.pattern == p,
+              onSelected: (_) => set(c.copyWith(pattern: p)),
+            ),
         ],
       ),
       if (c.pattern != LiveColorPattern.rainbow) ...[
@@ -253,7 +356,10 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
         _beatsChips(c.beats, (b) => set(c.copyWith(beats: b))),
         if (c.pattern == LiveColorPattern.step || c.pattern == LiveColorPattern.chase) ...[
           _label('${l.liveFade}: ${(c.fade * 100).round()}%'),
-          Slider(value: c.fade.clamp(0.0, 1.0), onChanged: (v) => set(c.copyWith(fade: v))),
+          Slider(
+            value: c.fade.clamp(0.0, 1.0),
+            onChanged: (v) => set(c.copyWith(fade: v)),
+          ),
         ],
       ],
     ];
@@ -271,12 +377,19 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
         spacing: 6,
         children: [
           for (final p in LiveLevelPattern.values)
-            ChoiceChip(label: Text(_title(p.name)), selected: v.pattern == p, onSelected: (_) => set(v.copyWith(pattern: p))),
+            ChoiceChip(
+              label: Text(_title(p.name)),
+              selected: v.pattern == p,
+              onSelected: (_) => set(v.copyWith(pattern: p)),
+            ),
         ],
       ),
       if (v.pattern == LiveLevelPattern.solid) ...[
         _label('${l.liveHigh}: ${(v.high * 100).round()}%'),
-        Slider(value: v.high, onChanged: (x) => set(v.copyWith(high: x))),
+        Slider(
+          value: v.high,
+          onChanged: (x) => set(v.copyWith(high: x)),
+        ),
       ] else ...[
         _label('${l.liveLow} ${(v.low * 100).round()}% – ${l.liveHigh} ${(v.high * 100).round()}%'),
         RangeSlider(
@@ -287,7 +400,10 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
         _beatsChips(v.beats, (b) => set(v.copyWith(beats: b))),
         if (v.pattern != LiveLevelPattern.chase) ...[
           _label('${l.liveSpread}: ${(v.spread * 100).round()}%'),
-          Slider(value: v.spread.clamp(0.0, 1.0), onChanged: (x) => set(v.copyWith(spread: x))),
+          Slider(
+            value: v.spread.clamp(0.0, 1.0),
+            onChanged: (x) => set(v.copyWith(spread: x)),
+          ),
         ],
       ],
     ];
@@ -301,13 +417,20 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
     final strobe = b.strobe ?? 0;
     return [
       _label('${l.liveStrobe}: ${strobe <= 0 ? l.liveStrobeOpen : '${(strobe * 100).round()}%'}'),
-      Slider(value: strobe.clamp(0.0, 1.0), onChanged: (v) => set(b.copyWith(strobe: () => v))),
+      Slider(
+        value: strobe.clamp(0.0, 1.0),
+        onChanged: (v) => set(b.copyWith(strobe: () => v)),
+      ),
       _label(l.liveGobo),
       Wrap(
         spacing: 6,
         runSpacing: 6,
         children: [
-          ChoiceChip(label: Text(l.liveLeaveAsIs), selected: b.gobo == null, onSelected: (_) => set(b.copyWith(gobo: () => null))),
+          ChoiceChip(
+            label: Text(l.liveLeaveAsIs),
+            selected: b.gobo == null,
+            onSelected: (_) => set(b.copyWith(gobo: () => null)),
+          ),
           for (final cap in gobos)
             ChoiceChip(
               label: Text(cap.label),
@@ -322,7 +445,11 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
         value: b.zoom != null,
         onChanged: (on) => set(b.copyWith(zoom: () => on ? 0.5 : null)),
       ),
-      if (b.zoom != null) Slider(value: b.zoom!.clamp(0.0, 1.0), onChanged: (v) => set(b.copyWith(zoom: () => v))),
+      if (b.zoom != null)
+        Slider(
+          value: b.zoom!.clamp(0.0, 1.0),
+          onChanged: (v) => set(b.copyWith(zoom: () => v)),
+        ),
     ];
   }
 
@@ -337,7 +464,10 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
     for (final f in targetsOf(widget.lane, rig)) {
       for (final c in f.profile.channels) {
         if (c.function == ChannelFunction.gobo && c.capabilities.isNotEmpty) {
-          return [for (final cap in c.capabilities) if (cap.kind != CapabilityKind.range) cap];
+          return [
+            for (final cap in c.capabilities)
+              if (cap.kind != CapabilityKind.range) cap,
+          ];
         }
       }
     }
@@ -373,7 +503,10 @@ class _ColorDot extends StatelessWidget {
           child: selected
               ? Text(
                   '${index + 1}',
-                  style: TextStyle(fontWeight: FontWeight.w900, color: color.r + color.g + color.b > 380 ? Colors.black : Colors.white),
+                  style: TextStyle(
+                    fontWeight: FontWeight.w900,
+                    color: color.r + color.g + color.b > 380 ? Colors.black : Colors.white,
+                  ),
                 )
               : null,
         ),

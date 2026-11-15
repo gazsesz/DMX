@@ -1,14 +1,16 @@
 import 'movement_fx.dart';
 
-/// What a Live Grid lane drives. Each kind owns one attribute group of the
-/// fixtures it targets, so lanes never fight over a channel: a Moves lane
-/// writes pan/tilt, Colors the colour mix and wheel, Level the dimmer,
-/// Beam the gobo / strobe / zoom.
+/// What a Live Grid lane drives. Each effect kind owns one attribute group
+/// of the fixtures it targets, so lanes never fight over a channel: a Moves
+/// lane writes pan/tilt, Colors the colour mix and wheel, Level the dimmer,
+/// Beam the gobo / strobe / zoom. A Show lane instead starts the project's
+/// own Banks, Chases and Scenes on the regular players.
 enum LiveLaneKind {
   moves,
   colors,
   level,
-  beam;
+  beam,
+  show;
 
   static LiveLaneKind parse(dynamic name) =>
       LiveLaneKind.values.firstWhere((k) => k.name == name, orElse: () => LiveLaneKind.colors);
@@ -65,6 +67,10 @@ class LiveLane {
   /// Multiplies how fast every clip on this lane runs (one of [liveLaneSpeeds]).
   final double speed;
 
+  /// Show lanes: the layer a Bank or Scene plays on (null = Layer 1). A
+  /// Chase plays on the layers its own steps name.
+  final String? layerId;
+
   const LiveLane({
     required this.id,
     required this.name,
@@ -72,17 +78,25 @@ class LiveLane {
     this.target = LiveTargetKind.all,
     this.groupIds = const [],
     this.speed = 1,
+    this.layerId,
   });
 
-  LiveLane copyWith({String? name, LiveLaneKind? kind, LiveTargetKind? target, List<String>? groupIds, double? speed}) =>
-      LiveLane(
-        id: id,
-        name: name ?? this.name,
-        kind: kind ?? this.kind,
-        target: target ?? this.target,
-        groupIds: groupIds ?? this.groupIds,
-        speed: speed ?? this.speed,
-      );
+  LiveLane copyWith({
+    String? name,
+    LiveLaneKind? kind,
+    LiveTargetKind? target,
+    List<String>? groupIds,
+    double? speed,
+    String? layerId,
+  }) => LiveLane(
+    id: id,
+    name: name ?? this.name,
+    kind: kind ?? this.kind,
+    target: target ?? this.target,
+    groupIds: groupIds ?? this.groupIds,
+    speed: speed ?? this.speed,
+    layerId: layerId ?? this.layerId,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -91,6 +105,7 @@ class LiveLane {
     'target': target.name,
     if (groupIds.isNotEmpty) 'groupIds': groupIds,
     if (speed != 1) 'speed': speed,
+    if (layerId != null) 'layerId': layerId,
   };
 
   factory LiveLane.fromJson(Map<String, dynamic> json) => LiveLane(
@@ -100,7 +115,39 @@ class LiveLane {
     target: LiveTargetKind.parse(json['target']),
     groupIds: [for (final g in json['groupIds'] as List? ?? const []) g as String],
     speed: (json['speed'] as num?)?.toDouble() ?? 1,
+    layerId: json['layerId'] as String?,
   );
+}
+
+/// What a Show clip starts.
+enum LiveShowKind {
+  bank,
+  chase,
+  scene;
+
+  static LiveShowKind parse(dynamic name) =>
+      LiveShowKind.values.firstWhere((k) => k.name == name, orElse: () => LiveShowKind.bank);
+}
+
+/// A Show clip's target: one of the project's Banks, Chases or Scenes, by id.
+class LiveShowRef {
+  final LiveShowKind kind;
+  final String id;
+
+  const LiveShowRef({required this.kind, required this.id});
+
+  Map<String, dynamic> toJson() => {'kind': kind.name, 'id': id};
+
+  static LiveShowRef? fromJson(dynamic json) {
+    if (json is! Map || json['id'] is! String) return null;
+    return LiveShowRef(kind: LiveShowKind.parse(json['kind']), id: json['id'] as String);
+  }
+
+  @override
+  bool operator ==(Object other) => other is LiveShowRef && other.kind == kind && other.id == id;
+
+  @override
+  int get hashCode => Object.hash(kind, id);
 }
 
 /// How a Colors clip moves through its colours.
@@ -217,7 +264,13 @@ class LiveLevelFx {
         spread: spread ?? this.spread,
       );
 
-  Map<String, dynamic> toJson() => {'pattern': pattern.name, 'low': low, 'high': high, 'beats': beats, 'spread': spread};
+  Map<String, dynamic> toJson() => {
+    'pattern': pattern.name,
+    'low': low,
+    'high': high,
+    'beats': beats,
+    'spread': spread,
+  };
 
   factory LiveLevelFx.fromJson(Map<String, dynamic> json) => LiveLevelFx(
     pattern: LiveLevelPattern.parse(json['pattern']),
@@ -239,20 +292,19 @@ class LiveBeamFx {
 
   const LiveBeamFx({this.gobo, this.strobe, this.zoom, this.goboRotation});
 
-  LiveBeamFx copyWith({int? Function()? gobo, double? Function()? strobe, double? Function()? zoom, double? Function()? goboRotation}) =>
-      LiveBeamFx(
-        gobo: gobo != null ? gobo() : this.gobo,
-        strobe: strobe != null ? strobe() : this.strobe,
-        zoom: zoom != null ? zoom() : this.zoom,
-        goboRotation: goboRotation != null ? goboRotation() : this.goboRotation,
-      );
+  LiveBeamFx copyWith({
+    int? Function()? gobo,
+    double? Function()? strobe,
+    double? Function()? zoom,
+    double? Function()? goboRotation,
+  }) => LiveBeamFx(
+    gobo: gobo != null ? gobo() : this.gobo,
+    strobe: strobe != null ? strobe() : this.strobe,
+    zoom: zoom != null ? zoom() : this.zoom,
+    goboRotation: goboRotation != null ? goboRotation() : this.goboRotation,
+  );
 
-  Map<String, dynamic> toJson() => {
-    'gobo': ?gobo,
-    'strobe': ?strobe,
-    'zoom': ?zoom,
-    'goboRotation': ?goboRotation,
-  };
+  Map<String, dynamic> toJson() => {'gobo': ?gobo, 'strobe': ?strobe, 'zoom': ?zoom, 'goboRotation': ?goboRotation};
 
   factory LiveBeamFx.fromJson(Map<String, dynamic> json) => LiveBeamFx(
     gobo: (json['gobo'] as num?)?.toInt(),
@@ -270,17 +322,25 @@ class LiveClip {
   final LiveColorFx? colors;
   final LiveLevelFx? level;
   final LiveBeamFx? beam;
+  final LiveShowRef? show;
 
-  const LiveClip({required this.name, this.moves, this.colors, this.level, this.beam});
+  const LiveClip({required this.name, this.moves, this.colors, this.level, this.beam, this.show});
 
-  LiveClip copyWith({String? name, MovementFx? moves, LiveColorFx? colors, LiveLevelFx? level, LiveBeamFx? beam}) =>
-      LiveClip(
-        name: name ?? this.name,
-        moves: moves ?? this.moves,
-        colors: colors ?? this.colors,
-        level: level ?? this.level,
-        beam: beam ?? this.beam,
-      );
+  LiveClip copyWith({
+    String? name,
+    MovementFx? moves,
+    LiveColorFx? colors,
+    LiveLevelFx? level,
+    LiveBeamFx? beam,
+    LiveShowRef? show,
+  }) => LiveClip(
+    name: name ?? this.name,
+    moves: moves ?? this.moves,
+    colors: colors ?? this.colors,
+    level: level ?? this.level,
+    beam: beam ?? this.beam,
+    show: show ?? this.show,
+  );
 
   Map<String, dynamic> toJson() => {
     'name': name,
@@ -288,6 +348,7 @@ class LiveClip {
     if (colors != null) 'colors': colors!.toJson(),
     if (level != null) 'level': level!.toJson(),
     if (beam != null) 'beam': beam!.toJson(),
+    if (show != null) 'show': show!.toJson(),
   };
 
   factory LiveClip.fromJson(Map<String, dynamic> json) => LiveClip(
@@ -296,6 +357,7 @@ class LiveClip {
     colors: json['colors'] is Map ? LiveColorFx.fromJson((json['colors'] as Map).cast<String, dynamic>()) : null,
     level: json['level'] is Map ? LiveLevelFx.fromJson((json['level'] as Map).cast<String, dynamic>()) : null,
     beam: json['beam'] is Map ? LiveBeamFx.fromJson((json['beam'] as Map).cast<String, dynamic>()) : null,
+    show: LiveShowRef.fromJson(json['show']),
   );
 }
 
@@ -338,8 +400,37 @@ class LiveGrid {
     return copyWith(cells: next);
   }
 
-  LiveGrid withLane(LiveLane lane) =>
-      copyWith(lanes: [for (final l in lanes) l.id == lane.id ? lane : l]);
+  LiveGrid withLane(LiveLane lane) => copyWith(lanes: [for (final l in lanes) l.id == lane.id ? lane : l]);
+
+  /// Adds [lane] at the end, or at [index].
+  LiveGrid addLane(LiveLane lane, {int? index}) {
+    final next = [...lanes];
+    next.insert((index ?? next.length).clamp(0, next.length), lane);
+    return copyWith(lanes: next);
+  }
+
+  /// Drops lane [id] and its clips.
+  LiveGrid removeLane(String id) => LiveGrid(
+    lanes: [
+      for (final l in lanes)
+        if (l.id != id) l,
+    ],
+    rows: rows,
+    cells: {
+      for (final e in cells.entries)
+        if (!e.key.startsWith('$id|')) e.key: e.value,
+    },
+  );
+
+  /// A lane id not used yet, from [base].
+  String freeLaneId(String base) {
+    if (lane(base) == null) return base;
+    var i = 2;
+    while (lane('$base-$i') != null) {
+      i++;
+    }
+    return '$base-$i';
+  }
 
   Map<String, dynamic> toJson() => {
     'lanes': [for (final l in lanes) l.toJson()],
@@ -363,6 +454,8 @@ class LiveGrid {
   /// ready-made clips, so the screen plays something before anyone edits it.
   static LiveGrid starter() {
     const lanes = [
+      // Empty until the project's own Banks / Chases / Scenes go on it.
+      LiveLane(id: 'show', name: 'Show', kind: LiveLaneKind.show),
       LiveLane(id: 'moves', name: 'Moves', kind: LiveLaneKind.moves, target: LiveTargetKind.heads),
       LiveLane(id: 'colors-heads', name: 'Colors', kind: LiveLaneKind.colors, target: LiveTargetKind.heads),
       LiveLane(id: 'colors-pars', name: 'Colors', kind: LiveLaneKind.colors, target: LiveTargetKind.pars),
@@ -372,33 +465,111 @@ class LiveGrid {
     const warm = [0xFF6A00, 0xFFB000];
     const cells = <String, LiveClip>{
       // Intro
-      'moves|0': LiveClip(name: 'Circle', moves: MovementFx(shape: MovementShape.circle, sizePanDeg: 30, sizeTiltDeg: 20, beatLocked: true, beats: 8, phaseSpread: 0.25)),
-      'colors-heads|0': LiveClip(name: 'Warm', colors: LiveColorFx(pattern: LiveColorPattern.step, colors: warm, beats: 8, fade: 1)),
-      'colors-pars|0': LiveClip(name: 'Warm wash', colors: LiveColorFx(pattern: LiveColorPattern.chase, colors: warm, beats: 4, fade: 1)),
-      'level|0': LiveClip(name: 'Breathe', level: LiveLevelFx(pattern: LiveLevelPattern.breathe, low: 0.35, high: 1, beats: 8)),
+      'moves|0': LiveClip(
+        name: 'Circle',
+        moves: MovementFx(
+          shape: MovementShape.circle,
+          sizePanDeg: 30,
+          sizeTiltDeg: 20,
+          beatLocked: true,
+          beats: 8,
+          phaseSpread: 0.25,
+        ),
+      ),
+      'colors-heads|0': LiveClip(
+        name: 'Warm',
+        colors: LiveColorFx(pattern: LiveColorPattern.step, colors: warm, beats: 8, fade: 1),
+      ),
+      'colors-pars|0': LiveClip(
+        name: 'Warm wash',
+        colors: LiveColorFx(pattern: LiveColorPattern.chase, colors: warm, beats: 4, fade: 1),
+      ),
+      'level|0': LiveClip(
+        name: 'Breathe',
+        level: LiveLevelFx(pattern: LiveLevelPattern.breathe, low: 0.35, high: 1, beats: 8),
+      ),
       'beam|0': LiveClip(name: 'Open', beam: LiveBeamFx(gobo: 0, strobe: 0)),
       // Build
-      'moves|1': LiveClip(name: 'Eight', moves: MovementFx(shape: MovementShape.swim, sizePanDeg: 45, sizeTiltDeg: 25, beatLocked: true, beats: 4, phaseSpread: 0.5)),
-      'colors-heads|1': LiveClip(name: 'Rainbow', colors: LiveColorFx(pattern: LiveColorPattern.rainbow, beats: 16)),
-      'colors-pars|1': LiveClip(name: 'Rainbow', colors: LiveColorFx(pattern: LiveColorPattern.rainbow, beats: 8)),
-      'level|1': LiveClip(name: 'Ramp up', level: LiveLevelFx(pattern: LiveLevelPattern.ramp, low: 0.2, high: 1, beats: 4)),
+      'moves|1': LiveClip(
+        name: 'Eight',
+        moves: MovementFx(
+          shape: MovementShape.swim,
+          sizePanDeg: 45,
+          sizeTiltDeg: 25,
+          beatLocked: true,
+          beats: 4,
+          phaseSpread: 0.5,
+        ),
+      ),
+      'colors-heads|1': LiveClip(
+        name: 'Rainbow',
+        colors: LiveColorFx(pattern: LiveColorPattern.rainbow, beats: 16),
+      ),
+      'colors-pars|1': LiveClip(
+        name: 'Rainbow',
+        colors: LiveColorFx(pattern: LiveColorPattern.rainbow, beats: 8),
+      ),
+      'level|1': LiveClip(
+        name: 'Ramp up',
+        level: LiveLevelFx(pattern: LiveLevelPattern.ramp, low: 0.2, high: 1, beats: 4),
+      ),
       // Drop
-      'moves|2': LiveClip(name: 'Fan sweep', moves: MovementFx(shape: MovementShape.lightRider, sizePanDeg: 70, sizeTiltDeg: 0, beatLocked: true, beats: 2, mirror: true)),
-      'colors-heads|2': LiveClip(name: 'Red/white', colors: LiveColorFx(pattern: LiveColorPattern.alternate, colors: [0xFF0000, 0xFFFFFF], beats: 1)),
-      'colors-pars|2': LiveClip(name: 'Red/white', colors: LiveColorFx(pattern: LiveColorPattern.alternate, colors: [0xFF0000, 0xFFFFFF], beats: 1)),
-      'level|2': LiveClip(name: 'Pulse', level: LiveLevelFx(pattern: LiveLevelPattern.pulse, low: 0.1, high: 1, beats: 1)),
+      'moves|2': LiveClip(
+        name: 'Fan sweep',
+        moves: MovementFx(
+          shape: MovementShape.lightRider,
+          sizePanDeg: 70,
+          sizeTiltDeg: 0,
+          beatLocked: true,
+          beats: 2,
+          mirror: true,
+        ),
+      ),
+      'colors-heads|2': LiveClip(
+        name: 'Red/white',
+        colors: LiveColorFx(pattern: LiveColorPattern.alternate, colors: [0xFF0000, 0xFFFFFF], beats: 1),
+      ),
+      'colors-pars|2': LiveClip(
+        name: 'Red/white',
+        colors: LiveColorFx(pattern: LiveColorPattern.alternate, colors: [0xFF0000, 0xFFFFFF], beats: 1),
+      ),
+      'level|2': LiveClip(
+        name: 'Pulse',
+        level: LiveLevelFx(pattern: LiveLevelPattern.pulse, low: 0.1, high: 1, beats: 1),
+      ),
       'beam|2': LiveClip(name: 'Strobe', beam: LiveBeamFx(strobe: 0.6)),
       // Break
-      'moves|3': LiveClip(name: 'Wander', moves: MovementFx(shape: MovementShape.random, periodSec: 16, phaseSpread: 1, sizePanDeg: 40, sizeTiltDeg: 25)),
-      'colors-heads|3': LiveClip(name: 'Blue', colors: LiveColorFx(colors: [0x0040FF])),
-      'colors-pars|3': LiveClip(name: 'Blue/purple', colors: LiveColorFx(pattern: LiveColorPattern.chase, colors: [0x0040FF, 0x8C00FF], beats: 4, fade: 1)),
+      'moves|3': LiveClip(
+        name: 'Wander',
+        moves: MovementFx(shape: MovementShape.random, periodSec: 16, phaseSpread: 1, sizePanDeg: 40, sizeTiltDeg: 25),
+      ),
+      'colors-heads|3': LiveClip(
+        name: 'Blue',
+        colors: LiveColorFx(colors: [0x0040FF]),
+      ),
+      'colors-pars|3': LiveClip(
+        name: 'Blue/purple',
+        colors: LiveColorFx(pattern: LiveColorPattern.chase, colors: [0x0040FF, 0x8C00FF], beats: 4, fade: 1),
+      ),
       'level|3': LiveClip(name: 'Dim 40%', level: LiveLevelFx(high: 0.4)),
       'beam|3': LiveClip(name: 'Open', beam: LiveBeamFx(gobo: 0, strobe: 0)),
       // Outro
-      'moves|4': LiveClip(name: 'Hold', moves: MovementFx(shape: MovementShape.hold, sizePanDeg: 0, sizeTiltDeg: 0)),
-      'colors-heads|4': LiveClip(name: 'Amber', colors: LiveColorFx(colors: [0xFFA000])),
-      'colors-pars|4': LiveClip(name: 'Amber', colors: LiveColorFx(colors: [0xFFA000])),
-      'level|4': LiveClip(name: 'Chase', level: LiveLevelFx(pattern: LiveLevelPattern.chase, low: 0.1, high: 1, beats: 1, spread: 1)),
+      'moves|4': LiveClip(
+        name: 'Hold',
+        moves: MovementFx(shape: MovementShape.hold, sizePanDeg: 0, sizeTiltDeg: 0),
+      ),
+      'colors-heads|4': LiveClip(
+        name: 'Amber',
+        colors: LiveColorFx(colors: [0xFFA000]),
+      ),
+      'colors-pars|4': LiveClip(
+        name: 'Amber',
+        colors: LiveColorFx(colors: [0xFFA000]),
+      ),
+      'level|4': LiveClip(
+        name: 'Chase',
+        level: LiveLevelFx(pattern: LiveLevelPattern.chase, low: 0.1, high: 1, beats: 1, spread: 1),
+      ),
     };
     return const LiveGrid(lanes: lanes, rows: ['Intro', 'Build', 'Drop', 'Break', 'Outro'], cells: cells);
   }
