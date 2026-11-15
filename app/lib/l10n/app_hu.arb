@@ -1116,5 +1116,11 @@
   "liveShowScene": "Scene",
   "liveShowNone": "Ebből még nincs mentve semmi.",
   "liveClipEffect": "Effekt",
-  "liveClipShow": "Bank / Chase / Scene"
+  "liveClipShow": "Bank / Chase / Scene",
+  "livePrism": "Prizma",
+  "livePrismIn": "Be",
+  "livePrismOut": "Ki",
+  "livePrismRotation": "Prizma forgatás",
+  "liveGoboRotation": "Gobó forgatás",
+  "liveDmxValue": "DMX érték"
 }

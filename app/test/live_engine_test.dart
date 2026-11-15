@@ -31,6 +31,8 @@ const _head = FixtureProfile(
       ],
     ),
     FixtureChannel(offset: 4, function: ChannelFunction.gobo),
+    FixtureChannel(offset: 5, function: ChannelFunction.prism),
+    FixtureChannel(offset: 6, function: ChannelFunction.prismRotation),
   ],
 );
 
@@ -382,6 +384,22 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       // Claimed again after the bank's start, on both the sync and async path.
       expect(out.claimed.where((l) => l == liveLayerId('moves')).length, 2);
+    });
+
+    test('a Beam clip sets prism and prism rotation; JSON keeps them', () {
+      const beam = LiveBeamFx(prism: 200, prismRotation: 0.5);
+      grid = grid.withClip('beam', 1, const LiveClip(name: 'Prism', beam: beam));
+      engine.tick(0);
+      engine.select('beam', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.go(quantize: LiveQuantize.now);
+      runTo(engine, 0.1);
+      final layer = out.values[liveLayerId('beam')]!;
+      expect(layer[5], 200); // h1 prism
+      expect(layer[6], 128); // h1 prism rotation
+      expect(layer[15], 200); // h2 prism
+      final back = LiveBeamFx.fromJson(beam.toJson());
+      expect(back.prism, 200);
+      expect(back.prismRotation, 0.5);
     });
   });
 }

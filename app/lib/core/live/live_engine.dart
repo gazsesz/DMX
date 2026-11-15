@@ -612,6 +612,10 @@ class LiveEngine {
           if (beam.zoom != null) write(f, c.offset, (beam.zoom! * 255).round().clamp(0, 255));
         case ChannelFunction.goboRotation:
           if (beam.goboRotation != null) write(f, c.offset, (beam.goboRotation! * 255).round().clamp(0, 255));
+        case ChannelFunction.prism:
+          if (beam.prism != null) write(f, c.offset, beam.prism!.clamp(0, 255));
+        case ChannelFunction.prismRotation:
+          if (beam.prismRotation != null) write(f, c.offset, (beam.prismRotation! * 255).round().clamp(0, 255));
         default:
           break;
       }
@@ -640,7 +644,8 @@ bool _drives(LiveLaneKind kind, PatchedFixture f) {
           fn == ChannelFunction.gobo ||
           fn == ChannelFunction.strobe ||
           fn == ChannelFunction.zoom ||
-          fn == ChannelFunction.goboRotation,
+          fn == ChannelFunction.goboRotation ||
+          fn.isPrism,
     ),
     LiveLaneKind.show => false,
   };

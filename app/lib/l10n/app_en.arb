@@ -2899,5 +2899,11 @@
   "liveShowScene": "Scene",
   "liveShowNone": "Nothing saved of this kind yet.",
   "liveClipEffect": "Effect",
-  "liveClipShow": "Bank / Chase / Scene"
+  "liveClipShow": "Bank / Chase / Scene",
+  "livePrism": "Prism",
+  "livePrismIn": "In",
+  "livePrismOut": "Out",
+  "livePrismRotation": "Prism rotation",
+  "liveGoboRotation": "Gobo rotation",
+  "liveDmxValue": "DMX value"
 }

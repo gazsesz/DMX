@@ -578,6 +578,8 @@ String clipSummary(LiveClip clip) {
       if (b.strobe != null) b.strobe! <= 0 ? 'open' : 'strobe ${(b.strobe! * 100).round()}%',
       if (b.gobo != null) 'gobo ${b.gobo}',
       if (b.zoom != null) 'zoom ${(b.zoom! * 100).round()}%',
+      if (b.prism != null) b.prism! <= 0 ? 'prism out' : 'prism',
+      if (b.prismRotation != null) 'prism rot ${(b.prismRotation! * 100).round()}%',
     ];
     return parts.isEmpty ? '—' : parts.join(' · ');
   }
