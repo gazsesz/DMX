@@ -15,6 +15,7 @@ import 'bank_providers.dart';
 import 'chase_providers.dart';
 import 'playback_providers.dart';
 import 'scene_providers.dart';
+import 'smart_program_providers.dart';
 import 'fixture_group_providers.dart';
 import 'fixture_providers.dart';
 import 'movement_live_providers.dart';
@@ -49,13 +50,17 @@ class LiveGridNotifier extends StateNotifier<LiveGrid> {
     state = state.copyWith(rows: [for (var i = 0; i < state.rows.length; i++) i == row ? name : state.rows[i]]);
   }
 
-  void addRow(String name) => state = state.copyWith(rows: [...state.rows, name]);
+  void addRow(String name) => state = state.addRow(name);
+
+  void duplicateRow(int row, String name) => state = state.duplicateRow(row, name);
+
+  void removeRow(int row) => state = state.removeRow(row);
 
   /// Adds a row named [name] holding [clips] (lane id → clip): the Mixer's
   /// "save the mix as a scene".
   void addRowWith(String name, Map<String, LiveClip> clips) {
     final row = state.rows.length;
-    var next = state.copyWith(rows: [...state.rows, name]);
+    var next = state.addRow(name);
     for (final e in clips.entries) {
       next = next.withClip(e.key, row, e.value);
     }
@@ -257,3 +262,42 @@ final liveEngineProvider = Provider<LiveEngine>((ref) {
 });
 
 final liveStatusProvider = StateProvider<LiveStatus>((ref) => const LiveStatus());
+
+/// Plays the Grid row with id [rowId] (at the next beat), or stops the
+/// Grid when null — for a Smart Program zone. A row that no longer exists
+/// does nothing.
+void playLiveGridRow(ReadProvider read, String? rowId) {
+  final engine = read(liveEngineProvider);
+  if (rowId == null) {
+    if (engine.isActive) engine.stopAll();
+    return;
+  }
+  final row = read(liveGridProvider).rowOf(rowId);
+  if (row != null) engine.launchRow(row);
+}
+
+/// The watch / remote: starts the row with [rowId], or stops the Grid if
+/// that row is what plays. Returns what happened.
+String toggleLiveGridRow(ReadProvider read, String rowId) {
+  final grid = read(liveGridProvider);
+  final row = grid.rowOf(rowId);
+  if (row == null) return 'No such Grid row';
+  final engine = read(liveEngineProvider);
+  if (engine.isRowRunning(row)) {
+    engine.stopAll();
+    return 'Stopped ${grid.rows[row]}';
+  }
+  engine.launchRow(row);
+  return 'Started ${grid.rows[row]}';
+}
+
+/// Grid row id → the names of the Smart Programs that play it.
+final liveRowProgramsProvider = Provider<Map<String, List<String>>>((ref) {
+  final result = <String, List<String>>{};
+  for (final program in ref.watch(smartProgramsProvider)) {
+    for (final rowId in program.gridRows.values.toSet()) {
+      (result[rowId] ??= []).add(program.name);
+    }
+  }
+  return result;
+});

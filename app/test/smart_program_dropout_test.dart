@@ -298,4 +298,85 @@ void beatAndChaseTests() {
       expect(service.darkChannels, isNull);
     });
   });
+
+  group('Smart Program Grid rows', () {
+    final program = const SmartProgram(id: 'p', name: 'Club').withLayerTargets([
+      LayerZoneTargets(layerId: layer1Id, base: ProgramTarget.from(bankId: 'b-red')),
+      LayerZoneTargets(layerId: _l2, faster: ProgramTarget.from(bankId: 'b-red')),
+    ]);
+    test('survive JSON, copies and layer rewrites; zones fall back to Base', () {
+      final p = program.copyWith(gridRows: {SmartProgramZone.base: 'r0', SmartProgramZone.faster: 'row-7'});
+      final back = SmartProgram.fromJson(p.toJson());
+      expect(back.gridRows, p.gridRows);
+      expect(p.duplicateAs('q', 'Copy').gridRows, p.gridRows);
+      expect(p.withLayerTargets(p.layers).gridRows, p.gridRows);
+      expect(p.gridRowFor(SmartProgramZone.slower), 'r0');
+      expect(p.gridRowFor(SmartProgramZone.faster), 'row-7');
+      expect(p.usesGridRow('row-7'), isTrue);
+      expect(program.toJson().containsKey('gridRows'), isFalse);
+    });
+
+    test('a Grid row alone is enough of a target, and counts for Faster/Slower', () {
+      const only = SmartProgram(id: 'g', name: 'Grid only', gridRows: {SmartProgramZone.slower: 'r1'});
+      expect(only.hasAnyTarget, isTrue);
+      expect(only.hasSlowerTarget, isTrue);
+      expect(only.hasFasterTarget, isFalse);
+    });
+
+    test('the player plays the zone\'s row on start and stops the Grid on stop', () async {
+      const universe = UniverseConfig(id: 'u1', name: 'U1', universe: 0);
+      final service = ArtNetService();
+      await service.connect(const ArtNetSettings(demoMode: true));
+      final rows = <String?>[];
+      final players = <String, ChasePlayer>{};
+      final smart = SmartProgramPlayer(
+        playerFor: (id) => players.putIfAbsent(id, ChasePlayer.new),
+        beatService: _FakeBeatSource(),
+        playGridRow: rows.add,
+      );
+      addTearDown(() async {
+        smart.dispose();
+        await service.disconnect();
+      });
+      await smart.start(
+        program: program.copyWith(gridRows: {SmartProgramZone.base: 'r2'}),
+        chases: const [],
+        scenes: const [Scene(id: 'red', name: 'Red', fixtureValues: {})],
+        banks: const [Bank(id: 'b-red', name: 'Red', sceneSlots: ['red'])],
+        patchedFixtures: const [],
+        universes: const [universe],
+        service: service,
+      );
+      expect(rows, ['r2']);
+      smart.stop();
+      expect(rows, ['r2', null]);
+    });
+
+    test('a program without Grid rows leaves the Grid alone', () async {
+      const universe = UniverseConfig(id: 'u1', name: 'U1', universe: 0);
+      final service = ArtNetService();
+      await service.connect(const ArtNetSettings(demoMode: true));
+      final rows = <String?>[];
+      final smart = SmartProgramPlayer(
+        playerFor: (id) => ChasePlayer(),
+        beatService: _FakeBeatSource(),
+        playGridRow: rows.add,
+      );
+      addTearDown(() async {
+        smart.dispose();
+        await service.disconnect();
+      });
+      await smart.start(
+        program: program,
+        chases: const [],
+        scenes: const [Scene(id: 'red', name: 'Red', fixtureValues: {})],
+        banks: const [Bank(id: 'b-red', name: 'Red', sceneSlots: ['red'])],
+        patchedFixtures: const [],
+        universes: const [universe],
+        service: service,
+      );
+      smart.stop();
+      expect(rows, isEmpty);
+    });
+  });
 }

@@ -96,6 +96,9 @@ String liveLayerId(String laneId) => 'live:$laneId';
 /// Beam lane started later wins the strobe channel.
 const liveShutterLayer = 'live:shutter';
 
+/// The clip editor's "Try on heads" layer, above every lane.
+const livePreviewLayer = 'live:preview';
+
 /// Plays a [LiveGrid]: one effect per lane, each lane on its own output
 /// layer so it only ever writes its own attribute group.
 ///
@@ -123,6 +126,12 @@ class LiveEngine {
   void Function()? onChange;
 
   final Map<String, int> _running = {};
+
+  /// Each lane's last started row, even after it stopped.
+  final Map<String, int> _lastRow = {};
+
+  /// The row [laneId] last started (it may have stopped since).
+  int? lastRowOf(String laneId) => _lastRow[laneId];
 
   /// What ran when Stop all last hit, for [resume].
   Map<String, int> _lastRun = const {};
@@ -250,6 +259,98 @@ class LiveEngine {
     return any;
   }
 
+  /// The clip editor's "Try on heads": points [lane]'s heads at [center],
+  /// lit (dimmer full, shutter open), on a layer above everything. Null
+  /// hands the heads back.
+  void previewPosition(LiveLane lane, PanTilt? center) {
+    if (center == null) {
+      output.releaseLayer(livePreviewLayer);
+      for (final u in rig().universes) {
+        output.flush(u);
+      }
+      return;
+    }
+    final r = rig();
+    final universes = {for (final u in r.universes) u.id: u};
+    final touched = <UniverseConfig>{};
+    output.claimLayer(livePreviewLayer);
+    for (final f in targetsOf(lane, r)) {
+      final universe = universes[f.universeId];
+      if (universe == null) continue;
+      for (final c in f.profile.channels) {
+        final int? value = switch (c.function) {
+          ChannelFunction.pan => center.panCoarse,
+          ChannelFunction.panFine => center.panFine,
+          ChannelFunction.tilt => center.tiltCoarse,
+          ChannelFunction.tiltFine => center.tiltFine,
+          ChannelFunction.strobe => shutterOpenValue(c.capabilities),
+          final fn when fn.isDimmer => 255,
+          _ => null,
+        };
+        if (value == null) continue;
+        output.setLayerChannel(universe, f.startChannel + c.offset, value, livePreviewLayer);
+        touched.add(universe);
+      }
+    }
+    for (final u in touched) {
+      output.flush(u);
+    }
+  }
+
+  /// Row [row] was deleted from the grid: lanes playing it stop, and every
+  /// row index under it moves up one.
+  void rowRemoved(int row) {
+    for (final e in {..._running}.entries) {
+      if (e.value == row) stopLane(e.key);
+    }
+    int? shift(int r) => r == row ? null : (r > row ? r - 1 : r);
+    _remap(shift);
+  }
+
+  /// A row was inserted at [row]: indexes at or under it move down one.
+  void rowInserted(int row) => _remap((r) => r >= row ? r + 1 : r);
+
+  void _remap(int? Function(int) f) {
+    void apply(Map<String, int> m) {
+      for (final k in m.keys.toList()) {
+        final v = f(m[k]!);
+        v == null ? m.remove(k) : m[k] = v;
+      }
+    }
+
+    apply(_running);
+    apply(_queued);
+    apply(_lastRow);
+    final last = {..._lastRun};
+    apply(last);
+    _lastRun = last;
+    _armed.removeWhere((lane, _) => !_queued.containsKey(lane));
+    _changed();
+  }
+
+  /// Starts [row] on every lane that has a clip there, at the next
+  /// [quantize] boundary — a Smart Program zone or the watch picking a row.
+  /// Does nothing if those lanes already play it.
+  void launchRow(int row, {LiveQuantize quantize = LiveQuantize.beat}) {
+    final g = grid();
+    final lanes = [
+      for (final lane in g.lanes)
+        if (g.clipAt(lane.id, row) != null) lane.id,
+    ];
+    if (lanes.isEmpty || lanes.every((id) => _running[id] == row)) return;
+    selectRow(row, mode: LivePadMode.launchDirectly, quantize: quantize);
+  }
+
+  /// Whether every lane with a clip in [row] plays it now.
+  bool isRowRunning(int row) {
+    final g = grid();
+    final lanes = [
+      for (final lane in g.lanes)
+        if (g.clipAt(lane.id, row) != null) lane.id,
+    ];
+    return lanes.isNotEmpty && lanes.every((id) => _running[id] == row);
+  }
+
   /// Something else took over the rig: Start no longer brings the Grid back.
   void forgetResume() {
     if (_lastRun.isEmpty) return;
@@ -374,6 +475,7 @@ class LiveEngine {
   }
 
   void _start(String laneId, int row, double atBeat) {
+    _lastRow[laneId] = row;
     final g = grid();
     final lane = g.lane(laneId);
     final show = g.clipAt(laneId, row)?.show;

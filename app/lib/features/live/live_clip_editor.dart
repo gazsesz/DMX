@@ -18,6 +18,7 @@ import '../../state/scene_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
+import '../../state/live_providers.dart';
 import '../banks/movement_fx_editor.dart';
 
 class LiveClipEditResult {
@@ -92,8 +93,20 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
     _name = TextEditingController(text: _clip.name);
   }
 
+  /// "Try on heads": the heads follow the base position while editing.
+  LiveEngine? _tryEngine;
+
+  void _try(PanTilt? center) {
+    if (center == null && _tryEngine == null) return;
+    final LiveEngine engine = _tryEngine ?? ref.read(liveEngineProvider);
+    _tryEngine = engine;
+    engine.previewPosition(widget.lane, center);
+    if (center == null) _tryEngine = null;
+  }
+
   @override
   void dispose() {
+    _tryEngine?.previewPosition(widget.lane, null);
     _name.dispose();
     super.dispose();
   }
@@ -104,6 +117,12 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
   Widget build(BuildContext context) {
     final l = context.l10n;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final VoidCallback? save = _useShow && _clip.show == null
+        ? null
+        : () {
+            final name = _name.text.trim().isEmpty ? _clip.name : _name.text.trim();
+            Navigator.pop(context, LiveClipEditResult.save(_onlyOwnKind(_clip.copyWith(name: name))));
+          };
     return Padding(
       padding: EdgeInsets.fromLTRB(20, 0, 20, 20 + bottom),
       child: SingleChildScrollView(
@@ -111,9 +130,18 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              '${widget.initial == null ? l.liveNewClip : l.liveEditClip} · ${widget.lane.name}',
-              style: Theme.of(context).textTheme.titleMedium,
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${widget.initial == null ? l.liveNewClip : l.liveEditClip} · ${widget.lane.name}',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Save is up here too, so a long editor needs no scrolling.
+                FilledButton(key: const ValueKey('live-clip-save-top'), onPressed: save, child: Text(l.commonSave)),
+              ],
             ),
             const SizedBox(height: 12),
             TextField(
@@ -157,16 +185,7 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
                 const Spacer(),
                 TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
                 const SizedBox(width: 8),
-                FilledButton(
-                  key: const ValueKey('live-clip-save'),
-                  onPressed: _useShow && _clip.show == null
-                      ? null
-                      : () {
-                          final name = _name.text.trim().isEmpty ? _clip.name : _name.text.trim();
-                          Navigator.pop(context, LiveClipEditResult.save(_onlyOwnKind(_clip.copyWith(name: name))));
-                        },
-                  child: Text(l.commonSave),
-                ),
+                FilledButton(key: const ValueKey('live-clip-save'), onPressed: save, child: Text(l.commonSave)),
               ],
             ),
           ],
@@ -303,7 +322,12 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
           Expanded(child: _label(l.liveMovesBase)),
           TextButton(
             key: const ValueKey('live-moves-centre-reset'),
-            onPressed: m.center == PanTilt.center ? null : () => set(m.copyWith(center: PanTilt.center)),
+            onPressed: m.center == PanTilt.center
+                ? null
+                : () {
+                    set(m.copyWith(center: PanTilt.center));
+                    if (_tryEngine != null) _try(PanTilt.center);
+                  },
             child: Text(l.liveCentreReset),
           ),
         ],
@@ -317,11 +341,22 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
             value: m.center,
             panRangeDeg: 540,
             tiltRangeDeg: 270,
-            onChanged: (v) => set(m.copyWith(center: v)),
+            onChanged: (v) {
+              set(m.copyWith(center: v));
+              if (_tryEngine != null) _try(v);
+            },
           ),
         ),
       ),
-      const SizedBox(height: 4),
+      SwitchListTile(
+        key: const ValueKey('live-moves-try'),
+        contentPadding: EdgeInsets.zero,
+        dense: true,
+        title: Text(l.liveMovesTry),
+        subtitle: Text(l.liveMovesTryHint),
+        value: _tryEngine != null,
+        onChanged: (on) => setState(() => _try(on ? m.center : null)),
+      ),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(l.liveBeatLocked),

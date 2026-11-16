@@ -2927,5 +2927,22 @@
   "liveAmountLevel": "Level",
   "liveCentreReset": "Reset",
   "liveMovesBase": "Base position (pan/tilt)",
-  "liveAmountIdle": "Works on the lane's running clip. Start one."
+  "liveAmountIdle": "Works on the lane's running clip. Start one.",
+  "liveMixLevelAdded": "Level wasn't running: added its last clip ({clip}) so the row isn't dark.",
+  "@liveMixLevelAdded": {"placeholders": {"clip": {"type": "String"}}},
+  "liveMixNoLevel": "No Level clip in this row: heads stay dark until a Level clip runs.",
+  "liveMovesTry": "Try on the heads",
+  "liveMovesTryHint": "The lane's heads point at the base position, lit, while you edit.",
+  "liveRowUsedBy": "Smart Program: {programs}. Editing this row changes it too.",
+  "@liveRowUsedBy": {"placeholders": {"programs": {"type": "String"}}},
+  "liveRowCopy": "Copy row",
+  "liveRowCopyName": "{name} copy",
+  "@liveRowCopyName": {"placeholders": {"name": {"type": "String"}}},
+  "liveRowDelete": "Delete row",
+  "liveRowDeleteTitle": "Delete “{name}”?",
+  "@liveRowDeleteTitle": {"placeholders": {"name": {"type": "String"}}},
+  "liveRowDeleteBody": "The row and its clips go; the rows under it move up.",
+  "liveRowDeleteSmart": "The Smart Program {programs} plays this row: that zone will play no Grid row.",
+  "@liveRowDeleteSmart": {"placeholders": {"programs": {"type": "String"}}},
+  "smartGridRow": "Live Grid row"
 }

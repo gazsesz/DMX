@@ -400,7 +400,32 @@ class LiveGrid {
   /// `'<laneId>|<row>'` → clip.
   final Map<String, LiveClip> cells;
 
-  const LiveGrid({this.lanes = const [], this.rows = const [], this.cells = const {}});
+  /// A stable id per row, parallel to [rows]: a Smart Program or the watch
+  /// points at a row by it, so renaming or moving rows keeps the link. Rows
+  /// from older files without one get `r<index>` until the next save.
+  final List<String> _rowIds;
+
+  const LiveGrid({this.lanes = const [], this.rows = const [], this.cells = const {}, List<String> rowIds = const []})
+    // ignore: prefer_initializing_formals
+    : _rowIds = rowIds;
+
+  List<String> get rowIds => [for (var i = 0; i < rows.length; i++) i < _rowIds.length ? _rowIds[i] : 'r$i'];
+
+  /// The index of the row with [id], or null.
+  int? rowOf(String id) {
+    final i = rowIds.indexOf(id);
+    return i < 0 ? null : i;
+  }
+
+  /// A row id not used yet.
+  String freeRowId() {
+    final used = rowIds.toSet();
+    var i = rows.length + 1;
+    while (used.contains('row-$i')) {
+      i++;
+    }
+    return 'row-$i';
+  }
 
   static String keyOf(String laneId, int row) => '$laneId|$row';
 
@@ -415,8 +440,60 @@ class LiveGrid {
     return null;
   }
 
-  LiveGrid copyWith({List<LiveLane>? lanes, List<String>? rows, Map<String, LiveClip>? cells}) =>
-      LiveGrid(lanes: lanes ?? this.lanes, rows: rows ?? this.rows, cells: cells ?? this.cells);
+  /// [rows] and [rowIds] change together; renaming (same length) may pass
+  /// [rows] alone.
+  LiveGrid copyWith({List<LiveLane>? lanes, List<String>? rows, Map<String, LiveClip>? cells, List<String>? rowIds}) =>
+      LiveGrid(
+        lanes: lanes ?? this.lanes,
+        rows: rows ?? this.rows,
+        cells: cells ?? this.cells,
+        rowIds: rowIds ?? this.rowIds,
+      );
+
+  /// Appends a row named [name] with a fresh id.
+  LiveGrid addRow(String name) => copyWith(rows: [...rows, name], rowIds: [...rowIds, freeRowId()]);
+
+  /// Puts a copy of [row] (name, clips, new id) right under it.
+  LiveGrid duplicateRow(int row, String name) {
+    if (row < 0 || row >= rows.length) return this;
+    final next = <String, LiveClip>{};
+    for (final e in cells.entries) {
+      final (lane, r) = _split(e.key);
+      if (r == null) continue;
+      next[keyOf(lane, r > row ? r + 1 : r)] = e.value;
+      if (r == row) next[keyOf(lane, row + 1)] = e.value;
+    }
+    return LiveGrid(
+      lanes: lanes,
+      rows: [...rows.sublist(0, row + 1), name, ...rows.sublist(row + 1)],
+      rowIds: [...rowIds.sublist(0, row + 1), freeRowId(), ...rowIds.sublist(row + 1)],
+      cells: next,
+    );
+  }
+
+  /// Drops [row] and its clips; the rows under it move up.
+  LiveGrid removeRow(int row) {
+    if (row < 0 || row >= rows.length) return this;
+    final next = <String, LiveClip>{};
+    for (final e in cells.entries) {
+      final (lane, r) = _split(e.key);
+      if (r == null || r == row) continue;
+      next[keyOf(lane, r > row ? r - 1 : r)] = e.value;
+    }
+    final ids = rowIds;
+    return LiveGrid(
+      lanes: lanes,
+      rows: [...rows]..removeAt(row),
+      rowIds: [...ids]..removeAt(row),
+      cells: next,
+    );
+  }
+
+  static (String, int?) _split(String key) {
+    final bar = key.lastIndexOf('|');
+    if (bar < 0) return (key, null);
+    return (key.substring(0, bar), int.tryParse(key.substring(bar + 1)));
+  }
 
   LiveGrid withClip(String laneId, int row, LiveClip? clip) {
     final next = {...cells};
@@ -456,6 +533,7 @@ class LiveGrid {
         if (l.id != id) l,
     ],
     rows: rows,
+    rowIds: rowIds,
     cells: {
       for (final e in cells.entries)
         if (!e.key.startsWith('$id|')) e.key: e.value,
@@ -475,6 +553,7 @@ class LiveGrid {
   Map<String, dynamic> toJson() => {
     'lanes': [for (final l in lanes) l.toJson()],
     'rows': rows,
+    'rowIds': rowIds,
     'cells': {for (final e in cells.entries) e.key: e.value.toJson()},
   };
 
@@ -484,6 +563,7 @@ class LiveGrid {
         if (l is Map) LiveLane.fromJson(l.cast<String, dynamic>()),
     ],
     rows: [for (final r in json['rows'] as List? ?? const []) r.toString()],
+    rowIds: [for (final r in json['rowIds'] as List? ?? const []) r.toString()],
     cells: {
       for (final e in (json['cells'] as Map? ?? const {}).entries)
         if (e.value is Map) e.key.toString(): LiveClip.fromJson((e.value as Map).cast<String, dynamic>()),
