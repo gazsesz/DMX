@@ -1122,5 +1122,7 @@
   "livePrismOut": "Ki",
   "livePrismRotation": "Prizma forgatás",
   "liveGoboRotation": "Gobó forgatás",
-  "liveDmxValue": "DMX érték"
+  "liveDmxValue": "DMX érték",
+  "liveLaneMoveLeft": "Balra",
+  "liveLaneMoveRight": "Jobbra"
 }

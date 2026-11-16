@@ -913,8 +913,11 @@ class _LaneSettingsSheet extends ConsumerWidget {
     final lane = ref.watch(liveGridProvider.select((g) => g.lane(laneId)));
     final groups = ref.watch(fixtureGroupsProvider);
     final layers = ref.watch(layersProvider);
+    final lanes = ref.watch(liveGridProvider.select((g) => g.lanes));
     if (lane == null) return const SizedBox.shrink();
+    final index = lanes.indexWhere((x) => x.id == lane.id);
     void update(LiveLane next) => ref.read(liveGridProvider.notifier).updateLane(next);
+    void move(int delta) => ref.read(liveGridProvider.notifier).moveLane(lane.id, delta);
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -923,6 +926,36 @@ class _LaneSettingsSheet extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${lane.name} · ${liveLaneKindLabel(lane.kind)}', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    key: const ValueKey('live-lane-name'),
+                    initialValue: lane.name,
+                    decoration: InputDecoration(labelText: l.commonName, isDense: true),
+                    onChanged: (v) {
+                      final name = v.trim();
+                      if (name.isNotEmpty) update(lane.copyWith(name: name));
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                IconButton.outlined(
+                  key: const ValueKey('live-lane-left'),
+                  tooltip: l.liveLaneMoveLeft,
+                  onPressed: index > 0 ? () => move(-1) : null,
+                  icon: const Icon(Icons.arrow_back),
+                ),
+                const SizedBox(width: 6),
+                IconButton.outlined(
+                  key: const ValueKey('live-lane-right'),
+                  tooltip: l.liveLaneMoveRight,
+                  onPressed: index < lanes.length - 1 ? () => move(1) : null,
+                  icon: const Icon(Icons.arrow_forward),
+                ),
+              ],
+            ),
             const SizedBox(height: 16),
             if (lane.kind == LiveLaneKind.show) ...[
               Text(l.liveLaneLayer, style: const TextStyle(color: AppColors.textDim)),

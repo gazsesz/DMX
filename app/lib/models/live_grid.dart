@@ -428,6 +428,18 @@ class LiveGrid {
     return copyWith(lanes: next);
   }
 
+  /// Moves lane [id] [delta] places (negative = left), clamped to the ends.
+  LiveGrid moveLane(String id, int delta) {
+    final from = lanes.indexWhere((l) => l.id == id);
+    if (from < 0) return this;
+    final to = (from + delta).clamp(0, lanes.length - 1);
+    if (to == from) return this;
+    final next = [...lanes];
+    final lane = next.removeAt(from);
+    next.insert(to, lane);
+    return copyWith(lanes: next);
+  }
+
   /// Drops lane [id] and its clips.
   LiveGrid removeLane(String id) => LiveGrid(
     lanes: [

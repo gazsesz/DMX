@@ -107,6 +107,19 @@ void main() {
     expect(lanes.last.kind, LiveLaneKind.show);
     expect(lanes.last.id, 'show-2');
 
+    // Rename it and move it one place left from the lane settings.
+    await tester.tap(find.text('Show').last);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('live-lane-name')), 'Banks');
+    await tester.tap(find.byKey(const ValueKey('live-lane-left')));
+    await tester.pumpAndSettle();
+    final moved = container.read(liveGridProvider).lanes;
+    expect(moved[moved.length - 2].id, 'show-2');
+    expect(moved[moved.length - 2].name, 'Banks');
+    expect(tester.widget<IconButton>(find.byKey(const ValueKey('live-lane-right'))).onPressed, isNotNull);
+    Navigator.of(tester.element(find.byKey(const ValueKey('live-lane-name')))).pop();
+    await tester.pumpAndSettle();
+
     await tester.pumpWidget(const SizedBox());
     container.dispose();
     await tester.pump(const Duration(milliseconds: 300));
