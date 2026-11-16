@@ -19,6 +19,9 @@ import '../../state/smart_program_providers.dart';
 import '../layers/dropout_controls.dart';
 import '../../l10n/l10n.dart';
 import '../../l10n/labels.dart';
+import '../../l10n/status_messages.dart';
+import '../../models/live_grid.dart';
+import '../../state/tempo_providers.dart';
 
 class SmartProgramEditorScreen extends ConsumerStatefulWidget {
   final SmartProgram existing;
@@ -50,6 +53,11 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
 
   /// The Live Grid row (by id) each zone plays alongside the layers.
   late Map<SmartProgramZone, String> _gridRows;
+
+  /// The zone being tried out on the rig, if any. Read through the container
+  /// so it can still be stopped while the screen is going away.
+  SmartProgramZone? _previewZone;
+  late final ProviderContainer _container;
 
   // Each pick is held as a "chase:<id>" / "bank:<id>" / "lane:<chase>:<layer>"
   // key so one dropdown can offer every kind.
@@ -156,6 +164,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     super.initState();
     final p = widget.existing;
     _nameController = TextEditingController(text: p.name);
+    _container = ProviderScope.containerOf(context, listen: false);
     _targets = {
       for (final layer in ref.read(layersProvider)) layer.id: p.targetsFor(layer.id),
     };
@@ -176,6 +185,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
 
   @override
   void dispose() {
+    _stopPreview(later: true);
     _nameController.dispose();
     super.dispose();
   }
@@ -199,7 +209,69 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
       )
       .withLayerTargets(_targets.values.toList());
 
+  /// Plays what [zone] plays — every layer's target and the Grid row — right
+  /// now, without the tempo tracking (so a quiet room doesn't black it out).
+  Future<void> _preview(SmartProgramZone zone) async {
+    final read = _container.read;
+    final program = _current;
+    stopPlayback(read);
+    setState(() => _previewZone = zone);
+    final banks = read(banksProvider);
+    final chases = read(chasesProvider);
+    String? error;
+    for (final layer in program.layers) {
+      final target = layer.effective(zone);
+      if (target == null) continue;
+      if (target.isBank) {
+        final bank = banks.where((b) => b.id == target.id);
+        if (bank.isNotEmpty) error ??= runBankOnLayer(read, bank: bank.first, layerId: layer.layerId);
+      } else {
+        final chase = chases.where((c) => c.id == target.id);
+        if (chase.isEmpty) continue;
+        await startChase(
+          read,
+          chaseAsDashboardPlaysIt(read, chase.first),
+          playing: NowPlaying(id: chase.first.id, kind: PlaybackKind.chase, name: chase.first.name),
+          dashboardTiming: read(tempoProvider).overrideTiming,
+        );
+      }
+    }
+    final rowId = program.gridRowFor(zone);
+    final row = rowId == null ? null : read(liveGridProvider).rowOf(rowId);
+    if (row != null) read(liveEngineProvider).launchRow(row, quantize: LiveQuantize.now);
+    if (error != null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(localizeStatus(error, context.l10n))));
+    }
+  }
+
+  /// [later]: from dispose, where providers must not change mid-unmount.
+  void _stopPreview({bool later = false}) {
+    if (_previewZone == null) return;
+    _previewZone = null;
+    final read = _container.read;
+    later ? Future.microtask(() => stopPlayback(read)) : stopPlayback(read);
+  }
+
+  /// The zone's "Try" button: plays it, or stops it if it is the one playing.
+  Widget _previewButton(SmartProgramZone zone) {
+    final on = _previewZone == zone;
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: FilledButton.tonalIcon(
+          key: ValueKey('smart-try-${zone.name}'),
+          style: on ? FilledButton.styleFrom(backgroundColor: AppColors.accent2, foregroundColor: AppColors.accent2On) : null,
+          onPressed: () => on ? setState(_stopPreview) : _preview(zone),
+          icon: Icon(on ? Icons.stop_rounded : Icons.play_arrow_rounded),
+          label: Text(on ? context.l10n.smartTryStop : context.l10n.smartTry),
+        ),
+      ),
+    );
+  }
+
   void _save() {
+    _stopPreview();
     ref.read(smartProgramsProvider.notifier).upsert(_current);
     // If this program is the one currently playing, the edit lands on the
     // running show rather than waiting for a restart.
@@ -344,6 +416,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        _previewButton(zone),
         for (var i = 0; i < layers.length; i++)
           if (_targets.containsKey(layers[i].id)) _layerPicker(layers[i], i, zone),
         _gridRowPicker(zone),

@@ -1149,5 +1149,7 @@
   "liveRowDeleteTitle": "Törlöd: „{name}”?",
   "liveRowDeleteBody": "A sor és a klipjei törlődnek, az alatta lévő sorok feljebb lépnek.",
   "liveRowDeleteSmart": "Ezt a sort a(z) {programs} Smart Program használja: abban a zónában nem fog Grid-sor szólni.",
-  "smartGridRow": "Live Grid sor"
+  "smartGridRow": "Live Grid sor",
+  "smartTry": "Próba",
+  "smartTryStop": "Próba leállítása"
 }
