@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/widgets/save_project_action.dart';
 import '../../l10n/l10n.dart';
 import '../manual_control/manual_control_screen.dart';
 import 'live_grid_view.dart';
@@ -54,6 +55,8 @@ class _LiveScreenState extends State<LiveScreen> {
                       flex: 100,
                       child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerRight, child: LiveClockChip()),
                     ),
+                  // Save the project, as from every other main screen.
+                  const SaveProjectAction(),
                 ],
               ),
             ),

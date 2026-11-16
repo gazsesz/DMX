@@ -2944,5 +2944,7 @@
   "liveRowDeleteBody": "The row and its clips go; the rows under it move up.",
   "liveRowDeleteSmart": "The Smart Program {programs} plays this row: that zone will play no Grid row.",
   "@liveRowDeleteSmart": {"placeholders": {"programs": {"type": "String"}}},
-  "smartGridRow": "Live Grid row"
+  "smartGridRow": "Live Grid row",
+  "smartTry": "Try",
+  "smartTryStop": "Stop trying"
 }

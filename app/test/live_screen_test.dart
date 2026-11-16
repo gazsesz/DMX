@@ -364,6 +364,8 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 200));
       expect(find.text('GO'), findsOneWidget);
+      // Project save sits in the header, as on the other main screens.
+      expect(find.byIcon(Icons.save_outlined), findsOneWidget);
       // And the Mixer.
       await tester.tap(find.byIcon(Icons.view_column));
       await tester.pumpAndSettle();
