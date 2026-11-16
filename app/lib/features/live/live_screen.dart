@@ -25,7 +25,8 @@ class _LiveScreenState extends State<LiveScreen> {
       showSelectedIcon: false,
       segments: [
         ButtonSegment(value: 0, label: narrow ? null : Text(l.liveViewGrid), tooltip: l.liveViewGrid, icon: const Icon(Icons.grid_on, size: 18)),
-        ButtonSegment(value: 1, label: narrow ? null : Text(l.liveViewDesk), tooltip: l.liveViewDesk, icon: const Icon(Icons.tune, size: 18)),
+        ButtonSegment(value: 1, label: narrow ? null : Text(l.liveViewMixer), tooltip: l.liveViewMixer, icon: const Icon(Icons.view_column, size: 18)),
+        ButtonSegment(value: 2, label: narrow ? null : Text(l.liveViewDesk), tooltip: l.liveViewDesk, icon: const Icon(Icons.tune, size: 18)),
       ],
       selected: {_view},
       onSelectionChanged: (s) => setState(() => _view = s.first),
@@ -48,7 +49,7 @@ class _LiveScreenState extends State<LiveScreen> {
                     onPressed: () => _showHelp(context),
                   ),
                   const Spacer(),
-                  if (_view == 0)
+                  if (_view != 2)
                     const Flexible(
                       flex: 100,
                       child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerRight, child: LiveClockChip()),
@@ -61,7 +62,7 @@ class _LiveScreenState extends State<LiveScreen> {
         Expanded(
           child: IndexedStack(
             index: _view,
-            children: const [LiveGridView(), ManualControlScreen()],
+            children: const [LiveGridView(), LiveMixerView(), ManualControlScreen()],
           ),
         ),
       ],

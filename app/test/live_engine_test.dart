@@ -216,6 +216,31 @@ void main() {
       expect(out.values[liveLayerId('colors-pars')]![20], 128); // white at half
     });
 
+    test('the lane Amount scales Level output and Colors brightness', () {
+      grid = grid
+          .withClip('level', 0, const LiveClip(name: 'Full', level: LiveLevelFx(high: 1)))
+          .withClip('colors-pars', 0, const LiveClip(name: 'White', colors: LiveColorFx(colors: [0xFFFFFF])));
+      grid = grid
+          .withLane(grid.lane('level')!.copyWith(amount: 0.5))
+          .withLane(grid.lane('colors-pars')!.copyWith(amount: 0.5));
+      for (final lane in ['level', 'colors-pars']) {
+        engine.select(lane, 0, mode: LivePadMode.selectThenGo, quantize: LiveQuantize.now);
+      }
+      engine.go(quantize: LiveQuantize.now);
+      engine.tick(0);
+      engine.tick(0.1);
+      expect(out.values[liveLayerId('level')]![2], closeTo(128, 1)); // h1 dimmer at half
+      // Dimmer-less pars take both: Level 0.5 x Colors 0.5.
+      expect(out.values[liveLayerId('colors-pars')]![20], closeTo(64, 1));
+    });
+
+    test('lane Amount survives JSON and defaults to 1', () {
+      final lane = grid.lane('level')!.copyWith(amount: 0.25);
+      expect(LiveLane.fromJson(lane.toJson()).amount, 0.25);
+      expect(grid.lane('moves')!.toJson().containsKey('amount'), isFalse);
+      expect(LiveLane.fromJson(grid.lane('moves')!.toJson()).amount, 1);
+    });
+
     test('a beam lane strobes inside the strobe range', () {
       grid = grid.withClip('beam', 0, const LiveClip(name: 'S', beam: LiveBeamFx(strobe: 1, gobo: 40)));
       engine.select('beam', 0, mode: LivePadMode.selectThenGo, quantize: LiveQuantize.now);

@@ -50,6 +50,17 @@ class LiveGridNotifier extends StateNotifier<LiveGrid> {
   }
 
   void addRow(String name) => state = state.copyWith(rows: [...state.rows, name]);
+
+  /// Adds a row named [name] holding [clips] (lane id → clip): the Mixer's
+  /// "save the mix as a scene".
+  void addRowWith(String name, Map<String, LiveClip> clips) {
+    final row = state.rows.length;
+    var next = state.copyWith(rows: [...state.rows, name]);
+    for (final e in clips.entries) {
+      next = next.withClip(e.key, row, e.value);
+    }
+    state = next;
+  }
 }
 
 /// Device-level Live settings: what a pad tap does and when a launch lands.

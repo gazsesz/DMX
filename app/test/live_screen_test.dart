@@ -172,6 +172,58 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
+  testWidgets('Mixer: strips with Amount faders; the running mix saves as a scene', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = ProviderContainer();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LiveScreen())),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+
+    await tester.tap(find.text('Mixer'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('live-amount-level')), findsOneWidget);
+    expect(find.text('Idle'), findsWidgets);
+
+    // Nothing running: nothing to save.
+    await tester.tap(find.byKey(const ValueKey('live-mix-save')));
+    await tester.pump();
+    expect(find.text('Nothing is running to save.'), findsOneWidget);
+
+    // Drag the Level fader to the left end.
+    final slider = find.byKey(const ValueKey('live-amount-level'));
+    await tester.drag(slider, const Offset(-400, 0));
+    await tester.pump();
+    expect(container.read(liveGridProvider).lane('level')!.amount, lessThan(0.05));
+
+    // Run two clips, then save the mix as a new row.
+    final engine = container.read(liveEngineProvider);
+    engine.select('colors-pars', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+    engine.select('moves', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.textContaining('NOW · '), findsNWidgets(2));
+    final rowsBefore = container.read(liveGridProvider).rows.length;
+    await tester.tap(find.byKey(const ValueKey('live-mix-save')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    final grid = container.read(liveGridProvider);
+    expect(grid.rows.length, rowsBefore + 1);
+    expect(grid.clipAt('colors-pars', rowsBefore)?.name, grid.clipAt('colors-pars', 0)?.name);
+    expect(grid.clipAt('moves', rowsBefore)?.name, grid.clipAt('moves', 1)?.name);
+    expect(grid.clipAt('level', rowsBefore), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
   testWidgets('phone Grid shows lane chips and a GO button', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(360, 740);
@@ -194,8 +246,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
-  // Tab S6 Lite (landscape / portrait) and P20 Pro landscape lay out cleanly.
-  for (final size in const [Size(1333, 800), Size(800, 1333), Size(746, 360)]) {
+  // Tab S6 Lite (landscape / portrait) and P20 Pro (landscape / portrait) lay out cleanly, Grid and Mixer.
+  for (final size in const [Size(1333, 800), Size(800, 1333), Size(746, 360), Size(360, 740)]) {
     testWidgets('lays out without overflow at ${size.width}x${size.height}', (tester) async {
       SharedPreferences.setMockInitialValues({});
       tester.view.physicalSize = size;
@@ -209,6 +261,10 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 200));
+      expect(find.text('GO'), findsOneWidget);
+      // And the Mixer.
+      await tester.tap(find.byIcon(Icons.view_column));
+      await tester.pumpAndSettle();
       expect(find.text('GO'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       container.dispose();
