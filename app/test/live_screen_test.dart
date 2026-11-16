@@ -244,6 +244,10 @@ void main() {
     final engine = container.read(liveEngineProvider);
     engine.select('colors-pars', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
     engine.select('moves', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+    // Level ran, then was stopped: the saved row still gets its clip.
+    engine.select('level', 2, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+    await tester.pump(const Duration(milliseconds: 100));
+    engine.stopLane('level');
     await tester.pump(const Duration(milliseconds: 200));
     expect(find.textContaining('NOW · '), findsNWidgets(2));
     final rowsBefore = container.read(liveGridProvider).rows.length;
@@ -255,7 +259,10 @@ void main() {
     expect(grid.rows.length, rowsBefore + 1);
     expect(grid.clipAt('colors-pars', rowsBefore)?.name, grid.clipAt('colors-pars', 0)?.name);
     expect(grid.clipAt('moves', rowsBefore)?.name, grid.clipAt('moves', 1)?.name);
-    expect(grid.clipAt('level', rowsBefore), isNull);
+    expect(grid.clipAt('level', rowsBefore)?.name, grid.clipAt('level', 2)?.name);
+    expect(grid.clipAt('level', rowsBefore), isNotNull);
+    expect(find.textContaining("Level wasn't running"), findsOneWidget);
+    expect(grid.clipAt('beam', rowsBefore), isNull);
 
     await tester.pumpWidget(const SizedBox());
     container.dispose();

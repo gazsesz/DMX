@@ -27,10 +27,13 @@ class LiveMixerView extends ConsumerWidget {
   }
 }
 
-/// Saves what every lane runs now as a new scene row.
+/// Saves what every lane runs now as a new Grid row. A Level lane that is
+/// stopped goes in with the clip it last ran: without it the heads (and
+/// dimmer pars) would stay dark when the row is played back.
 Future<void> _saveMixAsScene(BuildContext context, WidgetRef ref) async {
   final l = context.l10n;
   final grid = ref.read(liveGridProvider);
+  final engine = ref.read(liveEngineProvider);
   final running = ref.read(liveStatusProvider).running;
   final clips = <String, LiveClip>{for (final e in running.entries) e.key: ?grid.clipAt(e.key, e.value)};
   final messenger = ScaffoldMessenger.maybeOf(context);
@@ -38,10 +41,29 @@ Future<void> _saveMixAsScene(BuildContext context, WidgetRef ref) async {
     messenger?.showSnackBar(SnackBar(content: Text(l.liveMixNothing)));
     return;
   }
+  final addedLevel = <String>[];
+  var darkLevel = false;
+  for (final lane in grid.lanes) {
+    if (lane.kind != LiveLaneKind.level || clips.containsKey(lane.id)) continue;
+    final row = engine.lastRowOf(lane.id);
+    final clip = row == null ? null : grid.clipAt(lane.id, row);
+    if (clip == null) {
+      darkLevel = true;
+      continue;
+    }
+    clips[lane.id] = clip;
+    addedLevel.add(clip.name);
+  }
   final name = await _askName(context, l.liveMixSave, 'Mix ${grid.rows.length + 1}');
   if (name == null || name.trim().isEmpty) return;
   ref.read(liveGridProvider.notifier).addRowWith(name.trim(), clips);
-  messenger?.showSnackBar(SnackBar(content: Text(l.liveMixSaved(name.trim()))));
+  final saved = l.liveMixSaved(name.trim());
+  final note = addedLevel.isNotEmpty
+      ? '\n${l.liveMixLevelAdded(addedLevel.join(', '))}'
+      : (darkLevel ? '\n${l.liveMixNoLevel}' : '');
+  messenger
+    ?..hideCurrentSnackBar()
+    ..showSnackBar(SnackBar(content: Text('$saved$note')));
 }
 
 class _MixerStrips extends ConsumerWidget {

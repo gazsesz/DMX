@@ -2927,5 +2927,8 @@
   "liveAmountLevel": "Level",
   "liveCentreReset": "Reset",
   "liveMovesBase": "Base position (pan/tilt)",
-  "liveAmountIdle": "Works on the lane's running clip. Start one."
+  "liveAmountIdle": "Works on the lane's running clip. Start one.",
+  "liveMixLevelAdded": "Level wasn't running: added its last clip ({clip}) so the row isn't dark.",
+  "@liveMixLevelAdded": {"placeholders": {"clip": {"type": "String"}}},
+  "liveMixNoLevel": "No Level clip in this row: heads stay dark until a Level clip runs."
 }

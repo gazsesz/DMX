@@ -124,6 +124,12 @@ class LiveEngine {
 
   final Map<String, int> _running = {};
 
+  /// Each lane's last started row, even after it stopped.
+  final Map<String, int> _lastRow = {};
+
+  /// The row [laneId] last started (it may have stopped since).
+  int? lastRowOf(String laneId) => _lastRow[laneId];
+
   /// What ran when Stop all last hit, for [resume].
   Map<String, int> _lastRun = const {};
   final Map<String, int> _queued = {};
@@ -374,6 +380,7 @@ class LiveEngine {
   }
 
   void _start(String laneId, int row, double atBeat) {
+    _lastRow[laneId] = row;
     final g = grid();
     final lane = g.lane(laneId);
     final show = g.clipAt(laneId, row)?.show;
