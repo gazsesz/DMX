@@ -2930,5 +2930,7 @@
   "liveAmountIdle": "Works on the lane's running clip. Start one.",
   "liveMixLevelAdded": "Level wasn't running: added its last clip ({clip}) so the row isn't dark.",
   "@liveMixLevelAdded": {"placeholders": {"clip": {"type": "String"}}},
-  "liveMixNoLevel": "No Level clip in this row: heads stay dark until a Level clip runs."
+  "liveMixNoLevel": "No Level clip in this row: heads stay dark until a Level clip runs.",
+  "liveMovesTry": "Try on the heads",
+  "liveMovesTryHint": "The lane's heads point at the base position, lit, while you edit."
 }

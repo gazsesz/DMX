@@ -96,6 +96,9 @@ String liveLayerId(String laneId) => 'live:$laneId';
 /// Beam lane started later wins the strobe channel.
 const liveShutterLayer = 'live:shutter';
 
+/// The clip editor's "Try on heads" layer, above every lane.
+const livePreviewLayer = 'live:preview';
+
 /// Plays a [LiveGrid]: one effect per lane, each lane on its own output
 /// layer so it only ever writes its own attribute group.
 ///
@@ -254,6 +257,44 @@ class LiveEngine {
     }
     _changed();
     return any;
+  }
+
+  /// The clip editor's "Try on heads": points [lane]'s heads at [center],
+  /// lit (dimmer full, shutter open), on a layer above everything. Null
+  /// hands the heads back.
+  void previewPosition(LiveLane lane, PanTilt? center) {
+    if (center == null) {
+      output.releaseLayer(livePreviewLayer);
+      for (final u in rig().universes) {
+        output.flush(u);
+      }
+      return;
+    }
+    final r = rig();
+    final universes = {for (final u in r.universes) u.id: u};
+    final touched = <UniverseConfig>{};
+    output.claimLayer(livePreviewLayer);
+    for (final f in targetsOf(lane, r)) {
+      final universe = universes[f.universeId];
+      if (universe == null) continue;
+      for (final c in f.profile.channels) {
+        final int? value = switch (c.function) {
+          ChannelFunction.pan => center.panCoarse,
+          ChannelFunction.panFine => center.panFine,
+          ChannelFunction.tilt => center.tiltCoarse,
+          ChannelFunction.tiltFine => center.tiltFine,
+          ChannelFunction.strobe => shutterOpenValue(c.capabilities),
+          final fn when fn.isDimmer => 255,
+          _ => null,
+        };
+        if (value == null) continue;
+        output.setLayerChannel(universe, f.startChannel + c.offset, value, livePreviewLayer);
+        touched.add(universe);
+      }
+    }
+    for (final u in touched) {
+      output.flush(u);
+    }
   }
 
   /// Something else took over the rig: Start no longer brings the Grid back.

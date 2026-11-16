@@ -4,6 +4,7 @@ import 'package:dmx_controller/models/channel_function.dart';
 import 'package:dmx_controller/models/fixture_channel.dart';
 import 'package:dmx_controller/models/fixture_profile.dart';
 import 'package:dmx_controller/models/live_grid.dart';
+import 'package:dmx_controller/models/pan_tilt.dart';
 import 'package:dmx_controller/models/movement_fx.dart';
 import 'package:dmx_controller/models/patched_fixture.dart';
 import 'package:dmx_controller/models/universe_config.dart';
@@ -214,6 +215,18 @@ void main() {
       expect(out.values[liveLayerId('level')]![2], 128); // h1 dimmer
       expect(out.values[liveShutterLayer]![3], 5); // h1 shutter open slot
       expect(out.values[liveLayerId('colors-pars')]![20], 128); // white at half
+    });
+
+    test('Try on heads: points the lane heads at a position, lit, then lets go', () {
+      engine.previewPosition(grid.lane('moves')!, const PanTilt(0x1234, 0x5678));
+      final v = out.values[livePreviewLayer]!;
+      expect(v[0], 0x12); // h1 pan
+      expect(v[1], 0x56); // h1 tilt
+      expect(v[2], 255); // h1 dimmer
+      expect(v[3], 5); // h1 shutter open
+      expect(v[10], 0x12); // h2 pan
+      engine.previewPosition(grid.lane('moves')!, null);
+      expect(out.released, contains(livePreviewLayer));
     });
 
     test('Stop all can be resumed: the same clips start again', () {

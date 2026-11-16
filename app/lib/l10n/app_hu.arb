@@ -1139,5 +1139,7 @@
   "liveMovesBase": "Alappozíció (pan/tilt)",
   "liveAmountIdle": "Csak a sáv futó klipjére hat. Indíts el egyet.",
   "liveMixLevelAdded": "A Level nem futott: a legutóbbi Level klipje ({clip}) is bekerült, hogy ne legyen sötét.",
-  "liveMixNoLevel": "Ebben a sorban nincs Level klip: a fejek sötétek maradnak, amíg nem fut egy Level klip."
+  "liveMixNoLevel": "Ebben a sorban nincs Level klip: a fejek sötétek maradnak, amíg nem fut egy Level klip.",
+  "liveMovesTry": "Próba a fejeken",
+  "liveMovesTryHint": "Szerkesztés közben a sáv fejei világítva az alappozícióba állnak."
 }

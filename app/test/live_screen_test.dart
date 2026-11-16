@@ -150,7 +150,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 100));
     await tester.tapAt(tester.getTopLeft(find.byKey(const ValueKey('live-moves-centre'))) + const Offset(30, 30));
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.tap(find.byKey(const ValueKey('live-clip-save')));
+    // Try on heads, then save from the top row.
+    await tester.ensureVisible(find.byKey(const ValueKey('live-moves-try')));
+    await tester.tap(find.byKey(const ValueKey('live-moves-try')));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.ensureVisible(find.byKey(const ValueKey('live-clip-save-top')));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const ValueKey('live-clip-save-top')));
     for (var i = 0; i < 5; i++) {
       await tester.pump(const Duration(milliseconds: 100));
     }
