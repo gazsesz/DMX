@@ -46,11 +46,17 @@ class ProjectStorage {
     return infos;
   }
 
-  Future<File> save(String name, ProjectData data) async {
+  Future<File> save(String name, ProjectData data) => saveEncoded(name, encode(data));
+
+  /// The exact text [save] writes — lets the autosaver tell whether anything
+  /// actually changed before touching the disk.
+  static String encode(ProjectData data) => const JsonEncoder.withIndent('  ').convert(data.toJson());
+
+  Future<File> saveEncoded(String name, String json) async {
     final dir = await _projectsDir();
     final safeName = name.trim().isEmpty ? 'Untitled' : name.trim();
     final file = File('${dir.path}/$safeName.json');
-    await file.writeAsString(const JsonEncoder.withIndent('  ').convert(data.toJson()));
+    await file.writeAsString(json);
     return file;
   }
 

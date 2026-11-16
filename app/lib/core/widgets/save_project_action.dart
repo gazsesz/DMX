@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../core/storage/project_snapshot.dart';
-import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
+import '../../state/autosave_providers.dart';
 import '../../state/project_providers.dart';
 import '../../l10n/l10n.dart';
 
@@ -18,7 +17,6 @@ class SaveProjectAction extends ConsumerStatefulWidget {
 }
 
 class _SaveProjectActionState extends ConsumerState<SaveProjectAction> {
-  final _storage = ProjectStorage();
   bool _saving = false;
 
   Future<void> _save() async {
@@ -42,7 +40,7 @@ class _SaveProjectActionState extends ConsumerState<SaveProjectAction> {
       ref.read(currentProjectNameProvider.notifier).state = name;
     }
     setState(() => _saving = true);
-    await _storage.save(name, buildProjectSnapshot(ref));
+    await ref.read(projectAutoSaveProvider.notifier).saveNow(force: true);
     if (mounted) {
       setState(() => _saving = false);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesSaved(name))));
@@ -51,15 +49,25 @@ class _SaveProjectActionState extends ConsumerState<SaveProjectAction> {
 
   @override
   Widget build(BuildContext context) {
+    final status = ref.watch(projectAutoSaveProvider);
+    final busy = _saving || status == ProjectSaveState.saving;
     return IconButton(
+      key: const Key('save-project'),
       tooltip: context.l10n.wSaveProject,
-      icon: _saving
+      icon: busy
           ? const SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Icon(Icons.save_outlined),
+          // The dot: edits that aren't on disk yet (an autosave is coming).
+          : Badge(
+              key: const Key('save-project-dirty'),
+              isLabelVisible: status == ProjectSaveState.dirty,
+              smallSize: 8,
+              backgroundColor: AppColors.accent,
+              child: const Icon(Icons.save_outlined),
+            ),
       onPressed: _saving ? null : _save,
     );
   }
