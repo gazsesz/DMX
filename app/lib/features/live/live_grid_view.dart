@@ -11,6 +11,7 @@ import '../../state/fixture_group_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/live_providers.dart';
 import '../../state/playback_providers.dart';
+import '../../state/smart_program_providers.dart';
 import 'live_clip_editor.dart';
 
 part 'live_mixer_view.dart';
@@ -158,6 +159,99 @@ Future<void> _renameRow(BuildContext context, WidgetRef ref, int row) async {
   final rows = ref.read(liveGridProvider).rows;
   final name = await _askName(context, context.l10n.liveRenameRow, row < rows.length ? rows[row] : '');
   if (name != null && name.trim().isNotEmpty) ref.read(liveGridProvider.notifier).renameRow(row, name.trim());
+}
+
+/// A row's long-press menu: rename, copy, delete — and which Smart Programs
+/// play it, since editing it changes them too.
+Future<void> _rowMenu(BuildContext context, WidgetRef ref, int row) async {
+  final l = context.l10n;
+  final grid = ref.read(liveGridProvider);
+  if (row < 0 || row >= grid.rows.length) return;
+  final rowId = grid.rowIds[row];
+  final programs = ref.read(liveRowProgramsProvider)[rowId] ?? const <String>[];
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    showDragHandle: true,
+    builder: (context) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+            child: Text(grid.rows[row], style: Theme.of(context).textTheme.titleMedium),
+          ),
+          if (programs.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+              child: Text(
+                l.liveRowUsedBy(programs.join(', ')),
+                style: const TextStyle(color: AppColors.accent2, fontSize: 12),
+              ),
+            ),
+          ListTile(
+            key: const ValueKey('live-row-rename'),
+            leading: const Icon(Icons.edit_outlined),
+            title: Text(l.liveRenameRow),
+            onTap: () => Navigator.pop(context, 'rename'),
+          ),
+          ListTile(
+            key: const ValueKey('live-row-copy'),
+            leading: const Icon(Icons.copy_outlined),
+            title: Text(l.liveRowCopy),
+            onTap: () => Navigator.pop(context, 'copy'),
+          ),
+          ListTile(
+            key: const ValueKey('live-row-delete'),
+            leading: const Icon(Icons.delete_outline, color: AppColors.danger),
+            title: Text(l.liveRowDelete, style: const TextStyle(color: AppColors.danger)),
+            onTap: () => Navigator.pop(context, 'delete'),
+          ),
+        ],
+      ),
+    ),
+  );
+  if (!context.mounted) return;
+  switch (action) {
+    case 'rename':
+      await _renameRow(context, ref, row);
+    case 'copy':
+      ref.read(liveEngineProvider).rowInserted(row + 1);
+      ref.read(liveGridProvider.notifier).duplicateRow(row, l.liveRowCopyName(grid.rows[row]));
+    case 'delete':
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(l.liveRowDeleteTitle(grid.rows[row])),
+          content: Text(programs.isEmpty ? l.liveRowDeleteBody : l.liveRowDeleteSmart(programs.join(', '))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context, false), child: Text(l.commonCancel)),
+            FilledButton(
+              key: const ValueKey('live-row-delete-confirm'),
+              style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(l.liveRowDelete),
+            ),
+          ],
+        ),
+      );
+      if (ok != true) return;
+      ref.read(liveEngineProvider).rowRemoved(row);
+      ref.read(liveGridProvider.notifier).removeRow(row);
+      // The programs' zones that played it go empty.
+      final notifier = ref.read(smartProgramsProvider.notifier);
+      for (final program in ref.read(smartProgramsProvider)) {
+        if (!program.usesGridRow(rowId)) continue;
+        notifier.upsert(
+          program.copyWith(
+            gridRows: {
+              for (final e in program.gridRows.entries)
+                if (e.value != rowId) e.key: e.value,
+            },
+          ),
+        );
+      }
+  }
 }
 
 Future<void> _addRow(BuildContext context, WidgetRef ref) async {
@@ -402,6 +496,8 @@ class _SceneButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rows = ref.watch(liveGridProvider.select((g) => g.rows));
+    final rowId = ref.watch(liveGridProvider.select((g) => row < g.rows.length ? g.rowIds[row] : ''));
+    final smart = ref.watch(liveRowProgramsProvider.select((m) => m.containsKey(rowId)));
     final status = ref.watch(liveStatusProvider);
     final live = status.running.values.contains(row);
     return Material(
@@ -410,7 +506,7 @@ class _SceneButton extends ConsumerWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
         onTap: () => _tapRow(ref, row),
-        onLongPress: () => _renameRow(context, ref, row),
+        onLongPress: () => _rowMenu(context, ref, row),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           child: Row(
@@ -423,6 +519,20 @@ class _SceneButton extends ConsumerWidget {
                   style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                 ),
               ),
+              if (smart)
+                Container(
+                  key: ValueKey('live-row-smart-$row'),
+                  margin: const EdgeInsets.only(right: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: AppColors.accent2.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: const Text(
+                    'SMART',
+                    style: TextStyle(color: AppColors.accent2, fontSize: 9, fontWeight: FontWeight.w800),
+                  ),
+                ),
               const Icon(Icons.play_arrow_rounded, size: 18, color: AppColors.textDim),
             ],
           ),
@@ -875,7 +985,10 @@ class _PhoneLaunchBar extends ConsumerWidget {
       child: FilledButton(
         style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: AppColors.accentOn),
         onPressed: status.queued.isEmpty ? null : () => engine.go(quantize: prefs.quantize),
-        child: Text(l.liveGo, style: TextStyle(fontSize: short ? 18 : 22, fontWeight: FontWeight.w900)),
+        child: Text(
+          l.liveGo,
+          style: TextStyle(fontSize: short ? 18 : 22, fontWeight: FontWeight.w900),
+        ),
       ),
     );
     final transport = <Widget>[
@@ -918,9 +1031,19 @@ class _PhoneLaunchBar extends ConsumerWidget {
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(children: [const Expanded(child: _QuantizeSelector()), ...settings]),
+                Row(
+                  children: [
+                    const Expanded(child: _QuantizeSelector()),
+                    ...settings,
+                  ],
+                ),
                 const SizedBox(height: 8),
-                Row(children: [Expanded(child: go), ...transport]),
+                Row(
+                  children: [
+                    Expanded(child: go),
+                    ...transport,
+                  ],
+                ),
               ],
             ),
     );

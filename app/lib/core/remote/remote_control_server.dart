@@ -5,6 +5,7 @@ import 'dart:io';
 import '../../state/audio_providers.dart';
 import '../../state/color_override_providers.dart';
 import '../../state/dimmer_dropout_providers.dart';
+import '../../state/live_providers.dart';
 import '../../state/movement_live_providers.dart';
 import '../../state/playback_providers.dart';
 import 'trigger_actions.dart';
@@ -116,6 +117,16 @@ class RemoteControlServer {
             off: _parseOnOff(query['off']) ?? false,
           );
           _writeJson(request, {'ok': true, 'message': message, 'color': _colorStatus()});
+        case '/grid':
+          // A Live Grid row: /grid?row=<row id> (or ?name=<row name>) starts
+          // it at the next beat, or stops the Grid if it is what plays.
+          final grid = read(liveGridProvider);
+          final byName = grid.rows.indexOf(query['name'] ?? '');
+          final rowId = query['row'] ?? (byName < 0 ? '' : grid.rowIds[byName]);
+          _writeJson(request, {'ok': true, 'message': toggleLiveGridRow(read, rowId)});
+        case '/grid/stop':
+          stopLive(read);
+          _writeJson(request, {'ok': true, 'message': 'Grid stopped'});
         case '/stop':
           stopPlayback(read);
           _writeJson(request, {'ok': true, 'message': 'Stopped'});
@@ -191,6 +202,14 @@ class RemoteControlServer {
         lines.add('--- s${index++},${display(target.name)},${path(target.name)}');
       }
     }
+    // Every Live Grid row: a tap starts it at the next beat, a second tap on
+    // the row that plays stops the Grid.
+    final grid = read(liveGridProvider);
+    lines.add('-- grd,Grid');
+    for (var i = 0; i < grid.rows.length; i++) {
+      lines.add('--- g${index++},${display(grid.rows[i])},/grid?row=${Uri.encodeComponent(grid.rowIds[i])}');
+    }
+    lines.add('--- gstop,Grid stop,/grid/stop');
     lines.add('-- ctl,Control');
     lines.add('--- bs,Beat Sync,/beatsync');
     lines.add('--- pr,Predict,/predict');

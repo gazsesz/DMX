@@ -8,6 +8,8 @@ import 'package:dmx_controller/state/fixture_providers.dart';
 import 'package:dmx_controller/models/live_grid.dart';
 import 'package:dmx_controller/state/live_providers.dart';
 import 'package:dmx_controller/state/playback_providers.dart';
+import 'package:dmx_controller/models/smart_program.dart';
+import 'package:dmx_controller/state/smart_program_providers.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -269,6 +271,55 @@ void main() {
     expect(grid.clipAt('level', rowsBefore), isNotNull);
     expect(find.textContaining("Level wasn't running"), findsOneWidget);
     expect(grid.clipAt('beam', rowsBefore), isNull);
+
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
+  testWidgets('row menu: copy and delete; rows a Smart Program plays wear a badge', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = ProviderContainer();
+    final first = container.read(liveGridProvider);
+    container.read(smartProgramsProvider.notifier).loadAll([
+      SmartProgram(id: 'p', name: 'Club', gridRows: {SmartProgramZone.base: first.rowIds[1]}),
+    ]);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LiveScreen())),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(find.byKey(const ValueKey('live-row-smart-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('live-row-smart-0')), findsNothing);
+
+    // Copy row 0: it lands under it, without the badge.
+    await tester.longPress(find.text(first.rows[0]).first);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('live-row-copy')));
+    await tester.pumpAndSettle();
+    var grid = container.read(liveGridProvider);
+    expect(grid.rows.length, first.rows.length + 1);
+    expect(grid.rows[1], '${first.rows[0]} copy');
+    expect(find.byKey(const ValueKey('live-row-smart-2')), findsOneWidget); // the program's row moved down
+
+    // Delete the program's row: it warns, and the program loses the row.
+    await tester.longPress(find.text(first.rows[1]).first);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Smart Program: Club'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('live-row-delete')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('The Smart Program Club plays this row'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('live-row-delete-confirm')));
+    await tester.pumpAndSettle();
+    grid = container.read(liveGridProvider);
+    expect(grid.rows.length, first.rows.length);
+    expect(grid.rowOf(first.rowIds[1]), isNull);
+    expect(container.read(smartProgramsProvider).single.gridRows, isEmpty);
 
     await tester.pumpWidget(const SizedBox());
     container.dispose();

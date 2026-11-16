@@ -12,6 +12,7 @@ import '../../state/fixture_group_providers.dart';
 import '../../state/movement_live_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
+import '../../state/live_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/provider_reader.dart';
 import '../../state/scene_providers.dart';
@@ -331,7 +332,7 @@ String _liveColorText(ReadProvider read) {
 class RemoteTarget {
   final String id;
   final String name;
-  final String kind; // 'bank' | 'chase' | 'smart'
+  final String kind; // 'bank' | 'chase' | 'smart' | 'grid' (a Live Grid row, by row id)
 
   /// Pinned to the Dashboard as a Quick Trigger (or a Smart Program). The
   /// watch menu shows only these, so what's on your wrist mirrors what you
@@ -379,6 +380,11 @@ List<RemoteTarget> remoteTargets(ReadProvider read) {
   for (final chase in chases) {
     add(chase.id, chase.name, 'chase');
   }
+  final grid = read(liveGridProvider);
+  final rowIds = grid.rowIds;
+  for (var i = 0; i < rowIds.length; i++) {
+    add(rowIds[i], grid.rows[i], 'grid');
+  }
   return targets;
 }
 
@@ -391,5 +397,6 @@ Future<String> fireByName(ReadProvider read, String name) async {
   if (matches.isEmpty) return 'Nothing called "$name"';
   final target = matches.first;
   if (target.kind == 'smart') return toggleSmartProgramById(read, target.id);
+  if (target.kind == 'grid') return toggleLiveGridRow(read, target.id);
   return togglePlayable(read, id: target.id, isBank: target.kind == 'bank', name: target.name);
 }

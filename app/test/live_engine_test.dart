@@ -486,4 +486,58 @@ void main() {
       expect(back.prismRotation, 0.5);
     });
   });
+
+  group('rows', () {
+    test('old grids get fallback ids; new rows get fresh ones; ids survive JSON', () {
+      final g = LiveGrid.starter();
+      expect(g.rowIds, [for (var i = 0; i < g.rows.length; i++) 'r$i']);
+      final added = g.addRow('Extra');
+      expect(added.rowIds.last, isNot(anyOf(added.rowIds.take(added.rows.length - 1))));
+      final back = LiveGrid.fromJson(added.toJson());
+      expect(back.rowIds, added.rowIds);
+      expect(back.rowOf(added.rowIds.last), added.rows.length - 1);
+    });
+
+    test('a copied row lands under the original with its clips and a new id', () {
+      final g = LiveGrid.starter();
+      final copy = g.duplicateRow(0, 'Intro copy');
+      expect(copy.rows.length, g.rows.length + 1);
+      expect(copy.rows[1], 'Intro copy');
+      expect(copy.clipAt('moves', 1)?.name, g.clipAt('moves', 0)?.name);
+      expect(copy.clipAt('moves', 2)?.name, g.clipAt('moves', 1)?.name); // shifted down
+      expect(copy.rowIds[0], g.rowIds[0]);
+      expect(copy.rowIds[2], g.rowIds[1]);
+      expect(copy.rowIds.toSet().length, copy.rowIds.length);
+    });
+
+    test('deleting a row drops its clips, moves the rest up and keeps their ids', () {
+      final g = LiveGrid.starter();
+      final cut = g.removeRow(0);
+      expect(cut.rows.length, g.rows.length - 1);
+      expect(cut.clipAt('moves', 0)?.name, g.clipAt('moves', 1)?.name);
+      expect(cut.rowIds.first, g.rowIds[1]);
+      expect(cut.rowOf(g.rowIds[0]), isNull);
+    });
+
+    test('the engine follows: lanes on a deleted row stop, later rows shift', () {
+      engine.select('moves', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.select('level', 2, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.tick(0);
+      grid = grid.removeRow(0);
+      engine.rowRemoved(0);
+      expect(engine.status.running, {'level': 1});
+      engine.rowInserted(0);
+      expect(engine.status.running, {'level': 2});
+    });
+
+    test('launchRow starts every lane with a clip there, once', () {
+      engine.launchRow(1, quantize: LiveQuantize.now);
+      engine.tick(0);
+      final lanes = [for (final l in grid.lanes) if (grid.clipAt(l.id, 1) != null) l.id];
+      expect(engine.status.running.keys.toSet(), lanes.toSet());
+      expect(engine.isRowRunning(1), isTrue);
+      engine.launchRow(1, quantize: LiveQuantize.now); // already playing: nothing to arm
+      expect(engine.status.queued, isEmpty);
+    });
+  });
 }

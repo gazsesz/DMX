@@ -68,6 +68,10 @@ class SmartProgramPlayer {
   /// lets go of it — see [DimmerDropoutController.setProgramOverride].
   final void Function(DropoutSettings?) setDropout;
 
+  /// Plays a Live Grid row (by row id) alongside the layers, or stops the
+  /// Grid (null). Only called for programs that have Grid rows.
+  final void Function(String? rowId)? playGridRow;
+
   /// For Movement FX banks a zone plays — see [ChasePlayer.play].
   final StagePlan Function()? liveStage;
   final List<FixtureGroup> Function()? liveGroups;
@@ -91,6 +95,7 @@ class SmartProgramPlayer {
     bool Function()? isAutoFadeOn,
     void Function(bool)? setAutoFade,
     void Function(DropoutSettings?)? setDropout,
+    this.playGridRow,
     this.liveStage,
     this.liveGroups,
     this.liveBanks,
@@ -298,6 +303,9 @@ class SmartProgramPlayer {
     _program = program;
     setDropout(_dropoutFor(program, zone));
     if (_isSilent) return;
+    if (current.gridRowFor(zone) != program.gridRowFor(zone)) {
+      playGridRow?.call(program.gridRows.isEmpty ? null : program.gridRowFor(zone));
+    }
     if (!targetChanged && !fadeChanged && !holdChanged && !freeChanged) return;
     _playZone(
       zone,
@@ -395,6 +403,7 @@ class SmartProgramPlayer {
     if (!fromLoudness && musicPresentNow() != null) return;
     _isSilent = true;
     _resumeRun.clear();
+    if (program.gridRows.isNotEmpty) playGridRow?.call(null);
     // ignore: avoid_print
     print('SMARTBEAT silence: blackout');
     _confirmTimer?.cancel();
@@ -573,6 +582,7 @@ class SmartProgramPlayer {
     final program = _program;
     if (program == null) return;
     setDropout(_dropoutFor(program, zone));
+    if (program.gridRows.isNotEmpty) playGridRow?.call(program.gridRowFor(zone));
     final fade = _fadeOf(program, zone);
     // With beat sync armed the steps land on the detected beats, and the
     // zone's hold only matters as the fallback the player never reaches.
@@ -712,6 +722,7 @@ class SmartProgramPlayer {
 
   void stop() {
     final layerIds = drivenLayerIds;
+    final hadGrid = _program?.gridRows.isNotEmpty ?? false;
     _program = null;
     _released.clear();
     _freeStarted.clear();
@@ -735,6 +746,7 @@ class SmartProgramPlayer {
     for (final id in layerIds) {
       playerFor(id).stop();
     }
+    if (hadGrid && !_disposed) playGridRow?.call(null);
   }
 
   bool _disposed = false;

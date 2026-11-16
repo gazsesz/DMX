@@ -131,6 +131,17 @@ class SmartProgram {
   /// empty means every one of them.
   final Map<SmartProgramZone, DropoutSettings> zoneDropouts;
 
+  /// The Live Grid row (by row id) each zone plays alongside the layers. A
+  /// zone without one plays the Base row; no rows at all leaves the Grid
+  /// alone.
+  final Map<SmartProgramZone, String> gridRows;
+
+  /// The Grid row [zone] plays: its own, or the Base row.
+  String? gridRowFor(SmartProgramZone zone) => gridRows[zone] ?? gridRows[SmartProgramZone.base];
+
+  /// Whether any zone plays the Grid row [rowId].
+  bool usesGridRow(String rowId) => gridRows.values.contains(rowId);
+
   LaneTiming timingOfLayer(String layerId) => layerTimings[layerId] ?? LaneTiming.followApp;
 
   const SmartProgram({
@@ -158,6 +169,7 @@ class SmartProgram {
     this.extraLayers = const [],
     this.layerTimings = const {},
     this.zoneDropouts = const {},
+    this.gridRows = const {},
   });
 
   /// Layer 1's targets plus every extra layer's — one entry per layer, Layer
@@ -176,12 +188,12 @@ class SmartProgram {
     orElse: () => LayerZoneTargets(layerId: layerId),
   );
 
-  bool get hasAnyTarget => drivenLayers.isNotEmpty;
+  bool get hasAnyTarget => drivenLayers.isNotEmpty || gridRows.isNotEmpty;
 
   /// Whether any layer has its own Faster/Slower target — without one the
   /// program never leaves Base in that direction.
-  bool get hasFasterTarget => layers.any((l) => l.faster != null);
-  bool get hasSlowerTarget => layers.any((l) => l.slower != null);
+  bool get hasFasterTarget => layers.any((l) => l.faster != null) || gridRows.containsKey(SmartProgramZone.faster);
+  bool get hasSlowerTarget => layers.any((l) => l.slower != null) || gridRows.containsKey(SmartProgramZone.slower);
 
   /// Whether any zone on any layer plays the chase [chaseId].
   bool usesChase(String chaseId) => layers.any(
@@ -218,6 +230,7 @@ class SmartProgram {
       extraLayers: [for (final l in all) if (l.layerId != layer1Id && !l.isEmpty) l],
       layerTimings: layerTimings,
       zoneDropouts: zoneDropouts,
+      gridRows: gridRows,
     );
   }
 
@@ -247,6 +260,7 @@ class SmartProgram {
     extraLayers: extraLayers,
     layerTimings: layerTimings,
     zoneDropouts: zoneDropouts,
+    gridRows: gridRows,
   );
 
   /// The BPM at/above which the "faster" chase should take over.
@@ -284,6 +298,7 @@ class SmartProgram {
     Duration? blackoutFade,
     Map<String, LaneTiming>? layerTimings,
     Map<SmartProgramZone, DropoutSettings>? zoneDropouts,
+    Map<SmartProgramZone, String>? gridRows,
     bool clearBase = false,
     bool clearFaster = false,
     bool clearSlower = false,
@@ -313,6 +328,7 @@ class SmartProgram {
       extraLayers: extraLayers,
       layerTimings: layerTimings ?? this.layerTimings,
       zoneDropouts: zoneDropouts ?? this.zoneDropouts,
+      gridRows: gridRows ?? this.gridRows,
     );
   }
 
@@ -341,6 +357,7 @@ class SmartProgram {
     if (extraLayers.isNotEmpty) 'extraLayers': extraLayers.map((l) => l.toJson()).toList(),
     if (layerTimings.isNotEmpty) 'layerTimings': {for (final e in layerTimings.entries) e.key: e.value.name},
     if (zoneDropouts.isNotEmpty) 'zoneDropouts': {for (final e in zoneDropouts.entries) e.key.name: e.value.toJson()},
+    if (gridRows.isNotEmpty) 'gridRows': {for (final e in gridRows.entries) e.key.name: e.value},
   };
 
   factory SmartProgram.fromJson(Map<String, dynamic> json) {
@@ -386,6 +403,10 @@ class SmartProgram {
         for (final zone in SmartProgramZone.values)
           if ((json['zoneDropouts'] as Map?)?[zone.name] is Map)
             zone: DropoutSettings.fromJson(Map<String, dynamic>.from((json['zoneDropouts'] as Map)[zone.name] as Map)),
+      },
+      gridRows: {
+        for (final zone in SmartProgramZone.values)
+          if ((json['gridRows'] as Map?)?[zone.name] is String) zone: (json['gridRows'] as Map)[zone.name] as String,
       },
     );
   }

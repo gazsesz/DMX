@@ -14,6 +14,7 @@ import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/playback_providers.dart';
+import '../../state/live_providers.dart';
 import '../../state/smart_program_providers.dart';
 import '../layers/dropout_controls.dart';
 import '../../l10n/l10n.dart';
@@ -46,6 +47,9 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
   late double _blackoutFadeSeconds;
   late Map<String, LaneTiming> _layerTimings;
   late Map<SmartProgramZone, DropoutSettings> _zoneDropouts;
+
+  /// The Live Grid row (by id) each zone plays alongside the layers.
+  late Map<SmartProgramZone, String> _gridRows;
 
   // Each pick is held as a "chase:<id>" / "bank:<id>" / "lane:<chase>:<layer>"
   // key so one dropdown can offer every kind.
@@ -158,6 +162,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
     _baseBpm = p.baseBpm;
     _layerTimings = {...p.layerTimings};
     _zoneDropouts = {...p.zoneDropouts};
+    _gridRows = {...p.gridRows};
     _mode = p.thresholdMode;
     _baseFadeSeconds = p.baseFade.inMilliseconds / 1000;
     _fasterThreshold = p.fasterThreshold;
@@ -190,6 +195,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
         blackoutFade: Duration(milliseconds: (_blackoutFadeSeconds * 1000).round()),
         layerTimings: {for (final e in _layerTimings.entries) if (e.value != LaneTiming.followApp) e.key: e.value},
         zoneDropouts: {for (final e in _zoneDropouts.entries) if (e.value.enabled) e.key: e.value},
+        gridRows: {..._gridRows},
       )
       .withLayerTargets(_targets.values.toList());
 
@@ -203,8 +209,43 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
 
   String get _unit => _mode == ThresholdMode.percent ? '%' : 'BPM';
 
-  bool get _anyFaster => _targets.values.any((t) => t.faster != null);
-  bool get _anySlower => _targets.values.any((t) => t.slower != null);
+  bool get _anyFaster =>
+      _targets.values.any((t) => t.faster != null) || _gridRows.containsKey(SmartProgramZone.faster);
+  bool get _anySlower =>
+      _targets.values.any((t) => t.slower != null) || _gridRows.containsKey(SmartProgramZone.slower);
+
+  /// The Live Grid row this zone plays, next to the layers' picks.
+  Widget _gridRowPicker(SmartProgramZone zone) {
+    final grid = ref.watch(liveGridProvider);
+    final ids = grid.rowIds;
+    var value = _gridRows[zone];
+    if (value != null && !ids.contains(value)) value = null;
+    final emptyLabel = zone != SmartProgramZone.base && _gridRows[SmartProgramZone.base] != null
+        ? context.l10n.wStaysOnBase
+        : context.l10n.wNone;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          const SizedBox(width: 30, child: Icon(Icons.grid_on, size: 20, color: AppColors.accent2)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonFormField<String?>(
+              key: ValueKey('grid-row-${zone.name}-$value-$_pickerEpoch'),
+              initialValue: value,
+              isExpanded: true,
+              decoration: InputDecoration(labelText: context.l10n.smartGridRow, isDense: true),
+              items: [
+                DropdownMenuItem(value: null, child: Text(emptyLabel, style: const TextStyle(color: AppColors.textFaint))),
+                for (var i = 0; i < ids.length; i++) DropdownMenuItem(value: ids[i], child: Text('Grid · ${grid.rows[i]}')),
+              ],
+              onChanged: (v) => setState(() => v == null ? _gridRows.remove(zone) : _gridRows[zone] = v),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// One layer's pick for one zone, offering every saved chase *and* every
   /// bank.
@@ -305,6 +346,7 @@ class _SmartProgramEditorScreenState extends ConsumerState<SmartProgramEditorScr
       children: [
         for (var i = 0; i < layers.length; i++)
           if (_targets.containsKey(layers[i].id)) _layerPicker(layers[i], i, zone),
+        _gridRowPicker(zone),
       ],
     );
   }

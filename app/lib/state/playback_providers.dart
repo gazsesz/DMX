@@ -90,6 +90,8 @@ final smartProgramPlayerProvider = Provider<SmartProgramPlayer>((ref) {
     // Read lazily: the dropout controller only exists once something asked
     // for it, and a provider change can't happen while this is being built.
     setDropout: (settings) => ref.read(dimmerDropoutProvider.notifier).setProgramOverride(settings),
+    // A program's zones can play Live Grid rows too.
+    playGridRow: (rowId) => playLiveGridRow(ref.read, rowId),
     liveStage: () => ref.read(stagePlanProvider),
     liveGroups: () => ref.read(fixtureGroupsProvider),
     liveDockTiming: () => (hold: ref.read(tempoProvider).hold, fade: ref.read(tempoProvider).fade),

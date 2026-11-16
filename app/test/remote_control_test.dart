@@ -12,6 +12,7 @@ import 'package:dmx_controller/state/dashboard_providers.dart';
 import 'package:dmx_controller/state/smart_program_providers.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:dmx_controller/state/live_providers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// The remote endpoint is what a watch macro talks to, so it has to be
@@ -168,5 +169,33 @@ void main() {
     body = await get('/fx?reset=1');
     expect(body['message'], 'Movement knobs neutral');
     expect(body['movement'], {'size': 1.0, 'speed': 1.0, 'shift': 0.0, 'smooth': 0.0});
+  });
+
+  test('Grid rows: on the watch menu, and /grid toggles a row', () async {
+    final grid = container.read(liveGridProvider);
+    final client = HttpClient();
+    late String body;
+    try {
+      final response = await (await client.getUrl(Uri.parse('http://127.0.0.1:$port/endpoints'))).close();
+      body = await response.transform(utf8.decoder).join();
+    } finally {
+      client.close();
+    }
+    final lines = body.split('\n');
+    expect(lines, contains('-- grd,Grid'));
+    expect(lines, contains('--- gstop,Grid stop,/grid/stop'));
+    expect(body, contains(',${grid.rows[0]},/grid?row=${grid.rowIds[0]}'));
+
+    var reply = await get('/grid?row=${grid.rowIds[0]}');
+    expect(reply['message'], 'Started ${grid.rows[0]}');
+    expect(container.read(liveEngineProvider).status.queued, isNotEmpty);
+    reply = await get('/grid/stop');
+    expect(reply['message'], 'Grid stopped');
+    reply = await get('/grid?row=nope');
+    expect(reply['message'], 'No such Grid row');
+    // By name through /trigger as well.
+    reply = await get('/trigger?name=${Uri.encodeComponent(grid.rows[1])}');
+    expect(reply['message'], 'Started ${grid.rows[1]}');
+    container.read(liveEngineProvider).stopAll();
   });
 }
