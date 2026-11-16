@@ -2909,9 +2909,9 @@
   "liveLaneMoveLeft": "Move left",
   "liveLaneMoveRight": "Move right",
   "liveViewMixer": "Mixer",
-  "liveMixSave": "Save mix as scene",
+  "liveMixSave": "Save mix as Grid row",
   "liveMixNothing": "Nothing is running to save.",
-  "liveMixSaved": "Saved as scene “{name}”",
+  "liveMixSaved": "Saved as a new Grid row at the bottom: “{name}”",
   "@liveMixSaved": {
     "placeholders": {
       "name": {
@@ -2924,5 +2924,8 @@
   "liveMixSwipe": "Swipe for the other lanes",
   "liveAmountSize": "Size",
   "liveAmountBrightness": "Bright.",
-  "liveAmountLevel": "Level"
+  "liveAmountLevel": "Level",
+  "liveCentreReset": "Reset",
+  "liveMovesBase": "Base position (pan/tilt)",
+  "liveAmountIdle": "Works on the lane's running clip. Start one."
 }

@@ -160,7 +160,7 @@ class _MixerStrip extends ConsumerWidget {
               ),
             ];
             final bottom = <Widget>[
-              if (hasFader) ...[const SizedBox(height: 6), _AmountFader(lane: lane)],
+              if (hasFader) ...[const SizedBox(height: 6), _AmountFader(lane: lane, running: runningRow != null)],
               const SizedBox(height: 6),
               _LaneFooter(lane: lane),
             ];
@@ -186,7 +186,8 @@ class _MixerStrip extends ConsumerWidget {
 /// The lane's Amount: Moves size, Colors brightness, Level output.
 class _AmountFader extends ConsumerWidget {
   final LiveLane lane;
-  const _AmountFader({required this.lane});
+  final bool running;
+  const _AmountFader({required this.lane, required this.running});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -196,7 +197,8 @@ class _AmountFader extends ConsumerWidget {
       LiveLaneKind.colors => l.liveAmountBrightness,
       _ => l.liveAmountLevel,
     };
-    return Row(
+    // It scales what the lane plays: with nothing running it only presets.
+    final fader = Row(
       children: [
         SizedBox(
           width: 52,
@@ -221,6 +223,19 @@ class _AmountFader extends ConsumerWidget {
             textAlign: TextAlign.end,
             style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
           ),
+        ),
+      ],
+    );
+    if (running) return fader;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Opacity(opacity: 0.45, child: fader),
+        Text(
+          l.liveAmountIdle,
+          key: ValueKey('live-amount-idle-${lane.id}'),
+          maxLines: 2,
+          style: const TextStyle(color: AppColors.textFaint, fontSize: 10),
         ),
       ],
     );

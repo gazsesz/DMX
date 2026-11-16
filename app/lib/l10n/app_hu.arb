@@ -1126,13 +1126,16 @@
   "liveLaneMoveLeft": "Balra",
   "liveLaneMoveRight": "Jobbra",
   "liveViewMixer": "Mixer",
-  "liveMixSave": "Mix mentése jelenetként",
+  "liveMixSave": "Mix mentése Grid-sorként",
   "liveMixNothing": "Nincs futó klip, nincs mit menteni.",
-  "liveMixSaved": "Elmentve „{name}” jelenetként",
+  "liveMixSaved": "Elmentve a Grid új, legalsó sorába: „{name}”",
   "liveMixIdle": "Áll",
   "liveMixNow": "MOST",
   "liveMixSwipe": "Húzd oldalra a többi sávért",
   "liveAmountSize": "Méret",
   "liveAmountBrightness": "Fényerő",
-  "liveAmountLevel": "Szint"
+  "liveAmountLevel": "Szint",
+  "liveCentreReset": "Középre",
+  "liveMovesBase": "Alappozíció (pan/tilt)",
+  "liveAmountIdle": "Csak a sáv futó klipjére hat. Indíts el egyet."
 }

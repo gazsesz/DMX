@@ -9,6 +9,8 @@ import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
 import '../../models/live_grid.dart';
 import '../../models/movement_fx.dart';
+import '../../models/pan_tilt.dart';
+import '../../core/widgets/pan_tilt_pad.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
@@ -16,6 +18,7 @@ import '../../state/scene_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
+import '../banks/movement_fx_editor.dart';
 
 class LiveClipEditResult {
   final LiveClip? clip;
@@ -277,6 +280,13 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
             ),
         ],
       ),
+      const SizedBox(height: 8),
+      // The path as the heads will draw it, like in the bank editor.
+      SizedBox(
+        key: const ValueKey('live-moves-preview'),
+        height: 130,
+        child: MovementPathPreview(fx: m, heads: _movers()),
+      ),
       _label('${l.liveSize}: ${size.round()}°'),
       Slider(
         value: size,
@@ -286,6 +296,32 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
           set(m.copyWith(sizePanDeg: v, sizeTiltDeg: v * (m.sizePanDeg <= 0 ? 0.6 : ratio)));
         },
       ),
+      // Where the heads point while they draw the path (the bank editor's
+      // Centre pad).
+      Row(
+        children: [
+          Expanded(child: _label(l.liveMovesBase)),
+          TextButton(
+            key: const ValueKey('live-moves-centre-reset'),
+            onPressed: m.center == PanTilt.center ? null : () => set(m.copyWith(center: PanTilt.center)),
+            child: Text(l.liveCentreReset),
+          ),
+        ],
+      ),
+      Center(
+        child: SizedBox(
+          key: const ValueKey('live-moves-centre'),
+          width: 220,
+          height: 150,
+          child: PanTiltPad(
+            value: m.center,
+            panRangeDeg: 540,
+            tiltRangeDeg: 270,
+            onChanged: (v) => set(m.copyWith(center: v)),
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(l.liveBeatLocked),
@@ -497,6 +533,15 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
   );
 
   /// Whether any fixture this lane drives has a [fn] channel.
+  /// How many heads the preview draws: the lane's movers, 1..6 (3 with none).
+  int _movers() {
+    final n = targetsOf(
+      widget.lane,
+      _rig(),
+    ).where((f) => f.profile.channels.any((c) => c.function == ChannelFunction.pan)).length;
+    return n == 0 ? 3 : n.clamp(1, 6);
+  }
+
   bool _laneHas(ChannelFunction fn) =>
       targetsOf(widget.lane, _rig()).any((f) => f.profile.channels.any((c) => c.function == fn));
 

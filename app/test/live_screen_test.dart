@@ -125,6 +125,44 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
+  testWidgets('Moves editor shows the path preview, like the bank editor', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = ProviderContainer();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LiveScreen())),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.longPress(find.text('Circle'));
+    // The preview animates for ever: pump, don't settle.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byKey(const ValueKey('live-moves-preview')), findsOneWidget);
+
+    // The base pan/tilt can be moved off the centre and back.
+    await tester.ensureVisible(find.byKey(const ValueKey('live-moves-centre')));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tapAt(tester.getTopLeft(find.byKey(const ValueKey('live-moves-centre'))) + const Offset(30, 30));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const ValueKey('live-clip-save')));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final moved = container.read(liveGridProvider).clipAt('moves', 0)!.moves!.center;
+    expect(moved.pan, lessThan(32768));
+    expect(moved.tilt, lessThan(32768));
+
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
   testWidgets('Beam editor: a prism whose "in" is a span can be set', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(1600, 1000);

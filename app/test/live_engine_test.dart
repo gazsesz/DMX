@@ -216,6 +216,25 @@ void main() {
       expect(out.values[liveLayerId('colors-pars')]![20], 128); // white at half
     });
 
+    test('Stop all can be resumed: the same clips start again', () {
+      engine.select('level', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.select('moves', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.tick(0);
+      expect(engine.status.running, {'level': 0, 'moves': 1});
+      expect(engine.status.resumable, isFalse);
+      engine.stopAll();
+      expect(engine.status.running, isEmpty);
+      expect(engine.status.resumable, isTrue);
+      expect(engine.resume(), isTrue);
+      expect(engine.status.running, {'level': 0, 'moves': 1});
+      expect(engine.status.resumable, isFalse);
+      // Stopped again, then something else takes over: nothing to resume.
+      engine.stopAll();
+      engine.forgetResume();
+      expect(engine.status.resumable, isFalse);
+      expect(engine.resume(), isFalse);
+    });
+
     test('the lane Amount scales Level output and Colors brightness', () {
       grid = grid
           .withClip('level', 0, const LiveClip(name: 'Full', level: LiveLevelFx(high: 1)))
@@ -232,6 +251,33 @@ void main() {
       expect(out.values[liveLayerId('level')]![2], closeTo(128, 1)); // h1 dimmer at half
       // Dimmer-less pars take both: Level 0.5 x Colors 0.5.
       expect(out.values[liveLayerId('colors-pars')]![20], closeTo(64, 1));
+    });
+
+    test('Colors Brightness dims a head without RGB through its dimmer', () {
+      grid = grid
+          .withClip('level', 0, const LiveClip(name: 'Full', level: LiveLevelFx(high: 1)))
+          .withClip('colors-heads', 0, const LiveClip(name: 'Red', colors: LiveColorFx(colors: [0xFF0000])));
+      grid = grid.withLane(grid.lane('colors-heads')!.copyWith(amount: 0.5));
+      const wheelHead = FixtureProfile(
+        id: 'wheel',
+        name: 'Wheel head',
+        category: FixtureCategory.movingHead,
+        channels: [
+          FixtureChannel(offset: 0, function: ChannelFunction.pan),
+          FixtureChannel(offset: 1, function: ChannelFunction.tilt),
+          FixtureChannel(offset: 2, function: ChannelFunction.dimmer),
+          FixtureChannel(offset: 3, function: ChannelFunction.colorWheel),
+        ],
+      );
+      final wheelRig = LiveRig(fixtures: [_fx('h1', wheelHead, 0, 0.3)], universes: const [_universe]);
+      engine = LiveEngine(output: out, grid: () => grid, rig: () => wheelRig, fallbackBpm: () => 120);
+      for (final lane in ['level', 'colors-heads']) {
+        engine.select(lane, 0, mode: LivePadMode.selectThenGo, quantize: LiveQuantize.now);
+      }
+      engine.go(quantize: LiveQuantize.now);
+      engine.tick(0);
+      engine.tick(0.1);
+      expect(out.values[liveLayerId('level')]![2], closeTo(128, 1)); // h1 dimmer at half
     });
 
     test('lane Amount survives JSON and defaults to 1', () {
