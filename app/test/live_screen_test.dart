@@ -125,6 +125,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
   });
 
+  testWidgets('Moves editor shows the path preview, like the bank editor', (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    tester.view.physicalSize = const Size(1600, 1000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final container = ProviderContainer();
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: LiveScreen())),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.longPress(find.text('Circle'));
+    // The preview animates for ever: pump, don't settle.
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    expect(find.byKey(const ValueKey('live-moves-preview')), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    container.dispose();
+    await tester.pump(const Duration(milliseconds: 300));
+  });
+
   testWidgets('Beam editor: a prism whose "in" is a span can be set', (tester) async {
     SharedPreferences.setMockInitialValues({});
     tester.view.physicalSize = const Size(1600, 1000);

@@ -16,6 +16,7 @@ import '../../state/scene_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/stage_providers.dart';
+import '../banks/movement_fx_editor.dart';
 
 class LiveClipEditResult {
   final LiveClip? clip;
@@ -277,6 +278,13 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
             ),
         ],
       ),
+      const SizedBox(height: 8),
+      // The path as the heads will draw it, like in the bank editor.
+      SizedBox(
+        key: const ValueKey('live-moves-preview'),
+        height: 130,
+        child: MovementPathPreview(fx: m, heads: _movers()),
+      ),
       _label('${l.liveSize}: ${size.round()}°'),
       Slider(
         value: size,
@@ -497,6 +505,15 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
   );
 
   /// Whether any fixture this lane drives has a [fn] channel.
+  /// How many heads the preview draws: the lane's movers, 1..6 (3 with none).
+  int _movers() {
+    final n = targetsOf(
+      widget.lane,
+      _rig(),
+    ).where((f) => f.profile.channels.any((c) => c.function == ChannelFunction.pan)).length;
+    return n == 0 ? 3 : n.clamp(1, 6);
+  }
+
   bool _laneHas(ChannelFunction fn) =>
       targetsOf(widget.lane, _rig()).any((f) => f.profile.channels.any((c) => c.function == fn));
 

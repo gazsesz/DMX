@@ -57,6 +57,9 @@ class LiveStatus {
   final double bpm;
   final bool frozen;
 
+  /// Stopped with Stop all, and [LiveEngine.resume] can bring it back.
+  final bool resumable;
+
   const LiveStatus({
     this.running = const {},
     this.queued = const {},
@@ -64,6 +67,7 @@ class LiveStatus {
     this.beat = 0,
     this.bpm = 120,
     this.frozen = false,
+    this.resumable = false,
   });
 
   /// 1..4 within the bar.
@@ -119,6 +123,9 @@ class LiveEngine {
   void Function()? onChange;
 
   final Map<String, int> _running = {};
+
+  /// What ran when Stop all last hit, for [resume].
+  Map<String, int> _lastRun = const {};
   final Map<String, int> _queued = {};
   final Map<String, double> _armed = {};
   final Map<String, double> _startBeat = {};
@@ -148,6 +155,7 @@ class LiveEngine {
     beat: _beat,
     bpm: _bpm,
     frozen: _frozen,
+    resumable: _running.isEmpty && _lastRun.isNotEmpty,
   );
 
   bool get isActive => _running.isNotEmpty || _armed.isNotEmpty;
@@ -209,6 +217,7 @@ class LiveEngine {
   }
 
   void stopAll() {
+    if (_running.isNotEmpty) _lastRun = Map.of(_running);
     for (final laneId in _showLanes.toList()) {
       _stopShow(laneId);
     }
@@ -220,6 +229,31 @@ class LiveEngine {
     _queued.clear();
     _armed.clear();
     _releaseShutter();
+    _changed();
+  }
+
+  /// Starts again what ran when Stop all last hit (the dock's Start).
+  /// Returns whether anything started.
+  bool resume() {
+    final last = _lastRun;
+    _lastRun = const {};
+    final g = grid();
+    var any = false;
+    for (final e in last.entries) {
+      if (g.clipAt(e.key, e.value) == null) continue;
+      _queued.remove(e.key);
+      _armed.remove(e.key);
+      _start(e.key, e.value, _beat);
+      any = true;
+    }
+    _changed();
+    return any;
+  }
+
+  /// Something else took over the rig: Start no longer brings the Grid back.
+  void forgetResume() {
+    if (_lastRun.isEmpty) return;
+    _lastRun = const {};
     _changed();
   }
 

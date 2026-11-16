@@ -64,7 +64,7 @@ class MovementFxEditor extends ConsumerWidget {
           const SizedBox(height: 8),
           SizedBox(
             height: 130,
-            child: _PathPreview(fx: fx, heads: movers.isEmpty ? 3 : math.min(movers.length, 6)),
+            child: MovementPathPreview(fx: fx, heads: movers.isEmpty ? 3 : math.min(movers.length, 6)),
           ),
           const SizedBox(height: 8),
           _label(context.l10n.fxSpeed),
@@ -361,17 +361,17 @@ class MovementFxEditor extends ConsumerWidget {
 /// running round at the effect's own speed, with the wave, fan, mirror,
 /// direction and rotation applied the way the player applies them. Beat-locked
 /// effects are shown at 120 BPM.
-class _PathPreview extends StatefulWidget {
+class MovementPathPreview extends StatefulWidget {
   final MovementFx fx;
   final int heads;
 
-  const _PathPreview({required this.fx, required this.heads});
+  const MovementPathPreview({super.key, required this.fx, required this.heads});
 
   @override
-  State<_PathPreview> createState() => _PathPreviewState();
+  State<MovementPathPreview> createState() => MovementPathPreviewState();
 }
 
-class _PathPreviewState extends State<_PathPreview> with SingleTickerProviderStateMixin {
+class MovementPathPreviewState extends State<MovementPathPreview> with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   final _seconds = ValueNotifier<double>(0);
 

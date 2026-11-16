@@ -187,6 +187,8 @@ class _DockControls extends ConsumerWidget {
     // The Live Grid runs outside the player/layer system, so it counts as
     // "playing" here on its own.
     final liveRunning = ref.watch(liveStatusProvider.select((s) => s.anyRunning));
+    // Stopped with the dock (or Stop all): Start brings the Grid back.
+    final liveResumable = ref.watch(liveStatusProvider.select((s) => s.resumable));
     final beatSync = ref.watch(beatSyncEnabledProvider);
     final beatPrediction = ref.watch(beatPredictionEnabledProvider);
     final lastPlayed = ref.watch(lastPlayedProvider);
@@ -212,8 +214,8 @@ class _DockControls extends ConsumerWidget {
                 icon: Icons.play_arrow_rounded,
                 label: 'Start',
                 color: AppColors.success,
-                enabled: lastPlayed != null,
-                onTap: () => _resume(context, ref),
+                enabled: lastPlayed != null || liveResumable,
+                onTap: liveResumable ? () => ref.read(liveEngineProvider).resume() : () => _resume(context, ref),
               )
             : _DockButton(
                 icon: Icons.stop_rounded,

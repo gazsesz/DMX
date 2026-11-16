@@ -216,6 +216,25 @@ void main() {
       expect(out.values[liveLayerId('colors-pars')]![20], 128); // white at half
     });
 
+    test('Stop all can be resumed: the same clips start again', () {
+      engine.select('level', 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.select('moves', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.tick(0);
+      expect(engine.status.running, {'level': 0, 'moves': 1});
+      expect(engine.status.resumable, isFalse);
+      engine.stopAll();
+      expect(engine.status.running, isEmpty);
+      expect(engine.status.resumable, isTrue);
+      expect(engine.resume(), isTrue);
+      expect(engine.status.running, {'level': 0, 'moves': 1});
+      expect(engine.status.resumable, isFalse);
+      // Stopped again, then something else takes over: nothing to resume.
+      engine.stopAll();
+      engine.forgetResume();
+      expect(engine.status.resumable, isFalse);
+      expect(engine.resume(), isFalse);
+    });
+
     test('the lane Amount scales Level output and Colors brightness', () {
       grid = grid
           .withClip('level', 0, const LiveClip(name: 'Full', level: LiveLevelFx(high: 1)))

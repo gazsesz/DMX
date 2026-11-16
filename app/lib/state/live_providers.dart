@@ -240,6 +240,12 @@ final liveEngineProvider = Provider<LiveEngine>((ref) {
     notifier.state = engine.status;
   };
 
+  // A Bank / Chase / Scene started from elsewhere while the Grid is stopped
+  // is now the last thing played: the dock's Start goes back to that.
+  ref.listen(nowPlayingProvider, (_, next) {
+    if (next != null && !engine.status.anyRunning) engine.forgetResume();
+  });
+
   final beats = ref.watch(beatPredictorProvider).events.listen((_) => engine.onBeat(seconds()));
 
   ref.onDispose(() {
