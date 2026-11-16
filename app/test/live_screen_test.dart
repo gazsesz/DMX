@@ -145,6 +145,19 @@ void main() {
     }
     expect(find.byKey(const ValueKey('live-moves-preview')), findsOneWidget);
 
+    // The base pan/tilt can be moved off the centre and back.
+    await tester.ensureVisible(find.byKey(const ValueKey('live-moves-centre')));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tapAt(tester.getTopLeft(find.byKey(const ValueKey('live-moves-centre'))) + const Offset(30, 30));
+    await tester.pump(const Duration(milliseconds: 100));
+    await tester.tap(find.byKey(const ValueKey('live-clip-save')));
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+    final moved = container.read(liveGridProvider).clipAt('moves', 0)!.moves!.center;
+    expect(moved.pan, lessThan(32768));
+    expect(moved.tilt, lessThan(32768));
+
     await tester.pumpWidget(const SizedBox());
     container.dispose();
     await tester.pump(const Duration(milliseconds: 300));

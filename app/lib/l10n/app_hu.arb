@@ -1134,5 +1134,7 @@
   "liveMixSwipe": "Húzd oldalra a többi sávért",
   "liveAmountSize": "Méret",
   "liveAmountBrightness": "Fényerő",
-  "liveAmountLevel": "Szint"
+  "liveAmountLevel": "Szint",
+  "liveCentreReset": "Középre",
+  "liveMovesBase": "Alappozíció (pan/tilt)"
 }

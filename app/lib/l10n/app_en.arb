@@ -2924,5 +2924,7 @@
   "liveMixSwipe": "Swipe for the other lanes",
   "liveAmountSize": "Size",
   "liveAmountBrightness": "Bright.",
-  "liveAmountLevel": "Level"
+  "liveAmountLevel": "Level",
+  "liveCentreReset": "Reset",
+  "liveMovesBase": "Base position (pan/tilt)"
 }

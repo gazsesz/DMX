@@ -9,6 +9,8 @@ import '../../models/channel_capability.dart';
 import '../../models/channel_function.dart';
 import '../../models/live_grid.dart';
 import '../../models/movement_fx.dart';
+import '../../models/pan_tilt.dart';
+import '../../core/widgets/pan_tilt_pad.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
@@ -294,6 +296,32 @@ class _LiveClipEditorState extends ConsumerState<_LiveClipEditor> {
           set(m.copyWith(sizePanDeg: v, sizeTiltDeg: v * (m.sizePanDeg <= 0 ? 0.6 : ratio)));
         },
       ),
+      // Where the heads point while they draw the path (the bank editor's
+      // Centre pad).
+      Row(
+        children: [
+          Expanded(child: _label(l.liveMovesBase)),
+          TextButton(
+            key: const ValueKey('live-moves-centre-reset'),
+            onPressed: m.center == PanTilt.center ? null : () => set(m.copyWith(center: PanTilt.center)),
+            child: Text(l.liveCentreReset),
+          ),
+        ],
+      ),
+      Center(
+        child: SizedBox(
+          key: const ValueKey('live-moves-centre'),
+          width: 220,
+          height: 150,
+          child: PanTiltPad(
+            value: m.center,
+            panRangeDeg: 540,
+            tiltRangeDeg: 270,
+            onChanged: (v) => set(m.copyWith(center: v)),
+          ),
+        ),
+      ),
+      const SizedBox(height: 4),
       SwitchListTile(
         contentPadding: EdgeInsets.zero,
         title: Text(l.liveBeatLocked),
