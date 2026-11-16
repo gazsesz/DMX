@@ -42,6 +42,8 @@ class LiveGridNotifier extends StateNotifier<LiveGrid> {
 
   void removeLane(String id) => state = state.removeLane(id);
 
+  void moveLane(String id, int delta) => state = state.moveLane(id, delta);
+
   void renameRow(int row, String name) {
     if (row < 0 || row >= state.rows.length) return;
     state = state.copyWith(rows: [for (var i = 0; i < state.rows.length; i++) i == row ? name : state.rows[i]]);
