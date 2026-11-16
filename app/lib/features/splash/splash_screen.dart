@@ -8,6 +8,7 @@ import '../../core/storage/project_storage.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/autosave_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/midi_control_providers.dart';
 import '../../state/playback_providers.dart';
@@ -52,6 +53,8 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     watchBeatTempo(ref.read);
     watchMidiControl(ref.read);
     await _loadLastProject();
+    // Only now: before the load, an autosave could write a half-built show.
+    ref.read(projectAutoSaveProvider.notifier).enable();
     await _connectToNode();
     // Bring the remote-control endpoint up before the UI, so a watch macro
     // fired straight away already has something listening.

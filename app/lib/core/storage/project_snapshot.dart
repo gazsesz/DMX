@@ -4,6 +4,7 @@ import '../../models/midi_mapping.dart';
 import '../../models/project_data.dart';
 import '../../models/stage_plan.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/autosave_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/dashboard_providers.dart';
@@ -22,28 +23,34 @@ import '../../state/stage_providers.dart';
 /// Gathers the whole show's current state into one [ProjectData] snapshot —
 /// shared by the Files screen and the quick "Save Project" action available
 /// from every main screen's app bar.
-ProjectData buildProjectSnapshot(WidgetRef ref) {
-  final library = ref.read(fixtureLibraryProvider);
+ProjectData buildProjectSnapshot(WidgetRef ref) => projectSnapshotOf(ref.read);
+
+/// Reads any provider — `ref.read` of a [WidgetRef] or a provider's [Ref].
+typedef ProviderReader = T Function<T>(ProviderListenable<T> provider);
+
+/// [buildProjectSnapshot] for code that has no widget: the autosaver.
+ProjectData projectSnapshotOf(ProviderReader read) {
+  final library = read(fixtureLibraryProvider);
   return ProjectData(
-    name: ref.read(currentProjectNameProvider),
-    settings: ref.read(artNetSettingsProvider),
-    universes: ref.read(universesProvider),
+    name: read(currentProjectNameProvider),
+    settings: read(artNetSettingsProvider),
+    universes: read(universesProvider),
     customFixtureProfiles: library.where((f) => !f.isBuiltIn).toList(),
-    patchedFixtures: ref.read(patchedFixturesProvider),
-    fixtureGroups: ref.read(fixtureGroupsProvider),
-    scenes: ref.read(scenesProvider),
-    banks: ref.read(banksProvider),
-    chases: ref.read(chasesProvider),
-    dashboardTriggers: ref.read(dashboardTriggersProvider),
-    smartPrograms: ref.read(smartProgramsProvider),
-    songShows: ref.read(songShowsProvider),
-    layers: ref.read(layersProvider),
-    stagePlan: ref.read(stagePlanProvider),
-    positionPresets: ref.read(positionPresetsProvider),
-    lastSelectedBankId: ref.read(selectedBankIdProvider),
-    dimmerDropout: ref.read(dimmerDropoutProvider),
-    midiMappings: ref.read(midiMappingsProvider),
-    liveGrid: ref.read(liveGridProvider),
+    patchedFixtures: read(patchedFixturesProvider),
+    fixtureGroups: read(fixtureGroupsProvider),
+    scenes: read(scenesProvider),
+    banks: read(banksProvider),
+    chases: read(chasesProvider),
+    dashboardTriggers: read(dashboardTriggersProvider),
+    smartPrograms: read(smartProgramsProvider),
+    songShows: read(songShowsProvider),
+    layers: read(layersProvider),
+    stagePlan: read(stagePlanProvider),
+    positionPresets: read(positionPresetsProvider),
+    lastSelectedBankId: read(selectedBankIdProvider),
+    dimmerDropout: read(dimmerDropoutProvider),
+    midiMappings: read(midiMappingsProvider),
+    liveGrid: read(liveGridProvider),
   );
 }
 
@@ -113,6 +120,8 @@ void startProject(
       midiMappings: source.midiMappings,
       liveGrid: source.liveGrid,
     ));
+    // A new name that isn't on disk yet — unlike a loaded file.
+    ref.read(projectAutoSaveProvider.notifier).markChanged();
     return;
   }
 
@@ -177,4 +186,6 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;
   ref.read(midiMappingsProvider.notifier).loadAll(data.midiMappings);
   ref.read(liveGridProvider.notifier).load(data.liveGrid);
+  // What's open now is exactly what's on disk.
+  ref.read(projectAutoSaveProvider.notifier).markSaved();
 }

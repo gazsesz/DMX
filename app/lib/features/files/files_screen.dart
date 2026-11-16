@@ -15,6 +15,7 @@ import '../../core/widgets/new_project_dialog.dart';
 import '../../core/widgets/node_status_action.dart';
 import '../../core/widgets/save_project_action.dart';
 import '../../models/project_data.dart';
+import '../../state/autosave_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/project_providers.dart';
 import '../../l10n/l10n.dart';
@@ -71,7 +72,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
       name = controller.text.trim();
       ref.read(currentProjectNameProvider.notifier).state = name;
     }
-    await _storage.save(name, _snapshot());
+    await ref.read(projectAutoSaveProvider.notifier).saveNow(force: true);
     await _refresh();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesSaved(name))));
@@ -122,7 +123,7 @@ class _FilesScreenState extends ConsumerState<FilesScreen> {
     );
     if (choice == null || !mounted) return;
     startProject(ref, name: choice.name, carryOver: choice.carryOver, source: source);
-    await _storage.save(choice.name, _snapshot());
+    await ref.read(projectAutoSaveProvider.notifier).saveNow(force: true);
     await _refresh();
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(context.l10n.filesCreated(choice.name))));
