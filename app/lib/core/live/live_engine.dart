@@ -417,7 +417,7 @@ class LiveEngine {
       if (lane.kind != LiveLaneKind.level || clip.level == null) continue;
       final fixtures = targetsOf(lane, r);
       for (var i = 0; i < fixtures.length; i++) {
-        levels[fixtures[i].id] = levelValue(clip.level!, _localBeat(lane), i, fixtures.length);
+        levels[fixtures[i].id] = levelValue(clip.level!, _localBeat(lane), i, fixtures.length) * lane.amount;
       }
     }
 
@@ -445,7 +445,7 @@ class LiveEngine {
             final f = fixtures[i];
             final rgb = colorValue(clip.colors!, _localBeat(lane), i, fixtures.length);
             final hasDimmer = f.profile.channels.any((c) => c.function.isDimmer);
-            final scale = hasDimmer ? 1.0 : (levels[f.id] ?? 1.0);
+            final scale = (hasDimmer ? 1.0 : (levels[f.id] ?? 1.0)) * lane.amount;
             _writeColor(f, rgb, scale, write);
           }
         case LiveLaneKind.level:
@@ -497,7 +497,11 @@ class LiveEngine {
     Set<UniverseConfig> touched,
   ) {
     final live = movementLive();
-    final fx = live.applyTo(clipFx);
+    final fx = live.applyTo(
+      lane.amount >= 1
+          ? clipFx
+          : clipFx.copyWith(sizePanDeg: clipFx.sizePanDeg * lane.amount, sizeTiltDeg: clipFx.sizeTiltDeg * lane.amount),
+    );
     final heads = movementHeads(fx, fixtures, r.groups);
     if (heads.isEmpty) return;
     final double phase;

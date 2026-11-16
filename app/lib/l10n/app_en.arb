@@ -2907,5 +2907,22 @@
   "liveGoboRotation": "Gobo rotation",
   "liveDmxValue": "DMX value",
   "liveLaneMoveLeft": "Move left",
-  "liveLaneMoveRight": "Move right"
+  "liveLaneMoveRight": "Move right",
+  "liveViewMixer": "Mixer",
+  "liveMixSave": "Save mix as scene",
+  "liveMixNothing": "Nothing is running to save.",
+  "liveMixSaved": "Saved as scene “{name}”",
+  "@liveMixSaved": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "liveMixIdle": "Idle",
+  "liveMixNow": "NOW",
+  "liveMixSwipe": "Swipe for the other lanes",
+  "liveAmountSize": "Size",
+  "liveAmountBrightness": "Bright.",
+  "liveAmountLevel": "Level"
 }

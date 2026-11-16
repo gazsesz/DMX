@@ -1124,5 +1124,15 @@
   "liveGoboRotation": "Gobó forgatás",
   "liveDmxValue": "DMX érték",
   "liveLaneMoveLeft": "Balra",
-  "liveLaneMoveRight": "Jobbra"
+  "liveLaneMoveRight": "Jobbra",
+  "liveViewMixer": "Mixer",
+  "liveMixSave": "Mix mentése jelenetként",
+  "liveMixNothing": "Nincs futó klip, nincs mit menteni.",
+  "liveMixSaved": "Elmentve „{name}” jelenetként",
+  "liveMixIdle": "Áll",
+  "liveMixNow": "MOST",
+  "liveMixSwipe": "Húzd oldalra a többi sávért",
+  "liveAmountSize": "Méret",
+  "liveAmountBrightness": "Fényerő",
+  "liveAmountLevel": "Szint"
 }

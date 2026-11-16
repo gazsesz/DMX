@@ -71,6 +71,10 @@ class LiveLane {
   /// Chase plays on the layers its own steps name.
   final String? layerId;
 
+  /// The Mixer fader, 0..1: how much of the lane's effect comes through —
+  /// Moves size, Colors brightness, Level output. Beam and Show ignore it.
+  final double amount;
+
   const LiveLane({
     required this.id,
     required this.name,
@@ -79,6 +83,7 @@ class LiveLane {
     this.groupIds = const [],
     this.speed = 1,
     this.layerId,
+    this.amount = 1,
   });
 
   LiveLane copyWith({
@@ -88,6 +93,7 @@ class LiveLane {
     List<String>? groupIds,
     double? speed,
     String? layerId,
+    double? amount,
   }) => LiveLane(
     id: id,
     name: name ?? this.name,
@@ -96,6 +102,7 @@ class LiveLane {
     groupIds: groupIds ?? this.groupIds,
     speed: speed ?? this.speed,
     layerId: layerId ?? this.layerId,
+    amount: amount ?? this.amount,
   );
 
   Map<String, dynamic> toJson() => {
@@ -106,6 +113,7 @@ class LiveLane {
     if (groupIds.isNotEmpty) 'groupIds': groupIds,
     if (speed != 1) 'speed': speed,
     if (layerId != null) 'layerId': layerId,
+    if (amount != 1) 'amount': amount,
   };
 
   factory LiveLane.fromJson(Map<String, dynamic> json) => LiveLane(
@@ -116,6 +124,7 @@ class LiveLane {
     groupIds: [for (final g in json['groupIds'] as List? ?? const []) g as String],
     speed: (json['speed'] as num?)?.toDouble() ?? 1,
     layerId: json['layerId'] as String?,
+    amount: ((json['amount'] as num?)?.toDouble() ?? 1).clamp(0.0, 1.0),
   );
 }
 

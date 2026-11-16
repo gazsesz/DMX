@@ -13,6 +13,8 @@ import '../../state/live_providers.dart';
 import '../../state/playback_providers.dart';
 import 'live_clip_editor.dart';
 
+part 'live_mixer_view.dart';
+
 /// Tablet layout from this width; below it the phone layout shows one lane
 /// at a time.
 const liveTabletBreakpoint = 840.0;
@@ -786,8 +788,6 @@ class _PhoneGridState extends ConsumerState<_PhoneGrid> {
     final l = context.l10n;
     final grid = ref.watch(liveGridProvider);
     final status = ref.watch(liveStatusProvider);
-    final prefs = ref.watch(livePrefsProvider);
-    final engine = ref.read(liveEngineProvider);
     if (grid.lanes.isEmpty) return const SizedBox.shrink();
     final lane = grid.lane(_laneId ?? '') ?? grid.lanes.first;
     return Column(
@@ -838,65 +838,91 @@ class _PhoneGridState extends ConsumerState<_PhoneGrid> {
             ),
           ),
         ),
-        Container(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-          decoration: const BoxDecoration(
-            color: AppColors.panel,
-            border: Border(top: BorderSide(color: AppColors.border)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Row(
-                children: [
-                  const Expanded(child: _QuantizeSelector()),
-                  const SizedBox(width: 8),
-                  IconButton.outlined(
-                    tooltip: l.liveLaneSettings,
-                    onPressed: () => _laneSettings(context, ref, lane),
-                    icon: const Icon(Icons.tune),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 56,
-                      child: FilledButton(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.accent,
-                          foregroundColor: AppColors.accentOn,
-                        ),
-                        onPressed: status.queued.isEmpty ? null : () => engine.go(quantize: prefs.quantize),
-                        child: Text(l.liveGo, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 56,
-                    child: OutlinedButton(
-                      onPressed: () => engine.setFrozen(!status.frozen),
-                      style: OutlinedButton.styleFrom(
-                        backgroundColor: status.frozen ? AppColors.accent2 : null,
-                        foregroundColor: status.frozen ? AppColors.accent2On : null,
-                      ),
-                      child: Text(l.liveFreeze),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    height: 56,
-                    child: OutlinedButton(onPressed: engine.stopAll, child: Text(l.commonStop)),
-                  ),
-                ],
-              ),
-            ],
-          ),
+        _PhoneLaunchBar(lane: lane),
+      ],
+    );
+  }
+}
+
+/// The phone's bottom bar: quantize, GO, Freeze, Stop (and lane settings
+/// when a lane is in focus).
+class _PhoneLaunchBar extends ConsumerWidget {
+  final LiveLane? lane;
+  const _PhoneLaunchBar({this.lane});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
+    final status = ref.watch(liveStatusProvider);
+    final prefs = ref.watch(livePrefsProvider);
+    final engine = ref.read(liveEngineProvider);
+    final lane = this.lane;
+    // A phone held sideways has little height: everything on one row.
+    final short = MediaQuery.sizeOf(context).height < 500;
+    final height = short ? 44.0 : 56.0;
+    final settings = <Widget>[
+      if (lane case final lane?) ...[
+        const SizedBox(width: 8),
+        IconButton.outlined(
+          tooltip: l.liveLaneSettings,
+          onPressed: () => _laneSettings(context, ref, lane),
+          icon: const Icon(Icons.tune),
         ),
       ],
+    ];
+    final go = SizedBox(
+      height: height,
+      child: FilledButton(
+        style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: AppColors.accentOn),
+        onPressed: status.queued.isEmpty ? null : () => engine.go(quantize: prefs.quantize),
+        child: Text(l.liveGo, style: TextStyle(fontSize: short ? 18 : 22, fontWeight: FontWeight.w900)),
+      ),
+    );
+    final transport = <Widget>[
+      const SizedBox(width: 8),
+      SizedBox(
+        height: height,
+        child: OutlinedButton(
+          onPressed: () => engine.setFrozen(!status.frozen),
+          style: OutlinedButton.styleFrom(
+            backgroundColor: status.frozen ? AppColors.accent2 : null,
+            foregroundColor: status.frozen ? AppColors.accent2On : null,
+          ),
+          child: Text(l.liveFreeze),
+        ),
+      ),
+      const SizedBox(width: 8),
+      SizedBox(
+        height: height,
+        child: OutlinedButton(onPressed: engine.stopAll, child: Text(l.commonStop)),
+      ),
+    ];
+    return Container(
+      padding: short ? const EdgeInsets.fromLTRB(12, 6, 12, 6) : const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: const BoxDecoration(
+        color: AppColors.panel,
+        border: Border(top: BorderSide(color: AppColors.border)),
+      ),
+      child: short
+          ? Row(
+              children: [
+                const Flexible(
+                  child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: _QuantizeSelector()),
+                ),
+                ...settings,
+                const SizedBox(width: 8),
+                SizedBox(width: 120, child: go),
+                ...transport,
+              ],
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [const Expanded(child: _QuantizeSelector()), ...settings]),
+                const SizedBox(height: 8),
+                Row(children: [Expanded(child: go), ...transport]),
+              ],
+            ),
     );
   }
 }
