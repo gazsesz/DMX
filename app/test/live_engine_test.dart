@@ -253,6 +253,33 @@ void main() {
       expect(out.values[liveLayerId('colors-pars')]![20], closeTo(64, 1));
     });
 
+    test('Colors Brightness dims a head without RGB through its dimmer', () {
+      grid = grid
+          .withClip('level', 0, const LiveClip(name: 'Full', level: LiveLevelFx(high: 1)))
+          .withClip('colors-heads', 0, const LiveClip(name: 'Red', colors: LiveColorFx(colors: [0xFF0000])));
+      grid = grid.withLane(grid.lane('colors-heads')!.copyWith(amount: 0.5));
+      const wheelHead = FixtureProfile(
+        id: 'wheel',
+        name: 'Wheel head',
+        category: FixtureCategory.movingHead,
+        channels: [
+          FixtureChannel(offset: 0, function: ChannelFunction.pan),
+          FixtureChannel(offset: 1, function: ChannelFunction.tilt),
+          FixtureChannel(offset: 2, function: ChannelFunction.dimmer),
+          FixtureChannel(offset: 3, function: ChannelFunction.colorWheel),
+        ],
+      );
+      final wheelRig = LiveRig(fixtures: [_fx('h1', wheelHead, 0, 0.3)], universes: const [_universe]);
+      engine = LiveEngine(output: out, grid: () => grid, rig: () => wheelRig, fallbackBpm: () => 120);
+      for (final lane in ['level', 'colors-heads']) {
+        engine.select(lane, 0, mode: LivePadMode.selectThenGo, quantize: LiveQuantize.now);
+      }
+      engine.go(quantize: LiveQuantize.now);
+      engine.tick(0);
+      engine.tick(0.1);
+      expect(out.values[liveLayerId('level')]![2], closeTo(128, 1)); // h1 dimmer at half
+    });
+
     test('lane Amount survives JSON and defaults to 1', () {
       final lane = grid.lane('level')!.copyWith(amount: 0.25);
       expect(LiveLane.fromJson(lane.toJson()).amount, 0.25);

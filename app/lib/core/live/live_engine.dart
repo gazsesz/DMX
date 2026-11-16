@@ -439,10 +439,18 @@ class LiveEngine {
     // Level first: pars without a dimmer take it on their colour.
     final levels = <String, double>{};
     final beamLanes = <String>{};
+    // A colour-wheel head can't dim its colour: the Colors lane's Amount
+    // (Brightness) dims it through the Level lane's dimmer instead.
+    final wheelDim = <String, double>{};
     for (final entry in _running.entries) {
       final lane = g.lane(entry.key);
       final clip = g.clipAt(entry.key, entry.value);
       if (lane == null || clip == null || _showLanes.contains(lane.id)) continue;
+      if (lane.kind == LiveLaneKind.colors && clip.colors != null && lane.amount < 1) {
+        for (final f in targetsOf(lane, r)) {
+          if (!f.profile.channels.any((c) => _mixesColour(c.function))) wheelDim[f.id] = lane.amount;
+        }
+      }
       if (lane.kind == LiveLaneKind.beam) {
         for (final f in targetsOf(lane, r)) {
           beamLanes.add(f.id);
@@ -484,7 +492,7 @@ class LiveEngine {
           }
         case LiveLaneKind.level:
           for (final f in fixtures) {
-            final level = levels[f.id] ?? 0;
+            final level = (levels[f.id] ?? 0) * (wheelDim[f.id] ?? 1);
             for (final c in f.profile.channels) {
               if (c.function.isDimmer) write(f, c.offset, (level * 255).round());
             }
@@ -592,6 +600,12 @@ class LiveEngine {
   }
 
   final Map<String, int?> _wheelCache = {};
+
+  static bool _mixesColour(ChannelFunction fn) =>
+      fn == ChannelFunction.red ||
+      fn == ChannelFunction.green ||
+      fn == ChannelFunction.blue ||
+      fn == ChannelFunction.white;
 
   void _writeColor(PatchedFixture f, int rgb, double scale, void Function(PatchedFixture, int, int) write) {
     final r = (rgb >> 16) & 255;
