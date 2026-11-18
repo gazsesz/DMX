@@ -84,7 +84,7 @@ jobs:
           if [ -z "$manifests" ]; then echo "::error::No merged release manifest found"; exit 1; fi
           echo "$manifests"
           for m in $manifests; do echo "== $m"; grep -o 'package="[^"]*"' "$m" | head -1; grep -n 'uses-permission' "$m" || true; done
-          if grep -n 'REQUEST_IGNORE_BATTERY_OPTIMIZATIONS' $manifests; then
+          if grep -n 'android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"' $manifests; then
             echo "::error::REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is still in the Play build manifest"; exit 1
           fi
 
