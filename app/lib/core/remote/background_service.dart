@@ -55,6 +55,19 @@ class BackgroundService {
     }
   }
 
+  /// Whether the app can show the direct "allow?" prompt. The Play build
+  /// leaves REQUEST_IGNORE_BATTERY_OPTIMIZATIONS out of the manifest, so
+  /// there [requestIgnoreBatteryOptimizations] opens the system list of apps
+  /// instead and the user has to pick SmART DMX by hand.
+  static Future<bool> canAskBatteryExemption() async {
+    if (!isSupported) return false;
+    try {
+      return await _channel.invokeMethod<bool>('canAskBatteryExemption') ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// Opens the system "ignore battery optimisations" prompt. Returns false
   /// if the device has no such screen; a true only means the dialog opened,
   /// never that the user agreed — re-read [isBatteryOptimized] afterwards.

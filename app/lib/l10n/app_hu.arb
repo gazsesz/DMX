@@ -17,6 +17,7 @@
   "settingsLanguageHint": "A Rendszer a készülék nyelvét követi (magyar → magyar, minden más → angol).",
   "settingsTitle": "Beállítások",
   "settingsNoBatteryScreen": "Ezen a készüléken nincs ilyen képernyő — keresd az Akkumulátor / Alkalmazásindítás menüt a rendszerbeállításokban",
+  "settingsBatteryListHint": "A listában keresd meg a SmART DMX-et, állítsd „Nincs optimalizálva” (vagy „Korlátlan”) értékre, majd lépj vissza.",
   "settingsEditUniverse": "Universe szerkesztése",
   "settingsMidiConnectFailed": "Nem sikerült csatlakozni: {device}",
   "settingsDisconnect": "Leválasztás",

@@ -17,6 +17,7 @@
   "settingsLanguageHint": "System follows the device language (Hungarian → Magyar, anything else → English).",
   "settingsTitle": "Settings",
   "settingsNoBatteryScreen": "This device has no such screen — look for Battery / App launch in system settings",
+  "settingsBatteryListHint": "In the list, find SmART DMX and set it to Not optimised (or Unrestricted), then come back.",
   "settingsEditUniverse": "Edit Universe",
   "settingsMidiConnectFailed": "Could not connect to {device}",
   "@settingsMidiConnectFailed": {
