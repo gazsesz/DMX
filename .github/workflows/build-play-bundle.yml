@@ -76,6 +76,18 @@ jobs:
 
       - run: flutter build appbundle --release
 
+      # Play doesn't allow REQUEST_IGNORE_BATTERY_OPTIMIZATIONS for this kind
+      # of app; src/play/AndroidManifest.xml strips it. Fail if it slips back.
+      - name: Check Play manifest permissions
+        run: |
+          manifests=$(find build/app/intermediates -path '*elease*' -name AndroidManifest.xml | grep -i merged || true)
+          if [ -z "$manifests" ]; then echo "::error::No merged release manifest found"; exit 1; fi
+          echo "$manifests"
+          for m in $manifests; do echo "== $m"; grep -o 'package="[^"]*"' "$m" | head -1; grep -n 'uses-permission' "$m" || true; done
+          if grep -n 'android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"' $manifests; then
+            echo "::error::REQUEST_IGNORE_BATTERY_OPTIMIZATIONS is still in the Play build manifest"; exit 1
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.key.outputs.artifact }}

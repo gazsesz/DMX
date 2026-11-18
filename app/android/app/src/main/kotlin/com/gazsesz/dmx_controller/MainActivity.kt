@@ -1,5 +1,6 @@
 package com.gazsesz.dmx_controller
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -51,6 +52,10 @@ class MainActivity : FlutterActivity() {
                 "requestIgnoreBatteryOptimizations" -> {
                     result.success(requestIgnoreBatteryOptimizations())
                 }
+                // False on the Play build, which leaves the permission out:
+                // there the button opens the system list instead and the
+                // user picks the app by hand.
+                "canAskBatteryExemption" -> result.success(canAskBatteryExemption())
                 else -> result.notImplemented()
             }
         }
@@ -112,8 +117,30 @@ class MainActivity : FlutterActivity() {
         return !power.isIgnoringBatteryOptimizations(packageName)
     }
 
+    // Whether the manifest asks for REQUEST_IGNORE_BATTERY_OPTIMIZATIONS.
+    // The Play build strips it (Play only allows it for a narrow set of
+    // apps), so the direct "allow?" prompt isn't available there.
+    private fun canAskBatteryExemption(): Boolean {
+        return try {
+            val info = packageManager.getPackageInfo(packageName, PackageManager.GET_PERMISSIONS)
+            info.requestedPermissions?.contains(Manifest.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS) == true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    private fun openBatteryOptimizationList(): Boolean {
+        return try {
+            startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
     private fun requestIgnoreBatteryOptimizations(): Boolean {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return false
+        if (!canAskBatteryExemption()) return openBatteryOptimizationList()
         return try {
             startActivity(
                 Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS)
@@ -124,12 +151,7 @@ class MainActivity : FlutterActivity() {
             // Some builds (and some manufacturer skins) hide this screen.
             // Falling back to the general battery settings list is better
             // than doing nothing at all.
-            try {
-                startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-                true
-            } catch (e2: Exception) {
-                false
-            }
+            openBatteryOptimizationList()
         }
     }
 

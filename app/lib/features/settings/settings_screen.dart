@@ -93,6 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Opens the system prompt, then re-reads the real state — Android only
   /// lets the app ask, and the user may well say no.
   Future<void> _requestBatteryExemption() async {
+    final direct = await BackgroundService.canAskBatteryExemption();
     final opened = await BackgroundService.requestIgnoreBatteryOptimizations();
     if (!mounted) return;
     if (!opened) {
@@ -100,6 +101,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         SnackBar(content: Text(context.l10n.settingsNoBatteryScreen)),
       );
       return;
+    }
+    if (!direct) {
+      // Play build: only the system list could be opened, so say what to
+      // look for there.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(context.l10n.settingsBatteryListHint),
+          duration: const Duration(seconds: 8),
+        ),
+      );
     }
     await _refreshBatteryState();
   }

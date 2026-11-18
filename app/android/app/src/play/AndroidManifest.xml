@@ -1,0 +1,10 @@
+<!-- Merged over the main manifest only when DMX_PLAY_BUILD=true (see
+     build.gradle.kts). Google Play allows REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+     only for a narrow set of apps, so the store build leaves it out; the
+     Settings button then opens the system battery-optimisation list instead. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission
+        android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:node="remove" />
+</manifest>

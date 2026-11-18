@@ -85,6 +85,13 @@ android {
             signingConfig = signingConfigs.getByName(if (playBuild) "upload" else "debug")
         }
     }
+
+    // The Play build drops permissions the store doesn't allow for this
+    // kind of app (src/play/AndroidManifest.xml removes them on merge).
+    if (playBuild) {
+        logger.lifecycle("DMX_PLAY_BUILD: release manifest overlay src/play/AndroidManifest.xml")
+        sourceSets.getByName("release").manifest.srcFile("src/play/AndroidManifest.xml")
+    }
 }
 
 kotlin {
