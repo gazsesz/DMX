@@ -171,8 +171,16 @@ void _endSongShow(ReadProvider read) {
 }
 
 /// Plays [show] from [from]. Returns a message when it can't start.
-Future<String?> startSongShow(ReadProvider read, SongShow show, {Duration from = Duration.zero}) async {
-  final path = show.audio?.path;
+///
+/// With [clock], the show plays nothing itself and runs on that clock instead
+/// — a DJ deck followed by Song watch.
+Future<String?> startSongShow(
+  ReadProvider read,
+  SongShow show, {
+  Duration from = Duration.zero,
+  SongAudio? clock,
+}) async {
+  final path = clock == null ? show.audio?.path : null;
   // No song file linked: the show still runs, on a silent clock over its own
   // length, so the lights can be tested from the tempo alone.
   if (path == null && show.cues.isEmpty) return 'Add some cues to ${show.name} first';
@@ -187,9 +195,9 @@ Future<String?> startSongShow(ReadProvider read, SongShow show, {Duration from =
       show,
       from: from,
       audioPath: path,
-      audioOverride: path == null
+      audioOverride: clock ?? (path == null
           ? SilentSongAudio(length: Duration(milliseconds: show.msOfBeat(timelineBeats(show)).round()))
-          : null,
+          : null),
     );
   } catch (e) {
     _endSongShow(read);

@@ -16,6 +16,7 @@ import '../../core/widgets/confirm_dialog.dart';
 import '../../models/layer.dart';
 import '../../models/smart_program.dart';
 import '../../models/song_show.dart';
+import '../../state/audio_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/control_dock_providers.dart';
 import '../../state/fixture_group_providers.dart';
@@ -29,6 +30,7 @@ import 'song_stop_dialog.dart';
 import 'song_target_picker.dart';
 import 'song_timeline.dart';
 import '../../l10n/l10n.dart';
+import 'song_track_pairing_dialog.dart';
 import '../../l10n/labels.dart';
 import '../../l10n/status_messages.dart';
 
@@ -292,6 +294,20 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
     if (name != null && name.isNotEmpty) _save(show.copyWith(name: name));
   }
 
+  Future<void> _editTrackPairing() async {
+    final show = _show;
+    if (show == null) return;
+    final result = await showDialog<(String, String)>(
+      context: context,
+      builder: (_) => SongTrackPairingDialog(
+        title: show.trackTitle,
+        artist: show.trackArtist,
+        nowPlaying: () => ref.read(oscBeatSourceProvider).deck,
+      ),
+    );
+    if (result != null) _save(show.copyWith(trackTitle: result.$1, trackArtist: result.$2));
+  }
+
   Future<void> _editTempo() async {
     final show = _show;
     if (show == null) return;
@@ -549,6 +565,12 @@ class _SongShowEditorScreenState extends ConsumerState<SongShowEditorScreen> {
         title: GestureDetector(onTap: _renameShow, child: Text(show.name)),
         actions: [
           IconButton(icon: const Icon(Icons.edit_outlined), tooltip: context.l10n.scRename, onPressed: _renameShow),
+          IconButton(
+            key: const ValueKey('song-track-pairing'),
+            icon: Icon(Icons.album_outlined, color: show.trackTitle.isNotEmpty ? AppColors.accent2 : null),
+            tooltip: context.l10n.songTrackPairing,
+            onPressed: _editTrackPairing,
+          ),
           IconButton(
             key: const ValueKey('song-live-stage'),
             tooltip: stageVisible ? context.l10n.wHideLiveStage : context.l10n.wShowLiveStage,

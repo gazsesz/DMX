@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-11-12 · app verzió: v1.47.0 (MIDI learn, ág `claude/midi-learn`)_
+_Utolsó frissítés: 2026-11-20 · app verzió: v1.54.0 (Song figyelés rkbx_link-kel, ág `claude/song-watch-rkbx`)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -53,7 +53,7 @@ _Utolsó frissítés: 2026-11-12 · app verzió: v1.47.0 (MIDI learn, ág `claud
 - Vizuálisan Claude nem ellenőrizte; smoke teszt: `flutter run -d windows`.
 - A tervezési indoklás és mockupok: `DMX Piackép.html` (repo gyökér; menetközben használt mockup-fájl, nem piackutatás).
 
-## Song Show (terv, 2026-10-24 — kód még nincs)
+## Song Show (terv 2026-10-24; kész v1.40–v1.44.1, a main-en)
 - Terv + mockupok + piackutatás: [SONG_SHOW_PLAN.html](SONG_SHOW_PLAN.html). Lényeg: egy adatmodell (`SongShow`: szám + beat-alapú idővonal + szakaszok + cue-k, a cue a meglévő `ProgramTarget`/`LaneTiming`/`DropoutSettings`), négy belépési pont (kézi, tap-felvétel, auto-generálás, import). Mintája a SoundSwitch autoscript (szakaszok → szerkeszthető).
 - Fázisok: 0 spike (dekódolás/lejátszás Android 8.1-en) → 1 modell+lejátszó → 2 szerkesztő → 4 auto → 3 export/scope → 5 élő/DJ.
 - Nyitott: kell-e beépített lejátszó az első körben; opcionális-e a hang; az rkbx_link ad-e számpozíciót/track-azonosítót (nem ellenőrzött); a csoportszűrő általánosítható-e bank/chase lejátszásra.
@@ -67,6 +67,17 @@ _Utolsó frissítés: 2026-11-12 · app verzió: v1.47.0 (MIDI learn, ág `claud
 - **rkbx_link OSC (README alapján, 2026-10-24; kódból/élőben nem próbálva):** a beat/bpm mellett küld `/master/time` (pozíció mp), `/master/track/title|artist|album` (azonosító nincs), `/master/phrase/current|next|countin`; mind külön bekapcsolandó (`osc.msg.master/time`, `…/phrase`). Következmény a Song Show B módra: számpozíció és számváltás adott → szám-felismerés cím+előadó alapján, nincs tap-sync; a phrase-adat hang nélkül is adhat élő szakaszokat. Nyitott: van-e phrase-adat Tidal streaming számokra; a mostani `OscBeatSource` ezeket még nem dolgozza fel; a README két címformát említ a `time`-ra (`/[deck]/time` és `/time/[deck]`) — élőben ellenőrizni.
 
 - **rkbx/Tidal út parkolva (2026-10-24):** a felhasználónak még nincs Tidal DJ előfizetése és rkbx_link licence-e (a jövő héten várhatóan lesz). Addig a Song Show a helyi fájlokra (offline elemzés, beépített lejátszó) épül. A felhasználó feltevése: rkbx_link-kel mindegy a streaming szolgáltatás, mert ugyanazt adja — ez nem ellenőrzött (streaming számok phrase-adata, Spotify-támogatás).
+
+## Song figyelés — DJ-követés rkbx_link-kel (v1.54.0, 2026-11-20, ág `claude/song-watch-rkbx`)
+- **Felhasználói ötlet:** bekapcsolható „Song figyelés”: ha fut egy Smart Program / chase, és a master decken olyan szám indul, amihez van Song Show, a show átveszi a színpadot, majd automatikusan visszajön a korábbi program. Választott út (2026-11-20): **először rkbx_link**, utána külön lépésben **mikrofonos felismerés** (ujjlenyomat a linkelt hangfájlokból) — még nincs kész.
+- **Forrás:** az `OscBeatSource` most a `/master/time` és `/time/master` (pozíció mp, a README mindkét formát említi), `/master/track/title|artist`, `/master/bpm/original` üzeneteket is olvassa → `RkbxDeckState`. Sebesség = `bpm/current ÷ bpm/original`. Élőben **még nem ellenőrzött**: melyik config sor kapcsolja a track címet (a README nem ír külön kapcsolót), és hogy a `time` pitchelt-e. Ehhez a Setupban élő **OSC-kijelző** van (címek + utolsó érték + darabszám).
+- **Socket-tartók:** a beat sync kapcsoló és a Song figyelés külön tartja nyitva az UDP socketet (`open/release(holder)`); ha csak a Song figyelés tartja, beat nem megy a lejátszásnak (a beat sync ki van). Wi-Fi-váltáskor `rebind()` a tartók megtartásával.
+- **Logika (`core/song/song_follower.dart`, tiszta, tesztelt):** átvétel, ha a szám pozíciója ≥400 ms-ig előre halad (betöltés/görgetés ne indítsa); a show **a szám aktuális pozíciójától** indul; számváltáskor: másik show-s szám → közvetlenül arra vált (a „korábbi program” megmarad), show nélküli szám → visszaváltás; 2,5 s álló deck → visszaváltás (újraindulva újra átvesz); show vége → visszaváltás, ugyanarra a számra nem indul újra; ha kézzel indítanak/állítanak le valamit közben → nem állít vissza semmit (`forget`).
+- **Óra:** `DeckSongAudio` — semmit nem játszik le, a deck pozícióját viszi tovább falióra × sebesség szerint, max 150 ms-ig a legutóbbi jelentés után. A `SongClock` új szabálya: ha a pozíció 250 ms-ig nem mozdul, megáll (szüneteltetett deck); a soloud lépcsője ≤128 ms, ezt nem érinti. Ugrás/loop: a meglévő seek-kezelés (>250 ms eltérés) állítja vissza a rétegeket.
+- **Visszaállítás:** átvételkor `PlaybackSnapshot` (rétegenként `NowPlaying` + aktív Smart Program), utána Smart Program stop + minden réteg stop; visszaváltáskor Smart Program újraindul, bankok a rétegükön, chase-ek egyszer. **Teljes átvétel** (az első verzió): a felajánlott „csak a show lámpái” mód még nincs. A Live Grid-et nem állítja le és nem állítja vissza.
+- **Párosítás:** `SongShow.trackTitle/trackArtist` (exportba is), a szerkesztő AppBar-ján lemez ikon → dialógus „A most szóló szám” gombbal. Üresen: show neve, „előadó cím”, majd a dalfájl neve alapján (ékezet/írásjel nélküli szóegyezés). Cue nélküli show sosem párosul.
+- **Fénykésleltetés:** Setup → Song figyelés csúszka (−500…+500 ms, eszköz-beállítás, SharedPreferences `songWatch.offsetMs`); pozitív = a fény később.
+- Nyitott: élő próba Gabornál (rkbx_link `osc.msg.master/time true` + track címek), „csak a show lámpái” mód, phrase-adat használata, mikrofonos felismerés.
 
 ## Verifikáció (utolsó ismert)
 - `flutter analyze` tiszta, `flutter test` 176/176 (a csoport/szín munka idején; azóta új teszt: `osc_beat_source_test.dart`).

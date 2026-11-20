@@ -10,9 +10,16 @@ class SongClock {
   /// jitter — the clock jumps there instead of easing.
   static const seekThreshold = Duration(milliseconds: 250);
 
+  /// A position that hasn't moved for this long means playback has stalled
+  /// (a DJ deck paused, say): the clock stops carrying on by the wall clock
+  /// and waits where it is. Well above the audio engine's own step (≤128 ms
+  /// measured), so normal playback never trips it.
+  static const stallThreshold = Duration(milliseconds: 250);
+
   Duration _anchorPos = Duration.zero;
   Duration _anchorWall = Duration.zero;
   Duration _lastReport = Duration.zero;
+  Duration _lastReportWall = Duration.zero;
   Duration _last = Duration.zero;
   bool _running = false;
   bool _jumped = false;
@@ -24,6 +31,7 @@ class SongClock {
     _anchorPos = position;
     _anchorWall = wall;
     _lastReport = position;
+    _lastReportWall = wall;
     _last = position;
     _running = true;
     _jumped = false;
@@ -33,8 +41,18 @@ class SongClock {
 
   /// Feeds in the engine's latest [position], read at [wall].
   void report(Duration position, Duration wall) {
-    if (!_running || position == _lastReport) return;
+    if (!_running) return;
+    if (position == _lastReport) {
+      if (wall - _lastReportWall > stallThreshold) {
+        // Stalled: anchor here so [now] stops advancing (it never goes back,
+        // so it holds until the position moves on again).
+        _anchorPos = position;
+        _anchorWall = wall;
+      }
+      return;
+    }
     _lastReport = position;
+    _lastReportWall = wall;
     final expected = _anchorPos + (wall - _anchorWall);
     if ((position - expected).abs() > seekThreshold) _jumped = true;
     _anchorPos = position;
