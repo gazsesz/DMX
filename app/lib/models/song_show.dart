@@ -212,6 +212,12 @@ class SongShow {
   /// Fixture groups this show is limited to; empty means every fixture.
   final List<String> groupIds;
 
+  /// The track this show belongs to in the DJ software, as rkbx_link names
+  /// it — Song watch starts the show when this track plays on the master
+  /// deck. Empty means "match by the show's or its song file's name".
+  final String trackTitle;
+  final String trackArtist;
+
   const SongShow({
     required this.id,
     required this.name,
@@ -222,6 +228,8 @@ class SongShow {
     this.sections = const [],
     this.cues = const [],
     this.groupIds = const [],
+    this.trackTitle = '',
+    this.trackArtist = '',
   });
 
   double get beatMs => 60000 / bpm;
@@ -259,6 +267,8 @@ class SongShow {
     List<SongSection>? sections,
     List<SongCue>? cues,
     List<String>? groupIds,
+    String? trackTitle,
+    String? trackArtist,
   }) => SongShow(
     id: id,
     name: name ?? this.name,
@@ -269,6 +279,8 @@ class SongShow {
     sections: sections ?? this.sections,
     cues: cues ?? this.cues,
     groupIds: groupIds ?? this.groupIds,
+    trackTitle: trackTitle ?? this.trackTitle,
+    trackArtist: trackArtist ?? this.trackArtist,
   );
 
   SongShow duplicateAs(String newId, String newName) => SongShow(
@@ -281,6 +293,8 @@ class SongShow {
     sections: sections,
     cues: cues,
     groupIds: groupIds,
+    trackTitle: trackTitle,
+    trackArtist: trackArtist,
   );
 
   Map<String, dynamic> toJson() => {
@@ -293,6 +307,8 @@ class SongShow {
     'sections': sections.map((s) => s.toJson()).toList(),
     'cues': cues.map((c) => c.toJson()).toList(),
     if (groupIds.isNotEmpty) 'groupIds': groupIds,
+    if (trackTitle.isNotEmpty) 'trackTitle': trackTitle,
+    if (trackArtist.isNotEmpty) 'trackArtist': trackArtist,
   };
 
   factory SongShow.fromJson(Map<String, dynamic> json) => SongShow(
@@ -307,5 +323,7 @@ class SongShow {
         .toList(),
     cues: (json['cues'] as List? ?? []).map((c) => SongCue.fromJson(Map<String, dynamic>.from(c as Map))).toList(),
     groupIds: (json['groupIds'] as List? ?? []).cast<String>(),
+    trackTitle: json['trackTitle'] as String? ?? '',
+    trackArtist: json['trackArtist'] as String? ?? '',
   );
 }

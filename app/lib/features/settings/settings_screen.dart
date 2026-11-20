@@ -29,6 +29,7 @@ import '../../state/remote_providers.dart';
 import '../../state/midi_control_providers.dart';
 import 'dmx_map_screen.dart';
 import 'midi_control_screen.dart';
+import 'song_watch_card.dart';
 import '../../l10n/labels.dart';
 import '../../l10n/status_messages.dart';
 
@@ -763,7 +764,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       '  osc.enabled true\n'
                       '  osc.source 0.0.0.0:4450\n'
                       '  osc.destination ${_wifiAddress ?? l.settingsThisTabletIp}:${OscBeatSource.defaultPort}\n'
-                      '  osc.msg.master/beat/trigger 1',
+                      '  osc.msg.master/beat/trigger 1\n'
+                      '  osc.msg.master/time true',
                       style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.textDim),
                     ),
                     const SizedBox(height: 8),
@@ -782,6 +784,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          _SectionTitle(l.songWatchSection),
+          const SongWatchCard(),
           const SizedBox(height: 20),
           _SectionTitle(l.settingsMidiControlSection),
           const _MidiControlCard(),

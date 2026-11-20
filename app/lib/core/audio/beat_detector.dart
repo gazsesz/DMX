@@ -169,6 +169,19 @@ class BeatDetectorService implements BeatSource {
   AudioRecorder get _recorder => _recorderInstance ??= AudioRecorder();
   StreamSubscription<Uint8List>? _pcmSub;
   final _beatController = StreamController<DateTime>.broadcast();
+  final _pcmController = StreamController<Uint8List>.broadcast();
+
+  /// Who holds the microphone open: the beat sync switch and Song watch
+  /// (which listens for known songs) each keep it open without the other
+  /// closing it. Beats only reach playback while beat sync holds it.
+  static const beatHolder = 'beat';
+  static const songWatchHolder = 'songWatch';
+  final _holders = <String>{};
+
+  /// The raw capture, 16-bit little-endian mono PCM at 44.1 kHz, chunk by
+  /// chunk as the recorder delivers it.
+  Stream<Uint8List> get pcm => _pcmController.stream;
+  static const pcmSampleRate = 44100;
   final _meterController = StreamController<BeatMeterSample>.broadcast();
   final OnsetBaseline _baseline = OnsetBaseline();
 
@@ -250,14 +263,33 @@ class BeatDetectorService implements BeatSource {
   @override
   Stream<DateTime> get beatEvents => _beatController.stream;
   Stream<BeatMeterSample> get meterStream => _meterController.stream;
+  /// Whether beats are being delivered: the microphone is open for the beat
+  /// sync switch.
   @override
-  bool get isListening => _pcmSub != null;
+  bool get isListening => _pcmSub != null && _holders.contains(beatHolder);
 
-  /// Starts listening. Returns false if permission was denied or the
-  /// platform couldn't open a capture device — check [lastError] for why.
+  /// Whether the microphone is open for anyone.
+  bool get isOpen => _pcmSub != null;
+
+  /// Starts listening for beats. Returns false if permission was denied or
+  /// the platform couldn't open a capture device — check [lastError] for why.
   @override
-  Future<bool> start() async {
-    if (isListening) return true;
+  Future<bool> start() => open(beatHolder);
+
+  /// Opens the microphone on [holder]'s behalf (or joins it if it's open).
+  Future<bool> open(String holder) async {
+    if (_pcmSub == null && !await _openMic()) return false;
+    _holders.add(holder);
+    return true;
+  }
+
+  /// Lets go on [holder]'s behalf; the microphone closes when nobody holds it.
+  Future<void> release(String holder) async {
+    _holders.remove(holder);
+    if (_holders.isEmpty) await _safeStop();
+  }
+
+  Future<bool> _openMic() async {
     lastError = null;
     try {
       final granted = await _recorder.hasPermission();
@@ -301,9 +333,7 @@ class BeatDetectorService implements BeatSource {
   }
 
   @override
-  Future<void> stop() async {
-    await _safeStop();
-  }
+  Future<void> stop() => release(beatHolder);
 
   Future<void> _safeStop() async {
     await _pcmSub?.cancel();
@@ -382,6 +412,7 @@ class BeatDetectorService implements BeatSource {
   }
 
   void _onPcmChunk(Uint8List chunk) {
+    if (_pcmController.hasListener) _pcmController.add(chunk);
     final byteData = ByteData.sublistView(chunk);
     for (var i = 0; i + 1 < chunk.length; i += 2) {
       final sample = byteData.getInt16(i, Endian.little) / 32768.0;
@@ -594,7 +625,8 @@ class BeatDetectorService implements BeatSource {
       print('SMARTBEAT onset band=${frequencyBand.name} db=${_toDb(flux).toStringAsFixed(1)} '
           'level=${_levelDb.toStringAsFixed(1)}');
       _lastBeat = now;
-      _beatController.add(now);
+      // Open only for Song watch: beat sync is off, so playback gets none.
+      if (_pcmSub == null || _holders.contains(beatHolder)) _beatController.add(now);
     }
 
     final avgDb = _toDb(_baseline.mean ?? 0);
@@ -616,7 +648,9 @@ class BeatDetectorService implements BeatSource {
   }
 
   void dispose() {
+    _holders.clear();
     _pcmSub?.cancel();
+    _pcmController.close();
     _recorderInstance?.dispose();
     _beatController.close();
     _meterController.close();
