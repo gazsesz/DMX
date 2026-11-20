@@ -69,14 +69,27 @@ class _SongWatchCardState extends ConsumerState<SongWatchCard> {
               onChanged: notifier.setEnabled,
             ),
             const SizedBox(height: 6),
-            Text(
-              '${l.songWatchConfig}\n'
-              '  osc.msg.master/time true',
-              style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.textDim),
+            SegmentedButton<SongWatchSource>(
+              key: const ValueKey('song-watch-source'),
+              segments: [
+                ButtonSegment(value: SongWatchSource.mic, icon: const Icon(Icons.mic_none, size: 18), label: Text(l.songWatchSourceMic)),
+                ButtonSegment(value: SongWatchSource.rkbx, icon: const Icon(Icons.wifi, size: 18), label: const Text('rkbx_link')),
+              ],
+              selected: {prefs.source},
+              onSelectionChanged: (v) => notifier.setSource(v.first),
             ),
+            const SizedBox(height: 6),
+            if (prefs.source == SongWatchSource.mic)
+              Text(l.songWatchMicHint, style: const TextStyle(fontSize: 11, color: AppColors.textDim))
+            else
+              Text(
+                '${l.songWatchConfig}\n'
+                '  osc.msg.master/time true',
+                style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.textDim),
+              ),
             if (prefs.enabled) ...[
               const SizedBox(height: 10),
-              _statusLine(context, status, source),
+              prefs.source == SongWatchSource.mic ? _micStatusLine(context, status) : _statusLine(context, status, source),
               const SizedBox(height: 10),
               Text(l.songWatchOffset(prefs.offsetMs.toString()), style: const TextStyle(fontSize: 12)),
               Slider(
@@ -88,13 +101,34 @@ class _SongWatchCardState extends ConsumerState<SongWatchCard> {
                 onChanged: (v) => notifier.setOffsetMs(v.round()),
               ),
               Text(l.songWatchOffsetHint, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
-              const SizedBox(height: 6),
-              _Monitor(source: source),
+              if (prefs.source == SongWatchSource.rkbx) ...[
+                const SizedBox(height: 6),
+                _Monitor(source: source),
+              ],
             ],
           ],
         ),
       ),
     );
+  }
+
+  Widget _micStatusLine(BuildContext context, SongWatchStatus status) {
+    final l = context.l10n;
+    final String text;
+    var color = AppColors.textFaint;
+    switch (status.phase) {
+      case SongWatchPhase.preparing:
+        text = l.songWatchPreparing;
+      case SongWatchPhase.following:
+        final show = ref.read(songShowsProvider).where((s) => s.audio?.path == status.title);
+        text = l.songWatchFollowing(show.isEmpty ? '' : (show.first.audio?.fileName ?? ''), status.showName ?? '');
+        color = AppColors.success;
+      case SongWatchPhase.watching:
+      case SongWatchPhase.off:
+        text = status.knownSongs == 0 ? l.songWatchNoSongs : l.songWatchListening(status.knownSongs.toString());
+        if (status.knownSongs == 0) color = AppColors.danger;
+    }
+    return Text(text, key: const ValueKey('song-watch-status'), style: TextStyle(fontSize: 11.5, color: color));
   }
 
   Widget _statusLine(BuildContext context, SongWatchStatus status, OscBeatSource source) {

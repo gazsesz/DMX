@@ -1155,7 +1155,7 @@
   "smartTryStop": "Próba leállítása",
   "songWatchSection": "SONG FIGYELÉS",
   "songWatchTitle": "A DJ számainak követése song show-kkal",
-  "songWatchSubtitle": "Ha a Rekordbox master deckjén (rkbx_link-en át) olyan szám szól, amihez van song show, a show átveszi a színpadot, amíg a szám szól, utána visszajön, ami előtte futott.",
+  "songWatchSubtitle": "Ha olyan szám szól, amihez van song show, a show átveszi a színpadot, amíg a szám szól, utána visszajön, ami előtte futott. A számot a mikrofon ismeri fel, vagy a Rekordbox adja meg rkbx_link-en át.",
   "songWatchConfig": "Ehhez az rkbx_link konfigfájljában ez is kell:",
   "songWatchOff": "Ki",
   "songWatchNoData": "Az rkbx_link még nem küldött semmit — nézd meg az rkbx_link beállításait a Beat forrásnál.",
@@ -1173,5 +1173,10 @@
   "songTrackArtist": "Előadó",
   "songTrackUseNowPlaying": "A most szóló szám",
   "songTrackNothingPlaying": "Az rkbx_link még nem küldött számcímet",
-  "songWatchClear": "Törlés"
+  "songWatchClear": "Törlés",
+  "songWatchSourceMic": "Mikrofon",
+  "songWatchMicHint": "A teremben szóló zenét figyeli, és felismeri a song show-khoz linkelt dalfájlokat. Bármilyen zenei forrással működik; ha a DJ kb. 2 %-nál jobban elhúzza a tempót (pitch), a felismerés elakadhat.",
+  "songWatchPreparing": "A dalfájlok előkészítése…",
+  "songWatchNoSongs": "Egyik song show-hoz sincs dalfájl ezen a tableten — linkelj egyet a song show szerkesztőben.",
+  "songWatchListening": "Figyel — {count} dalt ismer."
 }

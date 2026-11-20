@@ -2950,7 +2950,7 @@
   "smartTryStop": "Stop trying",
   "songWatchSection": "SONG WATCH",
   "songWatchTitle": "Follow the DJ's tracks with song shows",
-  "songWatchSubtitle": "When a track that has a song show plays on Rekordbox's master deck (via rkbx_link), its show takes over for as long as the track plays, then whatever ran before comes back.",
+  "songWatchSubtitle": "When a song that has a song show plays, its show takes over for as long as the song plays, then whatever ran before comes back. The song is recognised through the microphone, or named by Rekordbox via rkbx_link.",
   "songWatchConfig": "Also needed in rkbx_link's config file:",
   "songWatchOff": "Off",
   "songWatchNoData": "Nothing from rkbx_link yet — check the rkbx_link settings under Beat source.",
@@ -2972,5 +2972,11 @@
   "songTrackArtist": "Artist",
   "songTrackUseNowPlaying": "Use the track playing now",
   "songTrackNothingPlaying": "rkbx_link hasn't named a track yet",
-  "songWatchClear": "Clear"
+  "songWatchClear": "Clear",
+  "songWatchSourceMic": "Microphone",
+  "songWatchMicHint": "Listens to the room and recognises the song files linked to your song shows. Works with any music source; with a DJ's pitch changed by more than about 2 %, recognition can fail.",
+  "songWatchPreparing": "Getting the song files ready…",
+  "songWatchNoSongs": "No song show has a song file on this tablet — link one in the song show editor.",
+  "songWatchListening": "Listening — knows {count} song(s).",
+  "@songWatchListening": {"placeholders": {"count": {"type": "String"}}}
 }

@@ -103,6 +103,7 @@ Future<void> main() async {
             SongWatchPrefs(
               enabled: prefs.getBool(prefSongWatchEnabled) ?? false,
               offsetMs: prefs.getInt(prefSongWatchOffsetMs) ?? 0,
+              source: SongWatchSource.fromName(prefs.getString(prefSongWatchSource)),
             ),
           ),
         ),

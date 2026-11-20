@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../features/dashboard/live_stage_view.dart';
 import '../../models/control_dock_prefs.dart';
+import '../../state/song_watch_providers.dart';
+import '../song/song_follower.dart';
 import '../../state/audio_providers.dart';
 import '../../state/live_providers.dart';
 import '../../state/control_dock_providers.dart';
@@ -106,6 +108,7 @@ class ExpandedControlDock extends ConsumerWidget {
                       vertical: true,
                       showBeatRate: false,
                       showMomentaryFx: false,
+                      showSongWatch: false,
                     ),
                   ),
                 ),
@@ -153,11 +156,13 @@ class _DockControls extends ConsumerWidget {
   final bool vertical;
   final bool showBeatRate;
   final bool showMomentaryFx;
+  final bool showSongWatch;
 
   const _DockControls({
     required this.vertical,
     this.showBeatRate = true,
     this.showMomentaryFx = true,
+    this.showSongWatch = true,
   });
 
   /// Restarts whatever played last. Reports back, because the common
@@ -235,6 +240,26 @@ class _DockControls extends ConsumerWidget {
         ),
         _dockButtonWidth,
       ),
+      // Song watch on/off: a song show takes the stage when its song plays.
+      // Lights up green while a show is following the song. Left off the
+      // open panel's rail, which has to keep Blackout on a phone's screen.
+      if (showSongWatch)
+        _DockItem(
+          _DockButton(
+            icon: Icons.queue_music,
+            label: 'Song',
+            color: ref.watch(songWatchStatusProvider).phase == SongWatchPhase.following
+                ? AppColors.success
+                : AppColors.accent2,
+            active: ref.watch(songWatchPrefsProvider.select((p) => p.enabled)),
+            onTap: () {
+              final prefs = ref.read(songWatchPrefsProvider);
+              ref.read(songWatchPrefsProvider.notifier).setEnabled(!prefs.enabled);
+            },
+          ),
+          _dockButtonWidth,
+          giveUpAt: 1,
+        ),
       // Only worth showing once there's something to predict from — beat
       // sync off means the mic (and so the predictor) isn't even running.
       if (beatSync)

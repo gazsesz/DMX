@@ -7,6 +7,9 @@ enum SongWatchPhase {
   /// Switched off.
   off,
 
+  /// Getting the song files ready to be recognised (microphone).
+  preparing,
+
   /// Waiting for a track that has a show.
   watching,
 
@@ -24,7 +27,19 @@ class SongWatchStatus {
   /// The show for that track, if there is one.
   final String? showName;
 
-  const SongWatchStatus({this.phase = SongWatchPhase.off, this.title, this.artist, this.showName});
+  /// How many song files the microphone can recognise.
+  final int knownSongs;
+
+  const SongWatchStatus({
+    this.phase = SongWatchPhase.off,
+    this.title,
+    this.artist,
+    this.showName,
+    this.knownSongs = 0,
+  });
+
+  SongWatchStatus withKnownSongs(int count) =>
+      SongWatchStatus(phase: phase, title: title, artist: artist, showName: showName, knownSongs: count);
 
   @override
   bool operator ==(Object other) =>
@@ -32,10 +47,11 @@ class SongWatchStatus {
       other.phase == phase &&
       other.title == title &&
       other.artist == artist &&
-      other.showName == showName;
+      other.showName == showName &&
+      other.knownSongs == knownSongs;
 
   @override
-  int get hashCode => Object.hash(phase, title, artist, showName);
+  int get hashCode => Object.hash(phase, title, artist, showName, knownSongs);
 }
 
 /// What the follower asks the app to do.
@@ -83,9 +99,14 @@ class SongFollower {
   /// it in the browser doesn't fire the lights.
   static const startAfterMoving = Duration(milliseconds: 400);
 
-  SongFollower(this.actions);
+  /// [matcher] picks the show for a track; by default the title/artist
+  /// matching of [matchSongShow]. The microphone path passes the show id as
+  /// the title and matches on that.
+  SongFollower(this.actions, {SongShow? Function(List<SongShow> shows, String title, String artist)? matcher})
+    : _matcher = matcher ?? ((shows, title, artist) => matchSongShow(shows, title: title, artist: artist));
 
   final SongFollowerActions actions;
+  final SongShow? Function(List<SongShow> shows, String title, String artist) _matcher;
 
   SongWatchStatus _status = const SongWatchStatus(phase: SongWatchPhase.watching);
   SongWatchStatus get status => _status;
@@ -122,7 +143,7 @@ class SongFollower {
     final key = '${normalizeTrackText(title)}|${normalizeTrackText(artist)}';
     if (key != _trackKey) {
       _trackKey = key;
-      _match = matchSongShow(actions.shows, title: title, artist: artist);
+      _match = _matcher(actions.shows, title, artist);
       _movingSince = null;
       _lastTime = null;
       if (_doneTrackKey != key) _doneTrackKey = null;

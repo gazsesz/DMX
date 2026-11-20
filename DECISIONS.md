@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-11-20 · app verzió: v1.54.0 (Song figyelés rkbx_link-kel, ág `claude/song-watch-rkbx`)_
+_Utolsó frissítés: 2026-11-20 · app verzió: v1.55.0 (Song figyelés mikrofonnal és rkbx_link-kel, ág `claude/song-watch-rkbx`)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -68,7 +68,7 @@ _Utolsó frissítés: 2026-11-20 · app verzió: v1.54.0 (Song figyelés rkbx_li
 
 - **rkbx/Tidal út parkolva (2026-10-24):** a felhasználónak még nincs Tidal DJ előfizetése és rkbx_link licence-e (a jövő héten várhatóan lesz). Addig a Song Show a helyi fájlokra (offline elemzés, beépített lejátszó) épül. A felhasználó feltevése: rkbx_link-kel mindegy a streaming szolgáltatás, mert ugyanazt adja — ez nem ellenőrzött (streaming számok phrase-adata, Spotify-támogatás).
 
-## Song figyelés — DJ-követés rkbx_link-kel (v1.54.0, 2026-11-20, ág `claude/song-watch-rkbx`)
+## Song figyelés — DJ-követés rkbx_link-kel és mikrofonnal (v1.54.0–v1.55.0, 2026-11-20, ág `claude/song-watch-rkbx`, PR #26)
 - **Felhasználói ötlet:** bekapcsolható „Song figyelés”: ha fut egy Smart Program / chase, és a master decken olyan szám indul, amihez van Song Show, a show átveszi a színpadot, majd automatikusan visszajön a korábbi program. Választott út (2026-11-20): **először rkbx_link**, utána külön lépésben **mikrofonos felismerés** (ujjlenyomat a linkelt hangfájlokból) — még nincs kész.
 - **Forrás:** az `OscBeatSource` most a `/master/time` és `/time/master` (pozíció mp, a README mindkét formát említi), `/master/track/title|artist`, `/master/bpm/original` üzeneteket is olvassa → `RkbxDeckState`. Sebesség = `bpm/current ÷ bpm/original`. Élőben **még nem ellenőrzött**: melyik config sor kapcsolja a track címet (a README nem ír külön kapcsolót), és hogy a `time` pitchelt-e. Ehhez a Setupban élő **OSC-kijelző** van (címek + utolsó érték + darabszám).
 - **Socket-tartók:** a beat sync kapcsoló és a Song figyelés külön tartja nyitva az UDP socketet (`open/release(holder)`); ha csak a Song figyelés tartja, beat nem megy a lejátszásnak (a beat sync ki van). Wi-Fi-váltáskor `rebind()` a tartók megtartásával.
@@ -77,7 +77,12 @@ _Utolsó frissítés: 2026-11-20 · app verzió: v1.54.0 (Song figyelés rkbx_li
 - **Visszaállítás:** átvételkor `PlaybackSnapshot` (rétegenként `NowPlaying` + aktív Smart Program), utána Smart Program stop + minden réteg stop; visszaváltáskor Smart Program újraindul, bankok a rétegükön, chase-ek egyszer. **Teljes átvétel** (az első verzió): a felajánlott „csak a show lámpái” mód még nincs. A Live Grid-et nem állítja le és nem állítja vissza.
 - **Párosítás:** `SongShow.trackTitle/trackArtist` (exportba is), a szerkesztő AppBar-ján lemez ikon → dialógus „A most szóló szám” gombbal. Üresen: show neve, „előadó cím”, majd a dalfájl neve alapján (ékezet/írásjel nélküli szóegyezés). Cue nélküli show sosem párosul.
 - **Fénykésleltetés:** Setup → Song figyelés csúszka (−500…+500 ms, eszköz-beállítás, SharedPreferences `songWatch.offsetMs`); pozitív = a fény később.
-- Nyitott: élő próba Gabornál (rkbx_link `osc.msg.master/time true` + track címek), „csak a show lámpái” mód, phrase-adat használata, mikrofonos felismerés.
+- **2026-11-20 este:** Gabornak **még nincs rkbx_link-je**, ezért az rkbx-es út élő próbája később; a PR nyitva marad.
+- **Mikrofonos felismerés (v1.55.0, ugyanazon az ágon):** forrásválasztó a Setupban (`SongWatchSource.mic|rkbx`, alap: **mic**). Landmark-ujjlenyomat (`core/song/fingerprint.dart`, Shazam-szerű): 11 025 Hz, 1024/512 STFT (~21,5 frame/s), 110 Hz–4 kHz 5 sávban sávonként csúcs (átlag fölött, ±2 frame-ben maximum), csúcspárok (f1, f2, Δt ≤ 32 frame, fan-out 5) → 24 bites hash; index = rendezett `Int64List` (hash<<32 | dal<<20 | frame), lekérdezés bináris kereséssel, Δt ±1 tűréssel (kis tempóváltás), szavazás (dal, eltolás) szerint, elfogadás ≥10 szavazat és ≥2× a második legjobb. A dalfájlokból (a show-k `audio.path`-ja, fájlonként egyszer, csak cue-s show) a megnyitáskor épül izolátban, útvonal+hossz szerint cache-elve a munkamenetben. `MicSongRecognizer`: az utolsó 7 s, 2 s-onként lekérdez; **két egybehangzó találat** kell a megerősítéshez (±0,4 s), 12 s találat nélkül = a dal elment (a show addig fut, utána 2,5 s múlva visszavált). A felismert dalt 100 ms-onként „deckként” (cím = fájl útvonal) adja a `SongFollower`-nek, így az átvétel/visszaváltás logikája közös.
+- **Mikrofon-tartók:** a `BeatDetectorService` is `open/release(holder)`-t kapott és nyers `pcm` streamet (44,1 kHz 16 bit); ha csak a Song figyelés tartja nyitva, beat nem megy a lejátszásnak.
+- **Korlátok (mic):** a DJ pitch-e kb. 2% fölött (key lock nélkül) elronthatja a felismerést; csak a tableten lévő, show-hoz linkelt fájlokat ismeri; a felismerés ~4–6 s után indít; zajos teremben élőben még nem mérve.
+- **Dock:** „Song” gomb a Beat mellett (be/ki; zöld, amíg egy show követ). A nyitott panel oldalsávjából kimarad (ott Blackoutnak látszania kell telefonon is).
+- Nyitott: élő próba Gabornál (mikrofon: teremzaj, késés; rkbx: `osc.msg.master/time true` + track címek), „csak a show lámpái” mód, phrase-adat használata.
 
 ## Verifikáció (utolsó ismert)
 - `flutter analyze` tiszta, `flutter test` 176/176 (a csoport/szín munka idején; azóta új teszt: `osc_beat_source_test.dart`).
