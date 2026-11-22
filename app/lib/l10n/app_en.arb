@@ -3002,5 +3002,6 @@
   "dropoutPriorityChase": "Chase",
   "dropoutPriorityDeckHint": "While the dock's dropout is on, the dropouts set in chases wait. Turn the dock's off and the chases' own run again.",
   "dropoutPriorityBothHint": "The dock's and the chases' own dropouts run side by side, each on its own timing.",
-  "dropoutPriorityChaseHint": "On a layer where a chase with its own dropout is playing, only the chase's cuts; the dock's still cuts every other layer."
+  "dropoutPriorityChaseHint": "On a layer where a chase with its own dropout is playing, only the chase's cuts; the dock's still cuts every other layer.",
+  "liveAmountWheelHeads": "On colour-wheel heads this is their brightness too: at 0 they stay dark."
 }

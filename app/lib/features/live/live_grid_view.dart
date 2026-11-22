@@ -8,6 +8,7 @@ import '../../models/layer.dart';
 import '../../models/live_grid.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/fixture_group_providers.dart';
+import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
 import '../../state/live_providers.dart';
 import '../../state/playback_providers.dart';

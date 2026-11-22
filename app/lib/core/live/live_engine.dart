@@ -807,6 +807,13 @@ bool _drives(LiveLaneKind kind, PatchedFixture f) {
   };
 }
 
+/// Whether [lane] is a Colors lane with colour-wheel heads among its
+/// fixtures: a wheel can't dim, so on those the lane's Amount is their
+/// brightness (taken through the Level lane's dimmer), and 0 is dark.
+bool colorsAmountDimsHeads(LiveLane lane, LiveRig rig) =>
+    lane.kind == LiveLaneKind.colors &&
+    targetsOf(lane, rig).any((f) => !f.profile.channels.any((c) => LiveEngine._mixesColour(c.function)));
+
 /// The fixtures [lane] drives on [rig], left to right on the stage.
 List<PatchedFixture> targetsOf(LiveLane lane, LiveRig rig) {
   final inGroups = <String>{

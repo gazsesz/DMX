@@ -1202,5 +1202,6 @@
   "dropoutPriorityChase": "Chase",
   "dropoutPriorityDeckHint": "Amíg a dock dropoutja be van kapcsolva, a chase-ekben beállított dropout szünetel. Ha a dockon kikapcsolod, a chase-eké újra fut.",
   "dropoutPriorityBothHint": "A dock és a chase-ek saját dropoutja egymás mellett fut, mindegyik a saját időzítésével.",
-  "dropoutPriorityChaseHint": "Azon a rétegen, ahol saját dropouttal fut egy chase, csak a chase-é vág; a dock dropoutja a többi réteget ugyanúgy vágja."
+  "dropoutPriorityChaseHint": "Azon a rétegen, ahol saját dropouttal fut egy chase, csak a chase-é vág; a dock dropoutja a többi réteget ugyanúgy vágja.",
+  "liveAmountWheelHeads": "Színkerekes fejeken ez a fényerejük is: 0-n sötétek maradnak."
 }

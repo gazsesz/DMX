@@ -238,6 +238,25 @@ void main() {
       expect(out.values[liveLayerId('beam')]![3], greaterThanOrEqualTo(8));
     });
 
+    test('the Colors Amount is the brightness of colour-wheel heads, not of RGB pars', () {
+      const wheelHead = FixtureProfile(
+        id: 'wheel',
+        name: 'Wheel head',
+        category: FixtureCategory.movingHead,
+        channels: [
+          FixtureChannel(offset: 0, function: ChannelFunction.pan),
+          FixtureChannel(offset: 1, function: ChannelFunction.tilt),
+          FixtureChannel(offset: 2, function: ChannelFunction.dimmer),
+          FixtureChannel(offset: 3, function: ChannelFunction.colorWheel),
+        ],
+      );
+      final wheelRig = LiveRig(fixtures: [_fx('h1', wheelHead, 0, 0.3), _fx('p1', _par, 20, 0.5)]);
+      final g = LiveGrid.starter();
+      expect(colorsAmountDimsHeads(g.lane('colors-heads')!, wheelRig), isTrue);
+      expect(colorsAmountDimsHeads(g.lane('colors-pars')!, wheelRig), isFalse);
+      expect(colorsAmountDimsHeads(g.lane('level')!, wheelRig), isFalse);
+    });
+
     test('an "Open" given as a span counts as the open value', () {
       expect(
         shutterOpenValue(const [
