@@ -540,7 +540,7 @@ class LiveEngine {
 
     // Level first: pars without a dimmer take it on their colour.
     final levels = <String, double>{};
-    final beamLanes = <String>{};
+    final strobeOwned = <String>{};
     // A colour-wheel head can't dim its colour: the Colors lane's Amount
     // (Brightness) dims it through the Level lane's dimmer instead.
     final wheelDim = <String, double>{};
@@ -553,9 +553,11 @@ class LiveEngine {
           if (!f.profile.channels.any((c) => _mixesColour(c.function))) wheelDim[f.id] = lane.amount;
         }
       }
-      if (lane.kind == LiveLaneKind.beam) {
+      // Only a Beam clip that sets the strobe owns the shutter; one with
+      // just a gobo/zoom/prism leaves it to be opened below.
+      if (lane.kind == LiveLaneKind.beam && clip.beam?.strobe != null) {
         for (final f in targetsOf(lane, r)) {
-          beamLanes.add(f.id);
+          strobeOwned.add(f.id);
         }
       }
       if (lane.kind != LiveLaneKind.level || clip.level == null) continue;
@@ -613,7 +615,7 @@ class LiveEngine {
     // Open shutters on lit heads no Beam lane owns, so a Level lane alone
     // makes light.
     for (final f in r.fixtures) {
-      if (beamLanes.contains(f.id) || !levels.containsKey(f.id)) continue;
+      if (strobeOwned.contains(f.id) || !levels.containsKey(f.id)) continue;
       final universe = universes[f.universeId];
       if (universe == null) continue;
       for (final c in f.profile.channels) {
@@ -893,12 +895,13 @@ int colorValue(LiveColorFx fx, double beat, int index, int count) {
 }
 
 /// The value that opens a strobe/shutter channel, from its capabilities:
-/// a slot labelled open/on, else the first non-off slot. Null when the
+/// a slot or span labelled open/on. Null when the
 /// profile doesn't say.
 int? shutterOpenValue(List<ChannelCapability> caps) {
   for (final c in caps) {
     final label = c.label.toLowerCase();
-    if (c.kind != CapabilityKind.range && (label.contains('open') || label == 'on' || label.contains('shutter on'))) {
+    // "Open" may be a single value or a span ("Open 0-7") on the fixture.
+    if (label.contains('open') || label == 'on' || label.contains('shutter on')) {
       return c.pickValue;
     }
   }
