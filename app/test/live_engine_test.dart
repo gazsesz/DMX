@@ -217,6 +217,38 @@ void main() {
       expect(out.values[liveLayerId('colors-pars')]![20], 128); // white at half
     });
 
+    test('a gobo-only Beam clip leaves the shutter to the Level lane; a strobe one keeps it', () {
+      grid = grid
+          .withClip('level', 0, const LiveClip(name: 'Full', level: LiveLevelFx(high: 1)))
+          .withClip('beam', 0, const LiveClip(name: 'Gobo', beam: LiveBeamFx(gobo: 40)))
+          .withClip('beam', 1, const LiveClip(name: 'Strobe', beam: LiveBeamFx(strobe: 0.5)));
+      for (final lane in ['level', 'beam']) {
+        engine.select(lane, 0, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      }
+      engine.tick(0);
+      engine.tick(0.1);
+      expect(out.values[liveLayerId('beam')]![4], 40); // h1 gobo
+      expect(out.values[liveShutterLayer]![3], 5, reason: 'shutter open under a gobo-only clip');
+
+      out.values.remove(liveShutterLayer);
+      engine.select('beam', 1, mode: LivePadMode.launchDirectly, quantize: LiveQuantize.now);
+      engine.tick(0.2);
+      engine.tick(0.3);
+      expect(out.values[liveShutterLayer]?[3], isNull, reason: 'the strobe clip owns the shutter');
+      expect(out.values[liveLayerId('beam')]![3], greaterThanOrEqualTo(8));
+    });
+
+    test('an "Open" given as a span counts as the open value', () {
+      expect(
+        shutterOpenValue(const [
+          ChannelCapability(min: 0, max: 7, label: 'Shutter open', kind: CapabilityKind.range),
+          ChannelCapability(min: 8, max: 255, label: 'Strobe', kind: CapabilityKind.range),
+        ]),
+        0,
+      );
+      expect(shutterOpenValue(const []), isNull);
+    });
+
     test('Try on heads: points the lane heads at a position, lit, then lets go', () {
       engine.previewPosition(grid.lane('moves')!, const PanTilt(0x1234, 0x5678));
       final v = out.values[livePreviewLayer]!;
