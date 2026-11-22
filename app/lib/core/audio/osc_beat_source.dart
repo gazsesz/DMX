@@ -5,6 +5,61 @@ import 'dart:typed_data';
 import 'beat_source.dart';
 import 'osc_message.dart';
 
+/// What rkbx_link last said about Rekordbox's master deck: which track is on
+/// it and where it is in that track. Feeds Song watch, which follows a
+/// [SongShow] along with the DJ's own playback.
+class RkbxDeckState {
+  final String? title;
+  final String? artist;
+
+  /// Position in the track, in seconds, as of [timeAt].
+  final double? timeSec;
+  final DateTime? timeAt;
+
+  /// The pitched tempo and the track's own tempo — their ratio is how fast
+  /// the track runs, so the position can be carried on between reports.
+  final double? bpm;
+  final double? originalBpm;
+
+  const RkbxDeckState({this.title, this.artist, this.timeSec, this.timeAt, this.bpm, this.originalBpm});
+
+  /// Playback speed relative to the original track (1.0 when unknown).
+  double get rate {
+    final b = bpm, o = originalBpm;
+    if (b == null || o == null || b <= 0 || o <= 0) return 1;
+    final r = b / o;
+    return r < 0.5 || r > 2 ? 1 : r;
+  }
+
+  bool get hasTrack => (title ?? '').trim().isNotEmpty;
+
+  RkbxDeckState copyWith({
+    String? title,
+    String? artist,
+    double? timeSec,
+    DateTime? timeAt,
+    double? bpm,
+    double? originalBpm,
+  }) => RkbxDeckState(
+    title: title ?? this.title,
+    artist: artist ?? this.artist,
+    timeSec: timeSec ?? this.timeSec,
+    timeAt: timeAt ?? this.timeAt,
+    bpm: bpm ?? this.bpm,
+    originalBpm: originalBpm ?? this.originalBpm,
+  );
+}
+
+/// One OSC address seen from rkbx_link, for Setup's monitor.
+class OscSeen {
+  final String address;
+  final String lastValue;
+  final int count;
+  final DateTime lastAt;
+
+  const OscSeen(this.address, this.lastValue, this.count, this.lastAt);
+}
+
 /// A [BeatSource] fed by rkbx_link's OSC output over Wi-Fi: rkbx_link reads
 /// Rekordbox's master deck (tempo and beatgrid position) straight from
 /// memory and sends a trigger on every beat, so the beat lands on the
@@ -27,6 +82,21 @@ class OscBeatSource implements BeatSource {
   static const defaultPort = 4460;
   static const beatAddress = '/master/beat/trigger/1';
   static const bpmAddress = '/master/bpm/current';
+  static const originalBpmAddress = '/master/bpm/original';
+
+  /// The master deck's position in seconds. rkbx_link's README names both
+  /// forms, so both are accepted.
+  static const timeAddresses = {'/master/time', '/time/master'};
+  static const titleAddress = '/master/track/title';
+  static const artistAddress = '/master/track/artist';
+
+  /// Who holds the socket open: the beat sync switch and Song watch can each
+  /// keep it listening without the other turning it off.
+  static const beatHolder = 'beat';
+  static const songWatchHolder = 'songWatch';
+
+  /// How many distinct addresses the monitor keeps.
+  static const _maxSeen = 40;
 
   /// How many beat intervals the fallback tempo averages over, used only
   /// until rkbx_link has sent a tempo of its own (it only sends one when the
@@ -40,6 +110,19 @@ class OscBeatSource implements BeatSource {
   final _beatController = StreamController<DateTime>.broadcast();
   final _activityController = StreamController<DateTime>.broadcast();
   final _bpmController = StreamController<double>.broadcast();
+  final _deckController = StreamController<RkbxDeckState>.broadcast();
+  final _holders = <String>{};
+  final _seen = <String, OscSeen>{};
+
+  /// The master deck as rkbx_link last described it.
+  RkbxDeckState deck = const RkbxDeckState();
+
+  /// Every update to [deck]: a new position, track or tempo.
+  Stream<RkbxDeckState> get deckUpdates => _deckController.stream;
+
+  /// The addresses that have arrived, most recent first — Setup shows them
+  /// so the rkbx_link config can be checked without a PC-side tool.
+  List<OscSeen> get seenAddresses => _seen.values.toList()..sort((a, b) => b.lastAt.compareTo(a.lastAt));
 
   RawDatagramSocket? _socket;
   StreamSubscription<RawSocketEvent>? _sub;
@@ -68,12 +151,43 @@ class OscBeatSource implements BeatSource {
   @override
   Stream<DateTime> get beatEvents => _beatController.stream;
 
+  /// Whether beats are being delivered — the socket is open for the beat
+  /// sync switch. Song watch alone keeps the socket open without turning
+  /// beats on for playback.
   @override
-  bool get isListening => _socket != null;
+  bool get isListening => _socket != null && _holders.contains(beatHolder);
+
+  /// Whether the socket is open for anyone.
+  bool get isOpen => _socket != null;
 
   @override
-  Future<bool> start() async {
-    if (isListening) return true;
+  Future<bool> start() => open(beatHolder);
+
+  @override
+  Future<void> stop() => release(beatHolder);
+
+  /// Opens the socket on [holder]'s behalf (or joins it if it's open).
+  Future<bool> open(String holder) async {
+    if (_socket == null && !await _bind()) return false;
+    _holders.add(holder);
+    return true;
+  }
+
+  /// Lets go on [holder]'s behalf; the socket closes when nobody holds it.
+  Future<void> release(String holder) async {
+    _holders.remove(holder);
+    if (_holders.isEmpty) await _close();
+  }
+
+  /// Closes and binds the socket again for the same holders — after a Wi-Fi
+  /// change, when the old socket may be tied to the previous network.
+  Future<void> rebind() async {
+    if (_socket == null) return;
+    await _close();
+    if (!await _bind()) _holders.clear();
+  }
+
+  Future<bool> _bind() async {
     lastError = null;
     try {
       final socket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, port, reuseAddress: true);
@@ -89,13 +203,12 @@ class OscBeatSource implements BeatSource {
       return true;
     } catch (e) {
       lastError = 'Could not listen on UDP port $port: $e';
-      await stop();
+      await _close();
       return false;
     }
   }
 
-  @override
-  Future<void> stop() async {
+  Future<void> _close() async {
     await _sub?.cancel();
     _sub = null;
     _socket?.close();
@@ -110,8 +223,11 @@ class OscBeatSource implements BeatSource {
     final at = now ?? DateTime.now();
     lastMessageAt = at;
     _activityController.add(at);
+    var deck = this.deck;
     for (final message in messages) {
-      switch (message.address) {
+      _remember(message, at);
+      final address = message.address;
+      switch (address) {
         case beatAddress:
           // rkbx_link can also send a 0.0 "release" a fifth of a beat later
           // when trigger_autorelease is on — that's not a beat.
@@ -121,12 +237,47 @@ class OscBeatSource implements BeatSource {
           if (value != null && value > 0) {
             _bpmFromSender = true;
             _setBpm(value);
+            deck = deck.copyWith(bpm: value);
+          }
+        case originalBpmAddress:
+          final value = message.firstNumber;
+          if (value != null && value > 0) deck = deck.copyWith(originalBpm: value);
+        case titleAddress:
+          final value = _text(message);
+          if (value != null) deck = deck.copyWith(title: value);
+        case artistAddress:
+          final value = _text(message);
+          if (value != null) deck = deck.copyWith(artist: value);
+        default:
+          if (timeAddresses.contains(address)) {
+            final value = message.firstNumber;
+            if (value != null && value >= 0) deck = deck.copyWith(timeSec: value, timeAt: at);
           }
       }
     }
+    if (!identical(deck, this.deck)) {
+      this.deck = deck;
+      _deckController.add(deck);
+    }
+  }
+
+  static String? _text(OscMessage message) {
+    if (message.args.isEmpty) return '';
+    final value = message.args.first;
+    return value is String ? value : value?.toString();
+  }
+
+  void _remember(OscMessage message, DateTime at) {
+    final value = message.args.map((a) => a is double ? a.toStringAsFixed(3) : '$a').join(' ');
+    final previous = _seen[message.address];
+    if (previous == null && _seen.length >= _maxSeen) return;
+    _seen[message.address] = OscSeen(message.address, value, (previous?.count ?? 0) + 1, at);
   }
 
   void _onBeat(DateTime at) {
+    // Open only for Song watch: the beat sync switch is off, so playback
+    // gets no beats, the same as the microphone when it isn't listening.
+    if (_socket != null && !_holders.contains(beatHolder)) return;
     _beatController.add(at);
     _beatTimes.add(at);
     if (_beatTimes.length > _intervalWindow + 1) _beatTimes.removeAt(0);
@@ -151,7 +302,9 @@ class OscBeatSource implements BeatSource {
   }
 
   void dispose() {
-    stop();
+    _holders.clear();
+    _close();
+    _deckController.close();
     _beatController.close();
     _activityController.close();
     _bpmController.close();

@@ -32,8 +32,8 @@ final networkChangeWatcherProvider = Provider<void>((ref) {
     // The Art-Net/sACN socket: rebind now rather than waiting for the
     // watchdog's two missed polls (up to 20 s of a dark rig).
     unawaited(ref.read(connectionStatusProvider.notifier).onNetworkChanged());
-    // rkbx_link's OSC listener, if it's the one in use.
+    // rkbx_link's OSC listener, if it's open (for beats or Song watch).
     final osc = ref.read(oscBeatSourceProvider);
-    if (osc.isListening) unawaited(osc.stop().then((_) => osc.start()));
+    if (osc.isOpen) unawaited(osc.rebind());
   }, fireImmediately: true);
 });

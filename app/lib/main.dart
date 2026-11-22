@@ -20,6 +20,7 @@ import 'state/dashboard_prefs_providers.dart';
 import 'state/locale_providers.dart';
 import 'state/midi_control_providers.dart';
 import 'state/remote_providers.dart';
+import 'state/song_watch_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -96,6 +97,15 @@ Future<void> main() async {
         ),
         initialMidiControlDevicesProvider.overrideWithValue(
           midiControlDevicesFromPrefs(prefs.getStringList(prefMidiControlDevices)),
+        ),
+        songWatchPrefsProvider.overrideWith(
+          (ref) => SongWatchPrefsNotifier(
+            SongWatchPrefs(
+              enabled: prefs.getBool(prefSongWatchEnabled) ?? false,
+              offsetMs: prefs.getInt(prefSongWatchOffsetMs) ?? 0,
+              source: SongWatchSource.fromName(prefs.getString(prefSongWatchSource)),
+            ),
+          ),
         ),
         initialSilenceFloorProvider.overrideWithValue(
           prefs.getDouble(prefBeatSilenceFloor) ?? BeatDetectorService.silenceFloorOff,
