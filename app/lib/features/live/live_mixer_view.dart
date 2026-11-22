@@ -219,6 +219,20 @@ class _AmountFader extends ConsumerWidget {
       LiveLaneKind.colors => l.liveAmountBrightness,
       _ => l.liveAmountLevel,
     };
+    // Colour-wheel heads can't dim their colour: on them this fader is the
+    // brightness itself, so say so — at 0 they are dark whatever Level does.
+    final wheelHeads = colorsAmountDimsHeads(
+      lane,
+      LiveRig(fixtures: ref.watch(patchedFixturesProvider), groups: ref.watch(fixtureGroupsProvider)),
+    );
+    final wheelHint = wheelHeads
+        ? Text(
+            l.liveAmountWheelHeads,
+            key: ValueKey('live-amount-wheel-${lane.id}'),
+            maxLines: 2,
+            style: TextStyle(color: lane.amount <= 0 ? AppColors.danger : AppColors.textFaint, fontSize: 10),
+          )
+        : null;
     // It scales what the lane plays: with nothing running it only presets.
     final fader = Row(
       children: [
@@ -248,11 +262,15 @@ class _AmountFader extends ConsumerWidget {
         ),
       ],
     );
-    if (running) return fader;
+    if (running) {
+      if (wheelHint == null) return fader;
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [fader, wheelHint]);
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Opacity(opacity: 0.45, child: fader),
+        ?wheelHint,
         Text(
           l.liveAmountIdle,
           key: ValueKey('live-amount-idle-${lane.id}'),

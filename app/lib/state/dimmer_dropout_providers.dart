@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/artnet/artnet_service.dart';
 import '../core/playback/dimmer_dropout.dart';
@@ -56,8 +57,61 @@ final dimmerDropoutProvider = StateNotifierProvider<DimmerDropoutController, Dro
     if (prev?.fixtureOrder != next.fixtureOrder || prev?.customFixtureOrder != next.customFixtureOrder) refresh();
   });
   ref.listen<List<FixtureGroup>>(fixtureGroupsProvider, (_, _) => refresh());
+  ref.listen<DropoutPriority>(dropoutPriorityProvider, (_, next) => controller.priority = next, fireImmediately: true);
   return controller;
 });
+
+const prefDropoutPriority = 'dropout.priority';
+
+/// Which dropout wins when the dock's (or a Smart Program zone's) and a
+/// chase's own are both on. A device setting, on the Settings screen.
+enum DropoutPriority {
+  /// The dock's: while it is on, chases' own dropouts wait. The default.
+  deck,
+
+  /// Both run side by side, each on its own clock.
+  both,
+
+  /// The chase's: the dock's leaves alone the layers a chase with its own
+  /// dropout is playing on, and still cuts everything else.
+  chase;
+
+  static DropoutPriority parse(String? name) =>
+      DropoutPriority.values.firstWhere((p) => p.name == name, orElse: () => DropoutPriority.deck);
+}
+
+final dropoutPriorityProvider = StateNotifierProvider<DropoutPriorityNotifier, DropoutPriority>(
+  (ref) => DropoutPriorityNotifier(),
+);
+
+class DropoutPriorityNotifier extends StateNotifier<DropoutPriority> {
+  DropoutPriorityNotifier() : super(DropoutPriority.deck) {
+    _load();
+  }
+
+  bool _touched = false;
+
+  Future<void> _load() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (_touched || !mounted) return;
+      state = DropoutPriority.parse(sp.getString(prefDropoutPriority));
+    } catch (_) {
+      // No prefs (tests, first run): the default.
+    }
+  }
+
+  void set(DropoutPriority value) {
+    _touched = true;
+    state = value;
+    unawaited(() async {
+      try {
+        final sp = await SharedPreferences.getInstance();
+        await sp.setString(prefDropoutPriority, value.name);
+      } catch (_) {}
+    }());
+  }
+}
 
 /// One running dropout: its own settings, timer and dark phase, so a chase's
 /// slow blips and the hand-set beat-locked ones don't share a clock.
@@ -89,6 +143,9 @@ class _Lane {
   StreamSubscription<DateTime>? beatSub;
   int beats = 0;
 
+  /// The dock's (or a Smart Program zone's) rather than a chase's.
+  bool deck = false;
+
   _Lane(this.settings);
 
   void cancel() {
@@ -119,6 +176,14 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
   final Map<String, DropoutSettings> _chases = {};
 
   final Map<String, _Lane> _lanes = {};
+
+  DropoutPriority _priority = DropoutPriority.deck;
+  DropoutPriority get priority => _priority;
+  set priority(DropoutPriority value) {
+    if (value == _priority) return;
+    _priority = value;
+    _sync(force: true);
+  }
 
   DimmerDropoutController(
     this._service, {
@@ -216,7 +281,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
 
   /// Brings the running lanes in line with what is wanted: started, retuned
   /// or stopped. A lane whose settings did not change keeps its phase.
-  void _sync() {
+  void _sync({bool force = false}) {
     final wanted = <String, DropoutSettings>{};
     final program = _override;
     if (program != null) {
@@ -224,11 +289,15 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     } else if (state.enabled) {
       wanted['manual'] = state;
     }
-    for (final entry in _chases.entries) {
-      wanted['chase:${entry.key}'] = entry.value;
+    // With the dock in charge, a chase's own dropout waits while it is on.
+    final deckOn = wanted.isNotEmpty;
+    if (!(deckOn && _priority == DropoutPriority.deck)) {
+      for (final entry in _chases.entries) {
+        wanted['chase:${entry.key}'] = entry.value;
+      }
     }
 
-    var changed = false;
+    var changed = force;
     for (final key in _lanes.keys.toList()) {
       if (wanted.containsKey(key)) continue;
       final gone = _lanes.remove(key)!;
@@ -266,7 +335,11 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     final scope = lane.active[universe.id];
     if (scope == null || scope.isEmpty) return const {};
     final layers = lane.settings.targetLayerIds;
-    return layers.isEmpty ? scope : _service.channelsOwnedBy(universe, layers, scope);
+    final cut = layers.isEmpty ? scope : _service.channelsOwnedBy(universe, layers, scope);
+    if (!lane.deck || _priority != DropoutPriority.chase || _chases.isEmpty || cut.isEmpty) return cut;
+    // The chases' layers are theirs to cut.
+    final theirs = _service.channelsOwnedBy(universe, _chases.keys.toSet(), cut);
+    return theirs.isEmpty ? cut : cut.difference(theirs);
   }
 
   Set<int> _darkIn(UniverseConfig universe) {
@@ -305,7 +378,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
   }
 
   void _startLane(String key, DropoutSettings settings) {
-    final lane = _Lane(settings);
+    final lane = _Lane(settings)..deck = !key.startsWith('chase:');
     _rescope(lane);
     _lanes[key] = lane;
     _scheduleLane(lane);
