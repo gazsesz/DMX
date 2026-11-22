@@ -2,7 +2,7 @@
 
 Élő napló az új sessionöknek. **Minden session elején olvasd el, a végén frissítsd** (új döntés, állapotváltozás, lezárt/nyitott tétel). Ami a kódból vagy a git logból kiolvasható, azt ne ide írd — csak a *miért*-et és a nem nyilvánvaló állapotot.
 
-_Utolsó frissítés: 2026-11-20 · app verzió: v1.55.0 (Song figyelés mikrofonnal és rkbx_link-kel, ág `claude/song-watch-rkbx`)_
+_Utolsó frissítés: 2026-11-22 · app verzió: v1.57.0 (dimmer bevágás mintázatok + ütemfigyelő hangolás mentése, ág `claude/dropout-patterns`)_
 
 ## Munkamód (állandó szabályok)
 - Chat magyarul, minden státuszsor is; kód, komment, commit angolul.
@@ -22,6 +22,8 @@ _Utolsó frissítés: 2026-11-20 · app verzió: v1.55.0 (Song figyelés mikrofo
 - Lejátszási rétegek (layers) egymástól függetlenek; megosztott csatornákon arbitráció van. Chase vagy Smart Program indítása minden réteget átvesz (amihez nincs tartalma, elcsendesedik) — v1.25.0.
 - Réteg-időzítés chase-ben és Smart Programban: follow dock / on beat / free-running (v1.23–1.24).
 - Dimmer dropout réteg (v1.27–1.28): sötét villanások kiválasztott rétegekre/fixture-ökre, projekttel mentve.
+- **Dropout mintázat (v1.57.0, Gabor jóváhagyta 2026-11-22):** `DropoutSettings.pattern` = `together` (alap, régi viselkedés) / `alternate` / `random`. Felváltva: `grouping` = páros/páratlan (alap) / bal-jobb fél / egyenként / mentett lámpacsoportok (2-nél kevesebb csoport → páros/páratlan), `pingPong` (oda-vissza, 2-nél több egységnél). Véletlen: `randomShare` (10–100%, alap 30%, min. 1 lámpa), `noRepeat` (alap be: ne ugyanaz a lámpa kétszer egymás után; ha kevés a friss, az előzőből pótol). Minden bevágás = egy lépés (időzítőre és ütemre is). A sorrend a projekt lámpasorrendje (`StagePlan.fixtureOrder`, mint a futófénynél). Pure logika: `dropoutUnits` + `DropoutStepper` (`core/playback/dimmer_dropout.dart`); a lane a bevágás kezdetén választ (`_pick` → `lane.active`). Rétegek, Smart Program zóna és Chase ugyanazt a `DropoutControls`-t használja. Óra/MIDI: egyelőre csak be/ki (mintázat-váltó gomb = 2. kör).
+- **Ütemfigyelő hangolás mentése (v1.57.0, Gabor: „Mindkettő”):** a mikrofonos detektor érzékenysége, figyelt sávja (Összes/Kick/Kick szűk/Basszus/Közép/Magas) és alkalmazkodási sebessége (`BeatTuning`, `core/audio/beat_tuning.dart`, `beatTuningProvider`) a tableten megmarad (`beat.tuning` pref, JSON), és a projekt is menti (`ProjectData.beatTuning`). Betöltéskor a projekté nyer (és a tablet azt jegyzi meg); v1.57.0 előtti projekt (kulcs nélkül) a tablet értékét hagyja. A csendküszöb továbbra is csak eszköz-szintű.
 - Dropout fade out (v1.30) + fade in (v1.31, `fadeInMs`, alap 0, a sötét után ugyanígy visszahalkít): `fadeOutMs` (alap 0 = kemény vágás) a sötét előtt lineárisan halkít; a `dimChannels` hook gain-t ad csatornánként, a 30 Hz refresh rajzolja a lépcsőket. A köz-számításba beleszámít.
 - Bank "Edit slots" (v1.30): a hosszú nyomás húzást (LongPressDraggable→DragTarget, `moveSlot`) indít a jelenet-szerkesztő helyett; a szerkesztés a mód kikapcsolásakor marad a hosszú nyomás.
 - Jelenet duplikálás a slot menüben két módon (v1.31.1): következő szabad slotba (`placeAfter`), vagy közvetlenül a következő lépésre (`insertAfter`): a többi eggyel odébb tolódik az első üres slotig, üres hely híján a bank nő eggyel; a lépés időzítése vele megy.
