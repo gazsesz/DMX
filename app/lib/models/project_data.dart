@@ -1,4 +1,5 @@
 import 'artnet_settings.dart';
+import '../core/audio/beat_tuning.dart';
 import '../core/playback/dimmer_dropout.dart';
 import 'bank.dart';
 import 'chase.dart';
@@ -53,6 +54,10 @@ class ProjectData {
   /// before it existed; the screen then starts from [LiveGrid.starter].
   final LiveGrid? liveGrid;
 
+  /// The mic beat detector's tuning; null in a project saved before v1.56.0,
+  /// which then leaves the tablet's own alone.
+  final BeatTuning? beatTuning;
+
   const ProjectData({
     required this.name,
     required this.settings,
@@ -73,6 +78,7 @@ class ProjectData {
     this.dimmerDropout = const DropoutSettings(),
     this.midiMappings = const [],
     this.liveGrid,
+    this.beatTuning,
   });
 
   Map<String, dynamic> toJson() => {
@@ -96,6 +102,7 @@ class ProjectData {
     'dimmerDropout': dimmerDropout.toJson(),
     if (midiMappings.isNotEmpty) 'midiMappings': midiMappings.map((m) => m.toJson()).toList(),
     if (liveGrid != null && !liveGrid!.isEmpty) 'liveGrid': liveGrid!.toJson(),
+    if (beatTuning != null) 'beatTuning': beatTuning!.toJson(),
   };
 
   factory ProjectData.fromJson(Map<String, dynamic> json, {required List<FixtureProfile> builtIns}) {
@@ -138,6 +145,7 @@ class ProjectData {
           if (m is Map) ?MidiMapping.fromJson(m.cast<String, dynamic>()),
       ],
       liveGrid: json['liveGrid'] is Map ? LiveGrid.fromJson((json['liveGrid'] as Map).cast<String, dynamic>()) : null,
+      beatTuning: json['beatTuning'] is Map ? BeatTuning.fromJson((json['beatTuning'] as Map).cast<String, dynamic>()) : null,
     );
   }
 }

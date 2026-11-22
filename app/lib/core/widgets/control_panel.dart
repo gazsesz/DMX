@@ -46,18 +46,11 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
   final List<DateTime> _taps = [];
   late final TextEditingController _bpmController;
   bool _useBpm = false;
-  double _sensitivity = 0.6;
-  BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
-  BeatAdaptSpeed _adaptSpeed = BeatAdaptSpeed.normal;
 
   @override
   void initState() {
     super.initState();
     _bpmController = TextEditingController(text: ref.read(tempoProvider).bpm.round().toString());
-    final beatService = ref.read(beatDetectorProvider);
-    _sensitivity = beatService.sensitivity;
-    _frequencyBand = beatService.frequencyBand;
-    _adaptSpeed = beatService.adaptSpeed;
   }
 
   @override
@@ -135,10 +128,7 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
 
   Future<void> _setBeatSync(bool value) async {
     if (value && ref.read(beatSourcePrefsProvider).kind == BeatSourceKind.mic) {
-      final beatService = ref.read(beatDetectorProvider);
-      beatService.sensitivity = _sensitivity;
-      beatService.frequencyBand = _frequencyBand;
-      beatService.adaptSpeed = _adaptSpeed;
+      ref.read(beatTuningProvider).applyTo(ref.read(beatDetectorProvider));
     }
     final error = await ref.read(beatSyncEnabledProvider.notifier).setEnabled(value);
     if (error != null) {
@@ -401,12 +391,9 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
             BeatMeter(service: ref.read(beatDetectorProvider)),
             _label(context.l10n.wSensitivity),
             Slider(
-              value: _sensitivity,
+              value: ref.watch(beatTuningProvider).sensitivity,
               activeColor: AppColors.accent2,
-              onChanged: (value) {
-                setState(() => _sensitivity = value);
-                ref.read(beatDetectorProvider).sensitivity = value;
-              },
+              onChanged: (value) => ref.read(beatTuningProvider.notifier).setSensitivity(value),
             ),
             SilenceFloorSlider(service: ref.read(beatDetectorProvider)),
             _label(context.l10n.wBaselineMemory),
@@ -415,16 +402,13 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
                 for (final speed in BeatAdaptSpeed.values)
                   ButtonSegment(value: speed, label: Text(speed.tr(context.l10n))),
               ],
-              selected: {_adaptSpeed},
+              selected: {ref.watch(beatTuningProvider).adaptSpeed},
               showSelectedIcon: false,
               style: const ButtonStyle(
                 visualDensity: VisualDensity.compact,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              onSelectionChanged: (s) {
-                setState(() => _adaptSpeed = s.first);
-                ref.read(beatDetectorProvider).adaptSpeed = s.first;
-              },
+              onSelectionChanged: (s) => ref.read(beatTuningProvider.notifier).setAdaptSpeed(s.first),
             ),
             _label(context.l10n.wReactTo),
             // Scrolls sideways: six bands of labelled segments don't fit a
@@ -437,16 +421,13 @@ class _ControlPanelState extends ConsumerState<ControlPanel> {
                   for (final band in BeatFrequencyBand.values)
                     ButtonSegment(value: band, label: Text(band.tr(context.l10n))),
                 ],
-                selected: {_frequencyBand},
+                selected: {ref.watch(beatTuningProvider).band},
                 showSelectedIcon: false,
                 style: const ButtonStyle(
                   visualDensity: VisualDensity.compact,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                onSelectionChanged: (s) {
-                  setState(() => _frequencyBand = s.first);
-                  ref.read(beatDetectorProvider).frequencyBand = s.first;
-                },
+                onSelectionChanged: (s) => ref.read(beatTuningProvider.notifier).setBand(s.first),
               ),
             ),
           ] else if (beatSourceKind == BeatSourceKind.midi)

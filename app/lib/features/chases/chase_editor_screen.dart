@@ -44,8 +44,6 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
   late ChaseDirection _direction;
   late Map<String, LaneTiming> _laneTimings;
   late DropoutSettings _dropout;
-  double _sensitivity = 0.6;
-  BeatFrequencyBand _frequencyBand = BeatFrequencyBand.overall;
 
   /// The step index (into [_steps]) each lane is on while previewing.
   final Map<String, int> _playingStep = {};
@@ -65,8 +63,6 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
     _direction = widget.existing.direction;
     _laneTimings = {...widget.existing.laneTimings};
     _dropout = widget.existing.dropout ?? const DropoutSettings();
-    _sensitivity = ref.read(beatDetectorProvider).sensitivity;
-    _frequencyBand = ref.read(beatDetectorProvider).frequencyBand;
     _wasRunningAtOpen;
   }
 
@@ -764,12 +760,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                       style: TextStyle(fontSize: 11, color: AppColors.textFaint),
                     ),
                     Slider(
-                      value: _sensitivity,
+                      value: ref.watch(beatTuningProvider).sensitivity,
                       activeColor: AppColors.accent2,
-                      onChanged: (v) {
-                        setState(() => _sensitivity = v);
-                        ref.read(beatDetectorProvider).sensitivity = v;
-                      },
+                      onChanged: (v) => ref.read(beatTuningProvider.notifier).setSensitivity(v),
                     ),
                     SilenceFloorSlider(service: ref.read(beatDetectorProvider)),
                     const SizedBox(height: 10),
@@ -788,11 +781,9 @@ class _ChaseEditorScreenState extends ConsumerState<ChaseEditorScreen> {
                           for (final band in BeatFrequencyBand.values)
                             ButtonSegment(value: band, label: Text(band.tr(context.l10n))),
                         ],
-                        selected: {_frequencyBand},
-                        onSelectionChanged: (selection) {
-                          setState(() => _frequencyBand = selection.first);
-                          ref.read(beatDetectorProvider).frequencyBand = selection.first;
-                        },
+                        selected: {ref.watch(beatTuningProvider).band},
+                        onSelectionChanged: (selection) =>
+                            ref.read(beatTuningProvider.notifier).setBand(selection.first),
                       ),
                     ),
                   ],

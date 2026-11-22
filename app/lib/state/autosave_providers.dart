@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/storage/project_snapshot.dart';
 import '../core/storage/project_storage.dart';
 import 'artnet_providers.dart';
+import 'audio_providers.dart';
 import 'bank_providers.dart';
 import 'chase_providers.dart';
 import 'dashboard_providers.dart';
@@ -61,6 +62,7 @@ final List<ProviderListenable<Object?>> _projectProviders = [
   dimmerDropoutProvider,
   midiMappingsProvider,
   liveGridProvider,
+  beatTuningProvider,
 ];
 
 final projectAutoSaveProvider = StateNotifierProvider<ProjectAutoSaver, ProjectSaveState>((ref) {

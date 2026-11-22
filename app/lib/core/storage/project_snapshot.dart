@@ -4,6 +4,7 @@ import '../../models/midi_mapping.dart';
 import '../../models/project_data.dart';
 import '../../models/stage_plan.dart';
 import '../../state/artnet_providers.dart';
+import '../../state/audio_providers.dart';
 import '../../state/autosave_providers.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
@@ -51,6 +52,7 @@ ProjectData projectSnapshotOf(ProviderReader read) {
     dimmerDropout: read(dimmerDropoutProvider),
     midiMappings: read(midiMappingsProvider),
     liveGrid: read(liveGridProvider),
+    beatTuning: read(beatTuningProvider),
   );
 }
 
@@ -119,6 +121,7 @@ void startProject(
       dimmerDropout: source.dimmerDropout,
       midiMappings: source.midiMappings,
       liveGrid: source.liveGrid,
+      beatTuning: source.beatTuning,
     ));
     // A new name that isn't on disk yet — unlike a loaded file.
     ref.read(projectAutoSaveProvider.notifier).markChanged();
@@ -186,6 +189,7 @@ void applyProjectData(WidgetRef ref, ProjectData data) {
   ref.read(selectedBankIdProvider.notifier).state = data.lastSelectedBankId;
   ref.read(midiMappingsProvider.notifier).loadAll(data.midiMappings);
   ref.read(liveGridProvider.notifier).load(data.liveGrid);
+  ref.read(beatTuningProvider.notifier).load(data.beatTuning);
   // What's open now is exactly what's on disk.
   ref.read(projectAutoSaveProvider.notifier).markSaved();
 }

@@ -107,6 +107,7 @@ Future<void> main() async {
             ),
           ),
         ),
+        initialBeatTuningProvider.overrideWithValue(beatTuningFromPref(prefs.getString(prefBeatTuning))),
         initialSilenceFloorProvider.overrideWithValue(
           prefs.getDouble(prefBeatSilenceFloor) ?? BeatDetectorService.silenceFloorOff,
         ),

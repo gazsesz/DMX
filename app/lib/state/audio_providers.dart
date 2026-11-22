@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/audio/beat_detector.dart';
 import '../core/audio/beat_predictor.dart';
 import '../core/audio/beat_source.dart';
+import '../core/audio/beat_tuning.dart';
 import '../core/audio/midi_beat_source.dart';
 import '../core/audio/osc_beat_source.dart';
 import '../core/playback/chase_player.dart';
@@ -12,6 +15,7 @@ import '../core/playback/chase_player.dart';
 /// screen reacts to the same microphone listener the Dashboard toggles.
 final beatDetectorProvider = Provider<BeatDetectorService>((ref) {
   final service = BeatDetectorService()..silenceFloorDb = ref.read(initialSilenceFloorProvider);
+  ref.read(initialBeatTuningProvider).applyTo(service);
   ref.onDispose(service.dispose);
   return service;
 });
@@ -48,6 +52,61 @@ Future<void> setSilenceFloor(BeatDetectorService service, double db) async {
   service.silenceFloorDb = db;
   final sp = await SharedPreferences.getInstance();
   await sp.setDouble(prefBeatSilenceFloor, db);
+}
+
+const prefBeatTuning = 'beat.tuning';
+
+/// The tuning the tablet remembered, loaded in `main()` before the first frame.
+final initialBeatTuningProvider = Provider<BeatTuning>((ref) => const BeatTuning());
+
+/// Reads [prefBeatTuning]; a missing or broken entry is the default tuning.
+BeatTuning beatTuningFromPref(String? raw) {
+  if (raw == null) return const BeatTuning();
+  try {
+    final json = jsonDecode(raw);
+    return json is Map<String, dynamic> ? BeatTuning.fromJson(json) : const BeatTuning();
+  } catch (_) {
+    return const BeatTuning();
+  }
+}
+
+/// The microphone detector's sensitivity, band and baseline memory. Every
+/// change goes to the detector at once and is remembered on the tablet; the
+/// project saves it as well (see [BeatTuning]).
+final beatTuningProvider = StateNotifierProvider<BeatTuningNotifier, BeatTuning>((ref) {
+  return BeatTuningNotifier(ref.watch(beatDetectorProvider), ref.read(initialBeatTuningProvider));
+});
+
+class BeatTuningNotifier extends StateNotifier<BeatTuning> {
+  final BeatDetectorService _detector;
+
+  BeatTuningNotifier(this._detector, super.initial);
+
+  void set(BeatTuning next) {
+    if (next == state) return;
+    state = next;
+    next.applyTo(_detector);
+    _persist(next);
+  }
+
+  void setSensitivity(double value) => set(state.copyWith(sensitivity: value));
+  void setBand(BeatFrequencyBand band) => set(state.copyWith(band: band));
+  void setAdaptSpeed(BeatAdaptSpeed speed) => set(state.copyWith(adaptSpeed: speed));
+
+  /// A project's tuning; null (a project saved before v1.56.0) keeps the
+  /// tablet's own.
+  void load(BeatTuning? fromProject) {
+    if (fromProject != null) set(fromProject);
+  }
+
+  Future<void> _persist(BeatTuning tuning) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString(prefBeatTuning, jsonEncode(tuning.toJson()));
+    } catch (_) {
+      // No preferences (a test without the plugin): the tuning still applies.
+    }
+  }
 }
 
 const prefBeatSourceKind = 'beatSource.kind';
