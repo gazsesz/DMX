@@ -1195,5 +1195,12 @@
   "songWatchMicHint": "A teremben szóló zenét figyeli, és felismeri a song show-khoz linkelt dalfájlokat. Bármilyen zenei forrással működik; ha a DJ kb. 2 %-nál jobban elhúzza a tempót (pitch), a felismerés elakadhat.",
   "songWatchPreparing": "A dalfájlok előkészítése…",
   "songWatchNoSongs": "Egyik song show-hoz sincs dalfájl ezen a tableten — linkelj egyet a song show szerkesztőben.",
-  "songWatchListening": "Figyel — {count} dalt ismer."
+  "songWatchListening": "Figyel — {count} dalt ismer.",
+  "dropoutPrioritySection": "Dropout elsőbbség",
+  "dropoutPriorityDeck": "Deck",
+  "dropoutPriorityBoth": "Mindkettő",
+  "dropoutPriorityChase": "Chase",
+  "dropoutPriorityDeckHint": "Amíg a dock dropoutja be van kapcsolva, a chase-ekben beállított dropout szünetel. Ha a dockon kikapcsolod, a chase-eké újra fut.",
+  "dropoutPriorityBothHint": "A dock és a chase-ek saját dropoutja egymás mellett fut, mindegyik a saját időzítésével.",
+  "dropoutPriorityChaseHint": "Azon a rétegen, ahol saját dropouttal fut egy chase, csak a chase-é vág; a dock dropoutja a többi réteget ugyanúgy vágja."
 }

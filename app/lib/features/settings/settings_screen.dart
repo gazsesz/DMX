@@ -18,6 +18,7 @@ import '../../models/control_dock_prefs.dart';
 import '../../models/output_protocol.dart';
 import '../../models/universe_config.dart';
 import '../../models/live_grid.dart';
+import '../../state/dimmer_dropout_providers.dart';
 import '../../state/live_providers.dart';
 import '../../state/artnet_providers.dart';
 import '../../state/audio_providers.dart';
@@ -794,6 +795,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SectionTitle(l.liveSettingsTitle),
           const _LiveSettingsCard(),
           const SizedBox(height: 20),
+          _SectionTitle(l.dropoutPrioritySection),
+          const _DropoutPriorityCard(),
+          const SizedBox(height: 20),
           _SectionTitle(l.settingsUniversesSection, trailing: l.settingsUniversesActive(universes.length)),
           Card(
             child: Column(
@@ -1183,6 +1187,47 @@ class _LiveSettingsCard extends ConsumerWidget {
             ),
             const SizedBox(height: 8),
             Text(l.liveSettingsPadsHint, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Which dimmer dropout wins when the dock's and a chase's own are both on.
+class _DropoutPriorityCard extends ConsumerWidget {
+  const _DropoutPriorityCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l = context.l10n;
+    final priority = ref.watch(dropoutPriorityProvider);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SegmentedButton<DropoutPriority>(
+              key: const ValueKey('dropout-priority'),
+              showSelectedIcon: false,
+              segments: [
+                ButtonSegment(value: DropoutPriority.deck, label: Text(l.dropoutPriorityDeck)),
+                ButtonSegment(value: DropoutPriority.both, label: Text(l.dropoutPriorityBoth)),
+                ButtonSegment(value: DropoutPriority.chase, label: Text(l.dropoutPriorityChase)),
+              ],
+              selected: {priority},
+              onSelectionChanged: (s) => ref.read(dropoutPriorityProvider.notifier).set(s.first),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              switch (priority) {
+                DropoutPriority.deck => l.dropoutPriorityDeckHint,
+                DropoutPriority.both => l.dropoutPriorityBothHint,
+                DropoutPriority.chase => l.dropoutPriorityChaseHint,
+              },
+              style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+            ),
           ],
         ),
       ),
