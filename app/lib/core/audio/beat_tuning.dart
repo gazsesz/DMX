@@ -3,7 +3,7 @@ import 'beat_detector.dart';
 /// How the microphone beat detector listens: how eagerly it fires, which
 /// part of the spectrum it reacts to, and how long its baseline remembers.
 ///
-/// Kept twice (Gabor's choice, v1.56.0): the tablet remembers the last one
+/// Kept twice (Gabor's choice, v1.57.0): the tablet remembers the last one
 /// (it belongs to the mic and the room), and the project saves it too, so a
 /// show tuned for a venue brings its tuning back — on load the project's
 /// wins. The silence floor is not part of it; that stays device-only.

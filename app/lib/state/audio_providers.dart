@@ -93,7 +93,7 @@ class BeatTuningNotifier extends StateNotifier<BeatTuning> {
   void setBand(BeatFrequencyBand band) => set(state.copyWith(band: band));
   void setAdaptSpeed(BeatAdaptSpeed speed) => set(state.copyWith(adaptSpeed: speed));
 
-  /// A project's tuning; null (a project saved before v1.56.0) keeps the
+  /// A project's tuning; null (a project saved before v1.57.0) keeps the
   /// tablet's own.
   void load(BeatTuning? fromProject) {
     if (fromProject != null) set(fromProject);

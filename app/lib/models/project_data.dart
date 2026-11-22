@@ -54,7 +54,7 @@ class ProjectData {
   /// before it existed; the screen then starts from [LiveGrid.starter].
   final LiveGrid? liveGrid;
 
-  /// The mic beat detector's tuning; null in a project saved before v1.56.0,
+  /// The mic beat detector's tuning; null in a project saved before v1.57.0,
   /// which then leaves the tablet's own alone.
   final BeatTuning? beatTuning;
 
