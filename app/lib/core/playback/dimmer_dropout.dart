@@ -3,6 +3,34 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show setEquals;
 
+/// Which lamps a dropout darkens each time it comes.
+enum DropoutPattern {
+  /// Every lamp in scope at once (the original behaviour).
+  together,
+
+  /// The lamps split into groups that take turns, one group per dropout.
+  alternate,
+
+  /// A fresh random pick of the lamps on every dropout.
+  random,
+}
+
+/// How [DropoutPattern.alternate] splits the lamps, in the project's lamp
+/// order (stage left to right unless set otherwise in the generator).
+enum DropoutGrouping {
+  /// 1st, 3rd, 5th… then 2nd, 4th, 6th…
+  oddEven,
+
+  /// The first half of the line, then the second.
+  halves,
+
+  /// One lamp at a time, walking the line.
+  oneByOne,
+
+  /// The project's saved fixture groups, one after the other.
+  groups,
+}
+
 /// A dimmer dropout: the light goes dark for a moment, now and then, while
 /// whatever else the layer is doing — a slow pan, a colour fade — carries on.
 ///
@@ -44,6 +72,24 @@ class DropoutSettings {
   /// Which beats drop the light when [onBeat]: every 1st, 2nd, 4th or 8th.
   final int beatEvery;
 
+  /// All at once, taking turns, or a random pick each time.
+  final DropoutPattern pattern;
+
+  /// How the lamps are split when they take turns.
+  final DropoutGrouping grouping;
+
+  /// Taking turns over more than two groups: there and back again instead of
+  /// starting over from the first.
+  final bool pingPong;
+
+  /// [DropoutPattern.random]: the share of lamps cut each time (0.1..1),
+  /// always at least one.
+  final double randomShare;
+
+  /// [DropoutPattern.random]: avoid the lamps the previous dropout cut, so the
+  /// dark moves around instead of hitting the same lamp twice in a row.
+  final bool noRepeat;
+
   const DropoutSettings({
     this.enabled = false,
     this.targetLayerIds = const {},
@@ -55,6 +101,11 @@ class DropoutSettings {
     this.jitter = 0.5,
     this.onBeat = false,
     this.beatEvery = 1,
+    this.pattern = DropoutPattern.together,
+    this.grouping = DropoutGrouping.oddEven,
+    this.pingPong = false,
+    this.randomShare = 0.3,
+    this.noRepeat = true,
   });
 
   // By value: a Smart Program hands its zone's settings over on every zone
@@ -71,6 +122,11 @@ class DropoutSettings {
       other.jitter == jitter &&
       other.onBeat == onBeat &&
       other.beatEvery == beatEvery &&
+      other.pattern == pattern &&
+      other.grouping == grouping &&
+      other.pingPong == pingPong &&
+      other.randomShare == randomShare &&
+      other.noRepeat == noRepeat &&
       setEquals(other.targetLayerIds, targetLayerIds) &&
       setEquals(other.fixtureIds, fixtureIds);
 
@@ -84,6 +140,11 @@ class DropoutSettings {
     jitter,
     onBeat,
     beatEvery,
+    pattern,
+    grouping,
+    pingPong,
+    randomShare,
+    noRepeat,
     Object.hashAllUnordered(targetLayerIds),
     Object.hashAllUnordered(fixtureIds),
   );
@@ -99,6 +160,11 @@ class DropoutSettings {
     'jitter': jitter,
     'onBeat': onBeat,
     'beatEvery': beatEvery,
+    'pattern': pattern.name,
+    'grouping': grouping.name,
+    'pingPong': pingPong,
+    'randomShare': randomShare,
+    'noRepeat': noRepeat,
   };
 
   /// Tolerant of a missing or hand-edited entry: anything absent or out of
@@ -117,6 +183,11 @@ class DropoutSettings {
       jitter: ((json['jitter'] as num?)?.toDouble() ?? base.jitter).clamp(0.0, 1.0),
       onBeat: json['onBeat'] as bool? ?? false,
       beatEvery: beatDivisions.contains(json['beatEvery']) ? json['beatEvery'] as int : 1,
+      pattern: DropoutPattern.values.asNameMap()[json['pattern']] ?? DropoutPattern.together,
+      grouping: DropoutGrouping.values.asNameMap()[json['grouping']] ?? DropoutGrouping.oddEven,
+      pingPong: json['pingPong'] as bool? ?? false,
+      randomShare: ((json['randomShare'] as num?)?.toDouble() ?? base.randomShare).clamp(minRandomShare, 1.0),
+      noRepeat: json['noRepeat'] as bool? ?? true,
     );
   }
 
@@ -127,6 +198,7 @@ class DropoutSettings {
   static const maxFadeInMs = maxFadeOutMs;
   static const minIntervalMs = 500;
   static const maxIntervalMs = 20000;
+  static const minRandomShare = 0.1;
 
   DropoutSettings copyWith({
     bool? enabled,
@@ -139,6 +211,11 @@ class DropoutSettings {
     double? jitter,
     bool? onBeat,
     int? beatEvery,
+    DropoutPattern? pattern,
+    DropoutGrouping? grouping,
+    bool? pingPong,
+    double? randomShare,
+    bool? noRepeat,
   }) => DropoutSettings(
     enabled: enabled ?? this.enabled,
     targetLayerIds: targetLayerIds ?? this.targetLayerIds,
@@ -150,7 +227,141 @@ class DropoutSettings {
     jitter: jitter ?? this.jitter,
     onBeat: onBeat ?? this.onBeat,
     beatEvery: beatEvery ?? this.beatEvery,
+    pattern: pattern ?? this.pattern,
+    grouping: grouping ?? this.grouping,
+    pingPong: pingPong ?? this.pingPong,
+    randomShare: randomShare ?? this.randomShare,
+    noRepeat: noRepeat ?? this.noRepeat,
   );
+}
+
+/// The lamps [settings] takes turns over, as lists of fixture ids, in the
+/// order the turns come. [ordered] is every lamp in scope in the project's
+/// lamp order; [groups] the saved fixture groups' ids, for
+/// [DropoutGrouping.groups].
+///
+/// [DropoutPattern.together] is one unit of everything; [DropoutPattern.random]
+/// one unit per lamp, to pick from. Taking turns with fewer than two lamps (or
+/// groups) falls back to one unit, which is the same as all at once.
+List<List<String>> dropoutUnits(
+  DropoutSettings settings,
+  List<String> ordered, {
+  List<List<String>> groups = const [],
+}) {
+  if (ordered.isEmpty) return const [];
+  switch (settings.pattern) {
+    case DropoutPattern.together:
+      return [ordered];
+    case DropoutPattern.random:
+      return [
+        for (final id in ordered) [id],
+      ];
+    case DropoutPattern.alternate:
+      final units = switch (settings.grouping) {
+        DropoutGrouping.oddEven => [
+          [for (var i = 0; i < ordered.length; i += 2) ordered[i]],
+          [for (var i = 1; i < ordered.length; i += 2) ordered[i]],
+        ],
+        DropoutGrouping.halves => [
+          ordered.sublist(0, (ordered.length + 1) ~/ 2),
+          ordered.sublist((ordered.length + 1) ~/ 2),
+        ],
+        DropoutGrouping.oneByOne => [
+          for (final id in ordered) [id],
+        ],
+        DropoutGrouping.groups => _groupUnits(ordered, groups),
+      };
+      final kept = [
+        for (final u in units)
+          if (u.isNotEmpty) u,
+      ];
+      return kept.length < 2 ? [ordered] : kept;
+  }
+}
+
+/// Saved groups cut down to the lamps in scope, in the order they were saved.
+/// With no usable group it falls back to odd/even, so the choice still does
+/// something on a rig without groups.
+List<List<String>> _groupUnits(List<String> ordered, List<List<String>> groups) {
+  final inScope = ordered.toSet();
+  final units = [
+    for (final g in groups)
+      [
+        for (final id in ordered)
+          if (g.contains(id) && inScope.contains(id)) id,
+      ],
+  ].where((u) => u.isNotEmpty).toList();
+  if (units.length >= 2) return units;
+  return [
+    [for (var i = 0; i < ordered.length; i += 2) ordered[i]],
+    [for (var i = 1; i < ordered.length; i += 2) ordered[i]],
+  ];
+}
+
+/// Walks a dropout's units: which of them the next dropout cuts.
+class DropoutStepper {
+  final DropoutSettings settings;
+  final Random _random;
+  int _count;
+
+  /// The unit taken last when taking turns (-1 before the first).
+  int _index = -1;
+  int _direction = 1;
+
+  /// The units the previous random pick cut.
+  Set<int> _last = const {};
+
+  DropoutStepper(this.settings, int count, Random random) : _count = count, _random = random;
+
+  /// The patch changed under a running dropout: keep the place in the walk
+  /// where it still makes sense.
+  set count(int value) {
+    _count = value;
+    if (_index >= value) _index = -1;
+    _last = {
+      for (final i in _last)
+        if (i < value) i,
+    };
+  }
+
+  /// Indexes of the units the next dropout cuts.
+  Set<int> next() {
+    if (_count <= 0) return const {};
+    switch (settings.pattern) {
+      case DropoutPattern.together:
+        return {for (var i = 0; i < _count; i++) i};
+      case DropoutPattern.alternate:
+        if (_count == 1) return const {0};
+        if (settings.pingPong && _count > 2) {
+          var step = _index + _direction;
+          if (step >= _count || step < 0) {
+            _direction = -_direction;
+            step = _index + _direction;
+          }
+          _index = step;
+        } else {
+          _index = (_index + 1) % _count;
+        }
+        return {_index};
+      case DropoutPattern.random:
+        final want = (_count * settings.randomShare).round().clamp(1, _count);
+        final fresh = [
+          for (var i = 0; i < _count; i++)
+            if (!settings.noRepeat || !_last.contains(i)) i,
+        ]..shuffle(_random);
+        final picked = fresh.take(want).toSet();
+        if (picked.length < want) {
+          // Not enough fresh lamps: top up from last time's.
+          final rest = [
+            for (final i in _last)
+              if (!picked.contains(i)) i,
+          ]..shuffle(_random);
+          picked.addAll(rest.take(want - picked.length));
+        }
+        _last = picked;
+        return picked;
+    }
+  }
 }
 
 /// How long the light stays up before the next dropout.

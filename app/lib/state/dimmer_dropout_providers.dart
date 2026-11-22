@@ -5,14 +5,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/artnet/artnet_service.dart';
 import '../core/playback/dimmer_dropout.dart';
+import '../core/generator/program_generator.dart' show orderFixtures;
 import '../core/playback/master_channels.dart';
+import '../models/fixture_group.dart';
 import '../models/patched_fixture.dart';
+import '../models/stage_plan.dart';
 import '../models/universe_config.dart';
 import 'artnet_providers.dart';
 import 'audio_providers.dart';
+import 'fixture_group_providers.dart';
 import 'fixture_providers.dart';
+import 'stage_providers.dart';
 
-export '../core/playback/dimmer_dropout.dart' show DropoutSettings;
+export '../core/playback/dimmer_dropout.dart' show DropoutSettings, DropoutPattern, DropoutGrouping;
 
 /// The dimmer dropout: what is running, and the timers that run it.
 ///
@@ -34,15 +39,23 @@ final dimmerDropoutProvider = StateNotifierProvider<DimmerDropoutController, Dro
     beatEvents: () => ref.read(beatPredictorProvider).events,
     beatsListening: () => ref.read(activeBeatSourceProvider).isListening,
   );
-  ref.listen<List<PatchedFixture>>(
-    patchedFixturesProvider,
-    (_, next) => controller.refreshScope(next, ref.read(universesProvider)),
-    fireImmediately: true,
-  );
-  ref.listen<List<UniverseConfig>>(
-    universesProvider,
-    (_, next) => controller.refreshScope(ref.read(patchedFixturesProvider), next),
-  );
+  // The lamps in the project's lamp order (the one the generator's runlights
+  // walk), so "taking turns" goes across the stage the same way.
+  void refresh() {
+    final plan = ref.read(stagePlanProvider);
+    controller.refreshScope(
+      orderFixtures(ref.read(patchedFixturesProvider), plan.fixtureOrder, customOrder: plan.customFixtureOrder),
+      ref.read(universesProvider),
+      groups: [for (final g in ref.read(fixtureGroupsProvider)) g.fixtureIds],
+    );
+  }
+
+  ref.listen<List<PatchedFixture>>(patchedFixturesProvider, (_, _) => refresh(), fireImmediately: true);
+  ref.listen<List<UniverseConfig>>(universesProvider, (_, _) => refresh());
+  ref.listen<StagePlan>(stagePlanProvider, (prev, next) {
+    if (prev?.fixtureOrder != next.fixtureOrder || prev?.customFixtureOrder != next.customFixtureOrder) refresh();
+  });
+  ref.listen<List<FixtureGroup>>(fixtureGroupsProvider, (_, _) => refresh());
   return controller;
 });
 
@@ -53,6 +66,16 @@ class _Lane {
 
   /// Intensity channels this lane's fixtures can cut, per universe id.
   Map<String, Set<int>> scope = const {};
+
+  /// The lamp groups the pattern walks, each as channels per universe id
+  /// (one unit of everything when all go dark together).
+  List<Map<String, Set<int>>> units = const [];
+
+  /// Picks the units of the next dropout.
+  DropoutStepper? stepper;
+
+  /// What the dropout under way cuts: the units picked when it began.
+  Map<String, Set<int>> active = const {};
 
   /// True for the length of one dropout.
   bool dark = false;
@@ -87,6 +110,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
 
   List<PatchedFixture> _fixtures = const [];
   List<UniverseConfig> _universes = const [];
+  List<List<String>> _groups = const [];
 
   /// What a running Smart Program wants, or null for the hand-set [state].
   DropoutSettings? _override;
@@ -133,20 +157,61 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     _sync();
   }
 
-  void refreshScope(List<PatchedFixture> fixtures, List<UniverseConfig> universes) {
+  /// The patch, in lamp order (the order a pattern takes turns in), the
+  /// universes, and the saved fixture groups as id lists.
+  void refreshScope(
+    List<PatchedFixture> fixtures,
+    List<UniverseConfig> universes, {
+    List<List<String>> groups = const [],
+  }) {
     _fixtures = fixtures;
     _universes = universes;
+    _groups = groups;
     for (final lane in _lanes.values) {
-      lane.scope = _scopeFor(lane.settings);
+      _rescope(lane);
     }
   }
 
-  Map<String, Set<int>> _scopeFor(DropoutSettings settings) {
+  List<PatchedFixture> _fixturesFor(DropoutSettings settings) {
     final only = settings.fixtureIds;
-    return masterChannelsFor(
-      only.isEmpty ? _fixtures : [for (final f in _fixtures) if (only.contains(f.id)) f],
-      _universes,
-    );
+    return only.isEmpty
+        ? _fixtures
+        : [
+            for (final f in _fixtures)
+              if (only.contains(f.id)) f,
+          ];
+  }
+
+  /// Recomputes what [lane] can cut and how its pattern splits it, keeping
+  /// its place in the walk.
+  void _rescope(_Lane lane) {
+    final fixtures = _fixturesFor(lane.settings);
+    lane.scope = masterChannelsFor(fixtures, _universes);
+    final byId = {for (final f in fixtures) f.id: f};
+    final units = dropoutUnits(lane.settings, [for (final f in fixtures) f.id], groups: _groups);
+    lane.units = [
+      for (final unit in units) masterChannelsFor([for (final id in unit) byId[id]!], _universes),
+    ];
+    final stepper = lane.stepper;
+    if (stepper == null || stepper.settings != lane.settings) {
+      lane.stepper = DropoutStepper(lane.settings, lane.units.length, _random);
+    } else {
+      stepper.count = lane.units.length;
+    }
+  }
+
+  /// Picks the lamps the dropout starting now cuts.
+  void _pick(_Lane lane) {
+    final stepper = lane.stepper;
+    if (stepper == null || lane.units.length <= 1) {
+      lane.active = lane.scope;
+      return;
+    }
+    final out = <String, Set<int>>{};
+    for (final i in stepper.next()) {
+      lane.units[i].forEach((universe, channels) => out.putIfAbsent(universe, () => <int>{}).addAll(channels));
+    }
+    lane.active = out;
   }
 
   /// Brings the running lanes in line with what is wanted: started, retuned
@@ -177,7 +242,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
       } else if (lane.settings != entry.value) {
         lane.cancel();
         lane.settings = entry.value;
-        lane.scope = _scopeFor(entry.value);
+        _rescope(lane);
         _scheduleLane(lane);
         changed = true;
       }
@@ -198,7 +263,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
   }
 
   Set<int> _cutBy(_Lane lane, UniverseConfig universe) {
-    final scope = lane.scope[universe.id];
+    final scope = lane.active[universe.id];
     if (scope == null || scope.isEmpty) return const {};
     final layers = lane.settings.targetLayerIds;
     return layers.isEmpty ? scope : _service.channelsOwnedBy(universe, layers, scope);
@@ -240,7 +305,8 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
   }
 
   void _startLane(String key, DropoutSettings settings) {
-    final lane = _Lane(settings)..scope = _scopeFor(settings);
+    final lane = _Lane(settings);
+    _rescope(lane);
     _lanes[key] = lane;
     _scheduleLane(lane);
   }
@@ -273,6 +339,7 @@ class DimmerDropoutController extends StateNotifier<DropoutSettings> {
     if (!_lanes.containsValue(lane)) return;
     lane.timer?.cancel();
     lane.fadingIn = null;
+    _pick(lane);
     final fadeMs = lane.settings.fadeOutMs;
     if (fadeMs > 0) {
       // Ramp down first; the 30 Hz refresh draws the steps in between.

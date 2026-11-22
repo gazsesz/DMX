@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/playback/dimmer_dropout.dart';
 import '../../core/theme/app_colors.dart';
 import '../../models/layer.dart';
 import '../../models/patched_fixture.dart';
 import '../../l10n/l10n.dart';
+import '../../state/fixture_group_providers.dart';
 
 /// The dimmer dropout's settings, edited in place: which layers (and
 /// optionally lamps) it cuts, how long the dark lasts, and whether it comes on
 /// a timer or on the beat. Shared by the Layers screen, the Smart Program
 /// editor and the Chase editor, which differ only in where the settings are
 /// kept.
-class DropoutControls extends StatelessWidget {
+class DropoutControls extends ConsumerWidget {
   final DropoutSettings settings;
   final ValueChanged<DropoutSettings> onChanged;
 
@@ -23,16 +25,11 @@ class DropoutControls extends StatelessWidget {
   /// Lamps offered as targets; null leaves the lamp choice out.
   final List<PatchedFixture>? fixtures;
 
-  const DropoutControls({
-    super.key,
-    required this.settings,
-    required this.onChanged,
-    this.layers,
-    this.fixtures,
-  });
+  const DropoutControls({super.key, required this.settings, required this.onChanged, this.layers, this.fixtures});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final groupCount = ref.watch(fixtureGroupsProvider).length;
     final layerList = layers;
     final lamps = fixtures;
     final liveTargets = {
@@ -96,6 +93,7 @@ class DropoutControls extends StatelessWidget {
             ],
           ),
         ],
+        ..._patternControls(context, groupCount),
         _Label(context.l10n.dropoutWhen),
         SegmentedButton<bool>(
           segments: [
@@ -120,10 +118,7 @@ class DropoutControls extends StatelessWidget {
           ),
           Padding(
             padding: EdgeInsets.only(top: 4),
-            child: Text(
-              context.l10n.dropoutBeatHint,
-              style: TextStyle(fontSize: 10.5, color: AppColors.textFaint),
-            ),
+            child: Text(context.l10n.dropoutBeatHint, style: TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
           ),
         ],
         _SliderRow(
@@ -172,6 +167,89 @@ class DropoutControls extends StatelessWidget {
   }
 }
 
+extension on DropoutControls {
+  /// All at once / taking turns / random, and what each of them needs.
+  List<Widget> _patternControls(BuildContext context, int groupCount) {
+    final l10n = context.l10n;
+    final pattern = settings.pattern;
+    final grouping = settings.grouping;
+    final single = settings.fixtureIds.length == 1;
+    return [
+      _Label(l10n.dropoutPattern),
+      SegmentedButton<DropoutPattern>(
+        segments: [
+          ButtonSegment(value: DropoutPattern.together, label: Text(l10n.dropoutTogether)),
+          ButtonSegment(value: DropoutPattern.alternate, label: Text(l10n.dropoutAlternate)),
+          ButtonSegment(value: DropoutPattern.random, label: Text(l10n.dropoutRandom)),
+        ],
+        selected: {pattern},
+        onSelectionChanged: (s) => onChanged(settings.copyWith(pattern: s.first)),
+      ),
+      if (pattern == DropoutPattern.alternate) ...[
+        _Label(l10n.dropoutGrouping),
+        Wrap(
+          spacing: 6,
+          children: [
+            for (final (value, label) in [
+              (DropoutGrouping.oddEven, l10n.dropoutOddEven),
+              (DropoutGrouping.halves, l10n.dropoutHalves),
+              (DropoutGrouping.oneByOne, l10n.dropoutOneByOne),
+              (DropoutGrouping.groups, l10n.dropoutGroups),
+            ])
+              ChoiceChip(
+                label: Text(label),
+                selected: grouping == value,
+                onSelected: (_) => onChanged(settings.copyWith(grouping: value)),
+              ),
+          ],
+        ),
+        if (grouping == DropoutGrouping.oneByOne || grouping == DropoutGrouping.groups) ...[
+          _Label(l10n.dropoutDirection),
+          SegmentedButton<bool>(
+            segments: [
+              ButtonSegment(value: false, label: Text(l10n.dropoutLoop)),
+              ButtonSegment(value: true, label: Text(l10n.dropoutPingPong)),
+            ],
+            selected: {settings.pingPong},
+            onSelectionChanged: (s) => onChanged(settings.copyWith(pingPong: s.first)),
+          ),
+        ],
+        _Hint(grouping == DropoutGrouping.groups && groupCount < 2 ? l10n.dropoutGroupsHint : l10n.dropoutOrderHint),
+      ],
+      if (pattern == DropoutPattern.random) ...[
+        _SliderRow(
+          label: l10n.dropoutRandomShare,
+          value: settings.randomShare,
+          min: DropoutSettings.minRandomShare,
+          max: 1,
+          text: '${(settings.randomShare * 100).round()}%',
+          onChanged: (v) => onChanged(settings.copyWith(randomShare: (v * 20).round() / 20)),
+        ),
+        SwitchListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          title: Text(l10n.dropoutNoRepeat, style: const TextStyle(fontSize: 12)),
+          value: settings.noRepeat,
+          onChanged: (v) => onChanged(settings.copyWith(noRepeat: v)),
+        ),
+      ],
+      if (pattern != DropoutPattern.together && single) _Hint(l10n.dropoutSingleFixtureHint),
+    ];
+  }
+}
+
+class _Hint extends StatelessWidget {
+  final String text;
+
+  const _Hint(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Text(text, style: TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+  );
+}
+
 class _Label extends StatelessWidget {
   final String text;
 
@@ -205,8 +283,13 @@ class _SliderRow extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     children: [
       SizedBox(width: 110, child: Text(label, style: const TextStyle(fontSize: 12))),
-      Expanded(child: Slider(value: value.clamp(min, max), min: min, max: max, onChanged: onChanged)),
-      SizedBox(width: 56, child: Text(text, textAlign: TextAlign.end, style: const TextStyle(fontSize: 12))),
+      Expanded(
+        child: Slider(value: value.clamp(min, max), min: min, max: max, onChanged: onChanged),
+      ),
+      SizedBox(
+        width: 56,
+        child: Text(text, textAlign: TextAlign.end, style: const TextStyle(fontSize: 12)),
+      ),
     ],
   );
 }
