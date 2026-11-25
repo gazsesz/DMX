@@ -3022,5 +3022,20 @@
   "liveMidiPressPad": "Press the pad to use for this.",
   "liveMidiAssigned": "{pad} → {name}",
   "@liveMidiAssigned": {"placeholders": {"pad": {"type": "String"}, "name": {"type": "String"}}},
-  "liveMidiCleared": "Pad removed."
+  "liveMidiCleared": "Pad removed.",
+  "midiCtlLeds": "Pad LEDs",
+  "midiCtlLedsFeedback": "Pads show the Grid",
+  "midiCtlLedsHint": "Pads bound to the Grid light up: running green, NEXT orange, a clip ready light blue. Works on controllers that light their pads from MIDI notes — try the LED test first.",
+  "midiCtlLedTest": "LED test",
+  "midiCtlExport": "Export mappings",
+  "midiCtlImport": "Import mappings",
+  "midiCtlImportNone": "No MIDI mappings in that file.",
+  "midiCtlImportHow": "{count} mapping(s) in the file. Replace the current ones, or add them?",
+  "@midiCtlImportHow": {"placeholders": {"count": {"type": "int"}}},
+  "midiCtlImportAdd": "Add",
+  "midiCtlImportReplace": "Replace",
+  "midiCtlImported": "{count} mapping(s) imported.",
+  "@midiCtlImported": {"placeholders": {"count": {"type": "int"}}},
+  "midiCtlImportedMissing": "{count} mapping(s) imported; {missing} point at something this project doesn't have.",
+  "@midiCtlImportedMissing": {"placeholders": {"count": {"type": "int"}, "missing": {"type": "int"}}}
 }

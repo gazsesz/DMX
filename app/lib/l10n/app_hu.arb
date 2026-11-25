@@ -1220,5 +1220,17 @@
   "liveMidiFilled": "{count} pad hozzárendelve a Gridhez.",
   "liveMidiPressPad": "Nyomd meg a padot, amelyik ezt indítsa.",
   "liveMidiAssigned": "{pad} → {name}",
-  "liveMidiCleared": "Pad törölve."
+  "liveMidiCleared": "Pad törölve.",
+  "midiCtlLeds": "Pad LED-ek",
+  "midiCtlLedsFeedback": "A padok mutassák a Gridet",
+  "midiCtlLedsHint": "A Gridhez rendelt padok világítanak: fut zöld, NEXT narancs, kész klip halványkék. Azokon a vezérlőkön működik, amelyek MIDI hangjegyre világítanak — előbb próbáld ki a LED tesztet.",
+  "midiCtlLedTest": "LED teszt",
+  "midiCtlExport": "Kiosztás exportálása",
+  "midiCtlImport": "Kiosztás importálása",
+  "midiCtlImportNone": "Ebben a fájlban nincs MIDI kiosztás.",
+  "midiCtlImportHow": "{count} kiosztás van a fájlban. Lecseréled a mostaniakat, vagy hozzáadod?",
+  "midiCtlImportAdd": "Hozzáadás",
+  "midiCtlImportReplace": "Csere",
+  "midiCtlImported": "{count} kiosztás importálva.",
+  "midiCtlImportedMissing": "{count} kiosztás importálva; ebből {missing} olyasmire mutat, ami ebben a projektben nincs."
 }

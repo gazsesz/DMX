@@ -220,3 +220,25 @@ class MidiMapping {
     );
   }
 }
+
+/// A controller layout on its own, outside a project: what Export writes
+/// and Import reads.
+const midiMappingsFileType = 'smart-dmx-midi-mappings';
+
+Map<String, dynamic> midiMappingsToFile(List<MidiMapping> mappings) => {
+  'type': midiMappingsFileType,
+  'version': 1,
+  'mappings': [for (final m in mappings) m.toJson()],
+};
+
+/// The mappings in an exported file — also takes a whole project file and
+/// uses its `midiMappings`. Null when it holds neither.
+List<MidiMapping>? midiMappingsFromFile(Object? json) {
+  if (json is! Map) return null;
+  final list = json['type'] == midiMappingsFileType ? json['mappings'] : json['midiMappings'];
+  if (list is! List) return null;
+  return [
+    for (final item in list)
+      if (item is Map) ?MidiMapping.fromJson(item.cast<String, dynamic>()),
+  ];
+}

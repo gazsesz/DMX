@@ -1,5 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_midi_command/flutter_midi_command.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +16,7 @@ import '../../models/midi_mapping.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/color_override_providers.dart';
+import '../../state/live_midi_providers.dart';
 import '../../state/live_providers.dart';
 import '../../state/midi_control_providers.dart';
 import '../../state/provider_reader.dart';
@@ -75,6 +80,74 @@ class _MidiControlScreenState extends ConsumerState<MidiControlScreen> {
       builder: (_) => _MappingEditor(existing: existing),
     );
     if (result != null) ref.read(midiMappingsProvider.notifier).save(result);
+  }
+
+  bool _testing = false;
+
+  Future<void> _ledTest() async {
+    setState(() => _testing = true);
+    await runPadLedTest(ref.read);
+    if (mounted) setState(() => _testing = false);
+  }
+
+  void _say(String text) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _export() async {
+    final mappings = ref.read(midiMappingsProvider);
+    final bytes = Uint8List.fromList(
+      utf8.encode(const JsonEncoder.withIndent('  ').convert(midiMappingsToFile(mappings))),
+    );
+    await FilePicker.saveFile(
+      dialogTitle: context.l10n.midiCtlExport,
+      fileName: 'midi-mapping.json',
+      bytes: bytes,
+      type: FileType.custom,
+      allowedExtensions: ['json'],
+    );
+  }
+
+  Future<void> _import() async {
+    final l = context.l10n;
+    final file = await FilePicker.pickFile(type: FileType.custom, allowedExtensions: ['json']);
+    final path = file?.path;
+    if (path == null || !mounted) return;
+    List<MidiMapping>? imported;
+    try {
+      imported = midiMappingsFromFile(jsonDecode(await File(path).readAsString()));
+    } catch (_) {}
+    if (!mounted) return;
+    if (imported == null || imported.isEmpty) {
+      _say(l.midiCtlImportNone);
+      return;
+    }
+    final replace = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(l.midiCtlImport),
+        content: Text(l.midiCtlImportHow(imported!.length)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text(l.commonCancel)),
+          OutlinedButton(
+            key: const ValueKey('midi-import-add'),
+            onPressed: () => Navigator.pop(context, false),
+            child: Text(l.midiCtlImportAdd),
+          ),
+          FilledButton(
+            key: const ValueKey('midi-import-replace'),
+            onPressed: () => Navigator.pop(context, true),
+            child: Text(l.midiCtlImportReplace),
+          ),
+        ],
+      ),
+    );
+    if (replace == null || !mounted) return;
+    applyImportedMappings(ref.read, imported, replace: replace);
+    final missing = imported.where((m) => !midiMappingTargetExists(ref.read, m)).length;
+    _say(missing == 0 ? l.midiCtlImported(imported.length) : l.midiCtlImportedMissing(imported.length, missing));
   }
 
   @override
@@ -161,7 +234,52 @@ class _MidiControlScreenState extends ConsumerState<MidiControlScreen> {
             const SizedBox(height: 10),
             _Monitor(controller: controller),
             const SizedBox(height: 20),
-            _Header(l.midiCtlMappings(mappings.length)),
+            _Header(l.midiCtlLeds),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(14, 4, 14, 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SwitchListTile(
+                      key: const ValueKey('midi-leds'),
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(l.midiCtlLedsFeedback),
+                      value: ref.watch(padLedsEnabledProvider),
+                      onChanged: (v) => ref.read(padLedsEnabledProvider.notifier).set(v),
+                    ),
+                    Text(l.midiCtlLedsHint, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      key: const ValueKey('midi-led-test'),
+                      onPressed: _testing || service.connectedDevices.isEmpty ? null : _ledTest,
+                      icon: _testing
+                          ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.lightbulb_outline, size: 18),
+                      label: Text(l.midiCtlLedTest),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            _Header(
+              l.midiCtlMappings(mappings.length),
+              trailing: [
+                IconButton(
+                  key: const ValueKey('midi-import'),
+                  tooltip: l.midiCtlImport,
+                  icon: const Icon(Icons.file_download_outlined, size: 18),
+                  onPressed: _import,
+                ),
+                IconButton(
+                  key: const ValueKey('midi-export'),
+                  tooltip: l.midiCtlExport,
+                  icon: const Icon(Icons.file_upload_outlined, size: 18),
+                  onPressed: mappings.isEmpty ? null : _export,
+                ),
+              ],
+            ),
             if (mappings.isEmpty)
               Card(
                 child: Padding(

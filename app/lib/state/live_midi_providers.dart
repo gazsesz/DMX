@@ -1,7 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import '../core/midi/pad_leds.dart';
 
 import '../models/live_grid.dart';
 import '../models/midi_mapping.dart';
+import 'live_providers.dart';
 import 'midi_control_providers.dart';
 import 'provider_reader.dart';
 
@@ -101,4 +107,123 @@ List<(LiveMidiTarget, MidiTrigger)> padBlock(
     }
   }
   return out;
+}
+
+// --- Pad LEDs ------------------------------------------------------------------
+
+const prefPadLeds = 'midiControl.leds';
+
+/// Whether mapped pads show the Grid's state. Off until the LED test shows
+/// the controller lights up from plain MIDI. A tablet setting.
+final padLedsEnabledProvider = StateNotifierProvider<PadLedsEnabledNotifier, bool>((ref) => PadLedsEnabledNotifier());
+
+class PadLedsEnabledNotifier extends StateNotifier<bool> {
+  PadLedsEnabledNotifier() : super(false) {
+    _load();
+  }
+
+  bool _touched = false;
+
+  Future<void> _load() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      if (_touched || !mounted) return;
+      state = sp.getBool(prefPadLeds) ?? false;
+    } catch (_) {}
+  }
+
+  void set(bool value) {
+    _touched = true;
+    state = value;
+    unawaited(() async {
+      try {
+        final sp = await SharedPreferences.getInstance();
+        await sp.setBool(prefPadLeds, value);
+      } catch (_) {}
+    }());
+  }
+}
+
+/// Keeps the mapped pads' LEDs in step with the Grid. Created at startup
+/// (see `watchMidiControl`), so the pads light without opening the Grid.
+final padLedsProvider = Provider<PadLeds>((ref) {
+  final service = ref.watch(midiControlProvider).service;
+  final sender = PadLedSender(service.send);
+  void refresh() {
+    if (!ref.read(padLedsEnabledProvider)) {
+      sender.update(const {});
+      return;
+    }
+    sender.update(
+      liveLedState(
+        grid: ref.read(liveGridProvider),
+        status: ref.read(liveStatusProvider),
+        mappings: ref.read(midiMappingsProvider),
+      ),
+    );
+  }
+
+  ref.listen(liveStatusProvider, (_, _) => refresh());
+  ref.listen(liveGridProvider, (_, _) => refresh());
+  ref.listen(midiMappingsProvider, (_, _) => refresh());
+  ref.listen(padLedsEnabledProvider, (_, _) => refresh());
+  // A controller plugged in (or back from a Bluetooth drop) shows nothing:
+  // send it everything again.
+  var devices = service.connectedDevices.length;
+  void onDevices() {
+    final now = service.connectedDevices.length;
+    if (now > devices) sender.forget();
+    devices = now;
+    refresh();
+  }
+
+  service.revision.addListener(onDevices);
+  ref.onDispose(() {
+    service.revision.removeListener(onDevices);
+    sender.dispose();
+  });
+  refresh();
+  return PadLeds(sender, refresh);
+});
+
+/// The running LED feedback: [resend] puts every pad's colour back after
+/// something else (the LED test) painted over them.
+class PadLeds {
+  final PadLedSender sender;
+  final void Function() _refresh;
+  PadLeds(this.sender, this._refresh);
+
+  void resend() {
+    sender.forget();
+    _refresh();
+  }
+}
+
+/// The pads the LED test lights: every note pad mapped, or — with none
+/// mapped yet — the SMC-PAD's usual pad notes (channel 10, 36–51, and the
+/// clip-launch preset's channel 1, 1–16).
+List<MidiTrigger> ledTestPads(List<MidiMapping> mappings) {
+  final mapped = {
+    for (final m in mappings)
+      if (m.trigger.kind == MidiTriggerKind.note) m.trigger,
+  };
+  if (mapped.isNotEmpty) return mapped.toList();
+  return [
+    for (var n = 36; n < 52; n++) MidiTrigger(kind: MidiTriggerKind.note, channel: 9, number: n),
+    for (var n = 1; n <= 16; n++) MidiTrigger(kind: MidiTriggerKind.note, channel: 0, number: n),
+  ];
+}
+
+/// Runs the pads through a few colours, then hands them back to the Grid.
+/// Returns once done.
+Future<void> runPadLedTest(ReadProvider read, {Duration step = const Duration(milliseconds: 800)}) async {
+  final service = read(midiControlProvider).service;
+  final pads = ledTestPads(read(midiMappingsProvider));
+  final test = PadLedSender(service.send);
+  for (final colour in PadLed.testSequence) {
+    test.update({for (final p in pads) p: colour});
+    await Future<void>.delayed(step);
+  }
+  test.dispose();
+  read(padLedsProvider).resend();
 }

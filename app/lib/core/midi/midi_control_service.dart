@@ -56,6 +56,11 @@ class MidiControlService {
   bool _bleStarted = false;
   bool _scanning = false;
   Timer? _scanStop;
+  Timer? _bleWatch;
+
+  /// How often a remembered Bluetooth controller that isn't connected is
+  /// looked for again — it may have been off at startup, or dropped out.
+  static const bleRetry = Duration(seconds: 30);
 
   /// The last message from any controller, for the live monitor.
   final ValueNotifier<MidiInputMessage?> lastMessage = ValueNotifier(null);
@@ -90,6 +95,24 @@ class MidiControlService {
     if (_remembered.any((d) => d.bluetooth) && bluetoothAvailable) {
       unawaited(scanBluetooth(quiet: true));
     }
+    _ensureBleWatch();
+  }
+
+  /// Whether a remembered Bluetooth controller is not connected now.
+  bool get bluetoothMissing => _remembered.any(
+    (r) => r.bluetooth && !_connected.values.any(r.matches),
+  );
+
+  /// Keeps looking for remembered Bluetooth controllers that aren't
+  /// connected: a pad switched on after the app, or one that dropped out
+  /// mid-show, comes back by itself. Only once Bluetooth has worked this
+  /// session, so a denied permission isn't asked for every half minute.
+  void _ensureBleWatch() {
+    if (_bleWatch != null || !_remembered.any((d) => d.bluetooth)) return;
+    _bleWatch = Timer.periodic(bleRetry, (_) {
+      if (!_bleStarted || _scanning || !bluetoothMissing || !bluetoothAvailable) return;
+      unawaited(scanBluetooth(quiet: true, duration: const Duration(seconds: 8)));
+    });
   }
 
   /// Every MIDI device visible right now (USB, and Bluetooth ones a scan found).
@@ -110,7 +133,12 @@ class MidiControlService {
     final visible = await devices();
     // An unplugged controller drops off the list: forget the dead
     // connection so plugging it back in reconnects it.
-    final visibleIds = {for (final d in visible) d.id};
+    // A Bluetooth controller that dropped out can stay listed, as not
+    // connected: that counts as gone too, so it is opened again.
+    final visibleIds = {
+      for (final d in visible)
+        if (d.type != MidiDeviceType.ble || d.connected || !_connected.containsKey(d.id)) d.id,
+    };
     for (final id in [..._connected.keys]) {
       if (visibleIds.contains(id)) continue;
       final gone = _connected.remove(id)!;
@@ -169,6 +197,19 @@ class MidiControlService {
     _remembered = [for (final r in _remembered) if (!r.matches(device)) r, entry];
     onRememberedChanged?.call(_remembered);
     revision.value++;
+    _ensureBleWatch();
+  }
+
+  /// Sends [bytes] to every connected controller — the pads' LEDs.
+  void send(List<int> bytes) {
+    final data = Uint8List.fromList(bytes);
+    for (final id in _connected.keys) {
+      try {
+        _midi.sendData(data, deviceId: id);
+      } catch (_) {
+        // A controller that went away mid-send: the next reconnect sorts it.
+      }
+    }
   }
 
   /// Turns Bluetooth on (asking for permission the first time) and looks
@@ -260,6 +301,7 @@ class MidiControlService {
   void dispose() {
     cancelLearn();
     stopScan();
+    _bleWatch?.cancel();
     _packets?.cancel();
     _setup?.cancel();
     for (final device in _connected.values) {
