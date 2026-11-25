@@ -10,10 +10,12 @@ import '../../state/artnet_providers.dart';
 import '../../state/fixture_group_providers.dart';
 import '../../state/fixture_providers.dart';
 import '../../state/layer_providers.dart';
+import '../../state/live_midi_providers.dart';
 import '../../state/live_providers.dart';
 import '../../state/playback_providers.dart';
 import '../../state/smart_program_providers.dart';
 import 'live_clip_editor.dart';
+import 'live_midi_learn.dart';
 
 part 'live_mixer_view.dart';
 
@@ -131,17 +133,26 @@ class LiveGridView extends ConsumerWidget {
 
 // --- Actions shared by both layouts -----------------------------------------
 
-void _tapClip(BuildContext context, WidgetRef ref, LiveLane lane, int row) {
+Future<void> _tapClip(BuildContext context, WidgetRef ref, LiveLane lane, int row) async {
   final grid = ref.read(liveGridProvider);
-  if (grid.clipAt(lane.id, row) == null) {
+  final clip = grid.clipAt(lane.id, row);
+  if (clip == null) {
     _editClip(context, ref, lane, row);
+    return;
+  }
+  if (await liveMidiTap(context, ref, LiveMidiTarget.clip(lane.id, grid.rowIds[row]), '${lane.name} · ${clip.name}')) {
     return;
   }
   final prefs = ref.read(livePrefsProvider);
   ref.read(liveEngineProvider).select(lane.id, row, mode: prefs.padMode, quantize: prefs.quantize);
 }
 
-void _tapRow(WidgetRef ref, int row) {
+Future<void> _tapRow(BuildContext context, WidgetRef ref, int row) async {
+  final grid = ref.read(liveGridProvider);
+  if (row < grid.rows.length &&
+      await liveMidiTap(context, ref, LiveMidiTarget.row(grid.rowIds[row]), grid.rows[row])) {
+    return;
+  }
   final prefs = ref.read(livePrefsProvider);
   ref.read(liveEngineProvider).selectRow(row, mode: prefs.padMode, quantize: prefs.quantize);
 }
@@ -481,7 +492,12 @@ class _LaneFooter extends ConsumerWidget {
           height: 44,
           child: IconButton.outlined(
             tooltip: l.liveLaneStop,
-            onPressed: () => ref.read(liveEngineProvider).stopLane(lane.id),
+            onPressed: () async {
+              if (await liveMidiTap(context, ref, LiveMidiTarget.stopLane(lane.id), '${l.liveLaneStop} · ${lane.name}')) {
+                return;
+              }
+              ref.read(liveEngineProvider).stopLane(lane.id);
+            },
             icon: const Icon(Icons.stop, size: 18),
           ),
         ),
@@ -506,8 +522,11 @@ class _SceneButton extends ConsumerWidget {
       borderRadius: BorderRadius.circular(10),
       child: InkWell(
         borderRadius: BorderRadius.circular(10),
-        onTap: () => _tapRow(ref, row),
-        onLongPress: () => _rowMenu(context, ref, row),
+        onTap: () => _tapRow(context, ref, row),
+        onLongPress: () {
+          if (row < rows.length && liveMidiLongPress(context, ref, LiveMidiTarget.row(rowId))) return;
+          _rowMenu(context, ref, row);
+        },
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           child: Row(
@@ -534,6 +553,7 @@ class _SceneButton extends ConsumerWidget {
                     style: TextStyle(color: AppColors.accent2, fontSize: 9, fontWeight: FontWeight.w800),
                   ),
                 ),
+              if (rowId.isNotEmpty) LiveMidiBadge(LiveMidiTarget.row(rowId)),
               const Icon(Icons.play_arrow_rounded, size: 18, color: AppColors.textDim),
             ],
           ),
@@ -553,8 +573,11 @@ class _ClipCell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final clip = ref.watch(liveGridProvider.select((g) => g.clipAt(lane.id, row)));
+    final rowId = ref.watch(liveGridProvider.select((g) => row < g.rows.length ? g.rowIds[row] : ''));
     final status = ref.watch(liveStatusProvider);
+    final target = LiveMidiTarget.clip(lane.id, rowId);
     return LiveClipTile(
+      badge: clip == null || rowId.isEmpty ? null : LiveMidiBadge(target),
       clip: clip,
       running: status.running[lane.id] == row,
       next: status.queued[lane.id] == row,
@@ -562,7 +585,10 @@ class _ClipCell extends ConsumerWidget {
           ? (status.armedAt[lane.id]! - status.beat).ceil().clamp(0, 99)
           : null,
       onTap: () => _tapClip(context, ref, lane, row),
-      onLongPress: () => _editClip(context, ref, lane, row),
+      onLongPress: () {
+        if (clip != null && liveMidiLongPress(context, ref, target)) return;
+        _editClip(context, ref, lane, row);
+      },
     );
   }
 }
@@ -575,7 +601,11 @@ class LiveClipTile extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onLongPress;
 
+  /// The MIDI pad bound to the clip, in the top-right corner.
+  final Widget? badge;
+
   const LiveClipTile({
+    this.badge,
     super.key,
     required this.clip,
     required this.running,
@@ -622,11 +652,18 @@ class LiveClipTile extends StatelessWidget {
                   : Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          c.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                c.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                              ),
+                            ),
+                            ?badge,
+                          ],
                         ),
                         Text(
                           clipSummary(c),
@@ -710,6 +747,7 @@ class _SidePanel extends ConsumerWidget {
     final grid = ref.watch(liveGridProvider);
     final engine = ref.read(liveEngineProvider);
     final master = ref.watch(grandMasterProvider);
+    final learning = ref.watch(liveMidiLearnProvider);
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: AppColors.panel,
@@ -735,7 +773,12 @@ class _SidePanel extends ConsumerWidget {
                   foregroundColor: AppColors.accentOn,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                onPressed: status.queued.isEmpty ? null : () => engine.go(quantize: prefs.quantize),
+                onPressed: status.queued.isEmpty && !learning
+                    ? null
+                    : () async {
+                        if (await liveMidiTap(context, ref, const LiveMidiTarget.go(), l.liveGo)) return;
+                        engine.go(quantize: prefs.quantize);
+                      },
                 child: Text(l.liveGo, style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900)),
               ),
             ),
@@ -776,7 +819,13 @@ class _SidePanel extends ConsumerWidget {
                         ),
                         const SizedBox(height: 8),
                         Expanded(
-                          child: _PanelButton(label: l.liveStopAll, onPressed: engine.stopAll),
+                          child: _PanelButton(
+                            label: l.liveStopAll,
+                            onPressed: () async {
+                              if (await liveMidiTap(context, ref, const LiveMidiTarget.stopAll(), l.liveStopAll)) return;
+                              engine.stopAll();
+                            },
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Expanded(
@@ -967,6 +1016,7 @@ class _PhoneLaunchBar extends ConsumerWidget {
     final status = ref.watch(liveStatusProvider);
     final prefs = ref.watch(livePrefsProvider);
     final engine = ref.read(liveEngineProvider);
+    final learning = ref.watch(liveMidiLearnProvider);
     final lane = this.lane;
     // A phone held sideways has little height: everything on one row.
     final short = MediaQuery.sizeOf(context).height < 500;
@@ -985,7 +1035,12 @@ class _PhoneLaunchBar extends ConsumerWidget {
       height: height,
       child: FilledButton(
         style: FilledButton.styleFrom(backgroundColor: AppColors.accent, foregroundColor: AppColors.accentOn),
-        onPressed: status.queued.isEmpty ? null : () => engine.go(quantize: prefs.quantize),
+        onPressed: status.queued.isEmpty && !learning
+            ? null
+            : () async {
+                if (await liveMidiTap(context, ref, const LiveMidiTarget.go(), l.liveGo)) return;
+                engine.go(quantize: prefs.quantize);
+              },
         child: Text(
           l.liveGo,
           style: TextStyle(fontSize: short ? 18 : 22, fontWeight: FontWeight.w900),
@@ -1008,7 +1063,13 @@ class _PhoneLaunchBar extends ConsumerWidget {
       const SizedBox(width: 8),
       SizedBox(
         height: height,
-        child: OutlinedButton(onPressed: engine.stopAll, child: Text(l.commonStop)),
+        child: OutlinedButton(
+          onPressed: () async {
+            if (await liveMidiTap(context, ref, const LiveMidiTarget.stopAll(), l.liveStopAll)) return;
+            engine.stopAll();
+          },
+          child: Text(l.commonStop),
+        ),
       ),
     ];
     return Container(

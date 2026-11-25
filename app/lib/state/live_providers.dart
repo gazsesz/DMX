@@ -301,3 +301,49 @@ final liveRowProgramsProvider = Provider<Map<String, List<String>>>((ref) {
   }
   return result;
 });
+
+// --- MIDI pads on the Grid ----------------------------------------------------
+
+/// A pad pressing the clip in lane [laneId], row [rowId] — what a tap on it
+/// does, in the pad mode and quantize set on this tablet.
+String pressLiveClip(ReadProvider read, {String? laneId, String? rowId}) {
+  final grid = read(liveGridProvider);
+  final lane = laneId == null ? null : grid.lane(laneId);
+  final row = rowId == null ? null : grid.rowOf(rowId);
+  if (lane == null || row == null) return 'That Grid clip no longer exists';
+  final clip = grid.clipAt(lane.id, row);
+  if (clip == null) return 'Empty Grid cell';
+  final prefs = read(livePrefsProvider);
+  read(liveEngineProvider).select(lane.id, row, mode: prefs.padMode, quantize: prefs.quantize);
+  return 'Grid: ${clip.name}';
+}
+
+/// A pad pressing a row's launch button.
+String pressLiveRow(ReadProvider read, String? rowId) {
+  final grid = read(liveGridProvider);
+  final row = rowId == null ? null : grid.rowOf(rowId);
+  if (row == null) return 'No such Grid row';
+  final prefs = read(livePrefsProvider);
+  read(liveEngineProvider).selectRow(row, mode: prefs.padMode, quantize: prefs.quantize);
+  return 'Grid: ${grid.rows[row]}';
+}
+
+/// GO: every lane marked NEXT switches.
+String pressLiveGo(ReadProvider read) {
+  final engine = read(liveEngineProvider);
+  if (engine.status.queued.isEmpty) return 'Nothing marked NEXT';
+  engine.go(quantize: read(livePrefsProvider).quantize);
+  return 'GO';
+}
+
+String pressLiveStopAll(ReadProvider read) {
+  read(liveEngineProvider).stopAll();
+  return 'Grid stopped';
+}
+
+String pressLiveStopLane(ReadProvider read, String? laneId) {
+  final lane = laneId == null ? null : read(liveGridProvider).lane(laneId);
+  if (lane == null) return 'No such Grid lane';
+  read(liveEngineProvider).stopLane(lane.id);
+  return 'Stopped ${lane.name}';
+}
