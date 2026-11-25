@@ -15,6 +15,7 @@ import 'artnet_providers.dart';
 import 'bank_providers.dart';
 import 'chase_providers.dart';
 import 'color_override_providers.dart';
+import 'live_midi_providers.dart';
 import 'live_providers.dart';
 import 'movement_live_providers.dart';
 import 'playback_providers.dart';
@@ -97,6 +98,8 @@ final midiControlProvider = Provider<MidiControlController>((ref) {
 void watchMidiControl(ReadProvider read) {
   final controller = read(midiControlProvider);
   unawaited(controller.service.start(read(initialMidiControlDevicesProvider)));
+  // The pads' LEDs follow the Grid from now on (when switched on).
+  read(padLedsProvider);
 }
 
 class MidiControlController {
@@ -277,4 +280,38 @@ String? midiTargetName(ReadProvider read, MidiMapping mapping) {
       }
   }
   return null;
+}
+
+/// Puts imported [mappings] in: in place of the current ones, or on top of
+/// them (an imported pad takes over a control already in use).
+void applyImportedMappings(ReadProvider read, List<MidiMapping> mappings, {required bool replace}) {
+  final notifier = read(midiMappingsProvider.notifier);
+  if (replace) {
+    notifier.loadAll(const []);
+  }
+  for (final m in mappings) {
+    notifier.save(m);
+  }
+}
+
+/// Whether what [mapping] points at (a bank, a Grid clip…) is in this
+/// project. Actions that point at nothing always exist.
+bool midiMappingTargetExists(ReadProvider read, MidiMapping mapping) {
+  switch (mapping.action) {
+    case MidiActionKind.playTarget:
+      return midiTargetName(read, mapping) != null;
+    case MidiActionKind.liveClip:
+    case MidiActionKind.liveRow:
+    case MidiActionKind.liveStopLane:
+      final grid = read(liveGridProvider);
+      final laneOk = mapping.param != null && grid.lane(mapping.param!) != null;
+      final rowOk = mapping.targetId != null && grid.rowOf(mapping.targetId!) != null;
+      return switch (mapping.action) {
+        MidiActionKind.liveClip => laneOk && rowOk,
+        MidiActionKind.liveRow => rowOk,
+        _ => laneOk,
+      };
+    default:
+      return true;
+  }
 }
