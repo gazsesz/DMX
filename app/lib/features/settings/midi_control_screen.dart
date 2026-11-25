@@ -249,6 +249,11 @@ class _MidiControlScreenState extends ConsumerState<MidiControlScreen> {
                       onChanged: (v) => ref.read(padLedsEnabledProvider.notifier).set(v),
                     ),
                     Text(l.midiCtlLedsHint, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+                    if (service.ledPortCount > 0)
+                      Text(
+                        l.midiCtlLedPorts(service.ledPortCount),
+                        style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                      ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       key: const ValueKey('midi-led-test'),
@@ -266,17 +271,25 @@ class _MidiControlScreenState extends ConsumerState<MidiControlScreen> {
             _Header(
               l.midiCtlMappings(mappings.length),
               trailing: [
-                IconButton(
-                  key: const ValueKey('midi-import'),
-                  tooltip: l.midiCtlImport,
-                  icon: const Icon(Icons.file_download_outlined, size: 18),
-                  onPressed: _import,
+                Tooltip(
+                  message: l.midiCtlImport,
+                  child: TextButton.icon(
+                    key: const ValueKey('midi-import'),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    icon: const Icon(Icons.file_download_outlined, size: 18),
+                    label: Text(l.midiCtlImportShort),
+                    onPressed: _import,
+                  ),
                 ),
-                IconButton(
-                  key: const ValueKey('midi-export'),
-                  tooltip: l.midiCtlExport,
-                  icon: const Icon(Icons.file_upload_outlined, size: 18),
-                  onPressed: mappings.isEmpty ? null : _export,
+                Tooltip(
+                  message: l.midiCtlExport,
+                  child: TextButton.icon(
+                    key: const ValueKey('midi-export'),
+                    style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                    icon: const Icon(Icons.file_upload_outlined, size: 18),
+                    label: Text(l.midiCtlExportShort),
+                    onPressed: mappings.isEmpty ? null : _export,
+                  ),
                 ),
               ],
             ),

@@ -48,6 +48,12 @@ class MidiControlService {
   MidiControlService({MidiCommand? midi}) : _midi = midi ?? MidiCommand();
 
   final Map<String, MidiDevice> _connected = {};
+
+  /// The other USB ports of the connected controllers, opened only to send
+  /// LED colours: the M-VAVE SMC-PAD shows up as three ports and its LEDs
+  /// listen on the third, whichever one the user picked for the pads.
+  /// Nothing they send is read, so a pad press never fires twice.
+  final Map<String, MidiDevice> _ledPorts = {};
   final Map<String, MidiRunningStatus> _running = {};
   List<RememberedMidiDevice> _remembered = const [];
   StreamSubscription<MidiPacket>? _packets;
@@ -151,13 +157,62 @@ class MidiControlService {
       if (_connected.containsKey(device.id)) continue;
       if (_remembered.any((r) => r.matches(device))) await _open(device);
     }
+    await _syncLedPorts(visible);
   }
+
+  /// The physical device a port belongs to: Android lists each port of a
+  /// USB controller as its own device, `<id>#port=<n>`.
+  static String physicalId(String id) {
+    final i = id.indexOf('#port=');
+    return i < 0 ? id : id.substring(0, i);
+  }
+
+  /// Opens the sibling ports of every connected USB controller for LED
+  /// output, and lets go of the ones whose controller is gone.
+  Future<void> _syncLedPorts([List<MidiDevice>? visible]) async {
+    final all = visible ?? await devices();
+    final parents = {
+      for (final d in _connected.values)
+        if (d.type != MidiDeviceType.ble && d.id.contains('#port=')) physicalId(d.id),
+    };
+    final wanted = {
+      for (final d in all)
+        if (d.type != MidiDeviceType.ble &&
+            !_connected.containsKey(d.id) &&
+            parents.contains(physicalId(d.id)))
+          d.id: d,
+    };
+    final before = _ledPorts.length;
+    for (final id in [..._ledPorts.keys]) {
+      if (wanted.containsKey(id)) continue;
+      MidiConnections.release(_midi, _ledPorts.remove(id)!, _owner);
+    }
+    var opened = false;
+    for (final entry in wanted.entries) {
+      if (_ledPorts.containsKey(entry.key)) continue;
+      try {
+        await MidiConnections.acquire(_midi, entry.value, _owner);
+        _ledPorts[entry.key] = entry.value;
+        opened = true;
+      } catch (_) {
+        // A port that won't open just gets no LED colours.
+      }
+    }
+    if (opened || _ledPorts.length != before) revision.value++;
+  }
+
+  /// How many extra ports carry the LED colours (for the settings screen).
+  int get ledPortCount => _ledPorts.length;
 
   /// Connects [device] as a controller and remembers it for next time.
   Future<bool> connect(MidiDevice device) async {
+    // A port picked by hand stops being an LED-only port.
+    final ledOnly = _ledPorts.remove(device.id);
+    if (ledOnly != null) MidiConnections.release(_midi, ledOnly, _owner);
     final ok = await _open(device);
     if (ok) {
       _remember(device);
+      await _syncLedPorts();
     }
     return ok;
   }
@@ -170,6 +225,7 @@ class MidiControlService {
     _remembered = [for (final r in _remembered) if (!r.matches(device)) r];
     onRememberedChanged?.call(_remembered);
     revision.value++;
+    unawaited(_syncLedPorts());
   }
 
   Future<bool> _open(MidiDevice device) async {
@@ -203,7 +259,7 @@ class MidiControlService {
   /// Sends [bytes] to every connected controller — the pads' LEDs.
   void send(List<int> bytes) {
     final data = Uint8List.fromList(bytes);
-    for (final id in _connected.keys) {
+    for (final id in {..._connected.keys, ..._ledPorts.keys}) {
       try {
         _midi.sendData(data, deviceId: id);
       } catch (_) {
@@ -304,10 +360,11 @@ class MidiControlService {
     _bleWatch?.cancel();
     _packets?.cancel();
     _setup?.cancel();
-    for (final device in _connected.values) {
+    for (final device in [..._connected.values, ..._ledPorts.values]) {
       MidiConnections.release(_midi, device, _owner);
     }
     _connected.clear();
+    _ledPorts.clear();
     lastMessage.dispose();
     revision.dispose();
   }

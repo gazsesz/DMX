@@ -3037,5 +3037,9 @@
   "midiCtlImported": "{count} mapping(s) imported.",
   "@midiCtlImported": {"placeholders": {"count": {"type": "int"}}},
   "midiCtlImportedMissing": "{count} mapping(s) imported; {missing} point at something this project doesn't have.",
-  "@midiCtlImportedMissing": {"placeholders": {"count": {"type": "int"}, "missing": {"type": "int"}}}
+  "@midiCtlImportedMissing": {"placeholders": {"count": {"type": "int"}, "missing": {"type": "int"}}},
+  "midiCtlImportShort": "Import",
+  "midiCtlExportShort": "Export",
+  "midiCtlLedPorts": "LED colours also go to {count} more port(s) of the same controller.",
+  "@midiCtlLedPorts": {"placeholders": {"count": {"type": "int"}}}
 }

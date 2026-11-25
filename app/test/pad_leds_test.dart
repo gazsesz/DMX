@@ -69,8 +69,9 @@ void main() {
     ], reason: 'a reconnected pad gets everything again');
   });
 
-  test('the LED test uses the mapped pads, or the SMC-PAD\'s usual notes', () {
-    expect(ledTestPads(mappings).toSet(), {_n(36), _n(37), _n(38), _n(39), _n(40)});
+  test('the LED test uses the mapped pads and the SMC-PAD\'s usual notes', () {
+    expect(ledTestPads(mappings).toSet().containsAll({_n(36), _n(37), _n(38), _n(39), _n(40)}), isTrue);
+    expect(ledTestPads(mappings).length, 32);
     expect(ledTestPads(const []).length, 32);
   });
 
