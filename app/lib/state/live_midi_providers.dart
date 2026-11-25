@@ -169,9 +169,9 @@ final padLedsProvider = Provider<PadLeds>((ref) {
   ref.listen(padLedsEnabledProvider, (_, _) => refresh());
   // A controller plugged in (or back from a Bluetooth drop) shows nothing:
   // send it everything again.
-  var devices = service.connectedDevices.length;
+  var devices = service.connectedDevices.length + service.ledPortCount;
   void onDevices() {
-    final now = service.connectedDevices.length;
+    final now = service.connectedDevices.length + service.ledPortCount;
     if (now > devices) sender.forget();
     devices = now;
     refresh();
@@ -199,19 +199,16 @@ class PadLeds {
   }
 }
 
-/// The pads the LED test lights: every note pad mapped, or — with none
-/// mapped yet — the SMC-PAD's usual pad notes (channel 10, 36–51, and the
-/// clip-launch preset's channel 1, 1–16).
+/// The pads the LED test lights: every note pad mapped, plus the SMC-PAD's
+/// usual pad notes (channel 10, 36–51, and the clip-launch preset's
+/// channel 1, 1–16).
 List<MidiTrigger> ledTestPads(List<MidiMapping> mappings) {
-  final mapped = {
+  return {
     for (final m in mappings)
       if (m.trigger.kind == MidiTriggerKind.note) m.trigger,
-  };
-  if (mapped.isNotEmpty) return mapped.toList();
-  return [
     for (var n = 36; n < 52; n++) MidiTrigger(kind: MidiTriggerKind.note, channel: 9, number: n),
     for (var n = 1; n <= 16; n++) MidiTrigger(kind: MidiTriggerKind.note, channel: 0, number: n),
-  ];
+  }.toList();
 }
 
 /// Runs the pads through a few colours, then hands them back to the Grid.

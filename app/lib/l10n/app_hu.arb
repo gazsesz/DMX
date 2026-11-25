@@ -1234,5 +1234,6 @@
   "midiCtlImported": "{count} kiosztás importálva.",
   "midiCtlImportedMissing": "{count} kiosztás importálva; ebből {missing} olyasmire mutat, ami ebben a projektben nincs.",
   "midiCtlImportShort": "Import",
-  "midiCtlExportShort": "Export"
+  "midiCtlExportShort": "Export",
+  "midiCtlLedPorts": "A LED színek ugyanannak a vezérlőnek további {count} portjára is mennek."
 }

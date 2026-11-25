@@ -249,6 +249,11 @@ class _MidiControlScreenState extends ConsumerState<MidiControlScreen> {
                       onChanged: (v) => ref.read(padLedsEnabledProvider.notifier).set(v),
                     ),
                     Text(l.midiCtlLedsHint, style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint)),
+                    if (service.ledPortCount > 0)
+                      Text(
+                        l.midiCtlLedPorts(service.ledPortCount),
+                        style: const TextStyle(fontSize: 10.5, color: AppColors.textFaint),
+                      ),
                     const SizedBox(height: 8),
                     OutlinedButton.icon(
                       key: const ValueKey('midi-led-test'),
