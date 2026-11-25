@@ -15,6 +15,7 @@ import 'artnet_providers.dart';
 import 'bank_providers.dart';
 import 'chase_providers.dart';
 import 'color_override_providers.dart';
+import 'live_providers.dart';
 import 'movement_live_providers.dart';
 import 'playback_providers.dart';
 import 'smart_program_providers.dart';
@@ -185,6 +186,16 @@ Future<String?> runMidiAction(
           if (chases.isEmpty) return 'Chase no longer exists';
           return togglePlayable(read, id: id, isBank: false, name: chases.first.name);
       }
+    case MidiActionKind.liveClip:
+      return pressLiveClip(read, laneId: mapping.param, rowId: mapping.targetId);
+    case MidiActionKind.liveRow:
+      return pressLiveRow(read, mapping.targetId);
+    case MidiActionKind.liveGo:
+      return pressLiveGo(read);
+    case MidiActionKind.liveStopAll:
+      return pressLiveStopAll(read);
+    case MidiActionKind.liveStopLane:
+      return pressLiveStopLane(read, mapping.param);
     case MidiActionKind.resume:
       return resumeLastPlayed(read);
     case MidiActionKind.stop:

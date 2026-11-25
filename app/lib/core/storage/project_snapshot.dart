@@ -161,7 +161,8 @@ void startProject(
   // The controller's pads that start banks and chases point at things that
   // are gone now; the rest (blackout, master, colours…) still mean the same.
   ref.read(midiMappingsProvider.notifier).loadAll([
-    for (final m in source.midiMappings) if (m.action != MidiActionKind.playTarget) m,
+    for (final m in source.midiMappings)
+      if (m.action != MidiActionKind.playTarget && (keepRig || !m.action.isLiveGrid)) m,
   ]);
 }
 

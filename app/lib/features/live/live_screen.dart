@@ -4,6 +4,7 @@ import '../../core/widgets/save_project_action.dart';
 import '../../l10n/l10n.dart';
 import '../manual_control/manual_control_screen.dart';
 import 'live_grid_view.dart';
+import 'live_midi_learn.dart';
 
 /// The Live tab: the Grid for running the show, the Desk (the channel
 /// sliders that used to be the whole tab) for testing and fine-tuning.
@@ -46,6 +47,7 @@ class _LiveScreenState extends State<LiveScreen> {
                   IconButton(
                     key: const ValueKey('live-help'),
                     tooltip: l.liveHelpTitle,
+                    visualDensity: narrow ? VisualDensity.compact : null,
                     icon: const Icon(Icons.help_outline),
                     onPressed: () => _showHelp(context),
                   ),
@@ -55,6 +57,8 @@ class _LiveScreenState extends State<LiveScreen> {
                       flex: 100,
                       child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerRight, child: LiveClockChip()),
                     ),
+                  // Bind the controller's pads to the Grid.
+                  if (_view != 2) LiveMidiLearnButton(compact: narrow),
                   // Save the project, as from every other main screen.
                   const SaveProjectAction(),
                 ],
@@ -62,6 +66,7 @@ class _LiveScreenState extends State<LiveScreen> {
             ),
           ),
         ),
+        if (_view != 2) const LiveMidiLearnBanner(),
         Expanded(
           child: IndexedStack(
             index: _view,

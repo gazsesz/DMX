@@ -12,6 +12,7 @@ import '../../models/midi_mapping.dart';
 import '../../state/bank_providers.dart';
 import '../../state/chase_providers.dart';
 import '../../state/color_override_providers.dart';
+import '../../state/live_providers.dart';
 import '../../state/midi_control_providers.dart';
 import '../../state/provider_reader.dart';
 import '../../state/smart_program_providers.dart';
@@ -334,9 +335,27 @@ String describeMidiAction(AppLocalizations l, ReadProvider read, MidiMapping map
       if (param == null || param == 'off') return '$base: ${l.midiCtlSceneColours}';
       final color = liveColorNamed(param);
       return '$base: ${color?.label ?? param}';
+    case MidiActionKind.liveClip:
+    case MidiActionKind.liveRow:
+    case MidiActionKind.liveStopLane:
+      return '$base: ${liveMidiTargetName(read, mapping) ?? l.midiCtlTargetMissing}';
     default:
       return base;
   }
+}
+
+/// "Level · Drop", "Drop" or "Level" — the Grid lane and/or row a pad
+/// points at, by their names now; null when either is gone.
+String? liveMidiTargetName(ReadProvider read, MidiMapping mapping) {
+  final grid = read(liveGridProvider);
+  final lane = mapping.param == null ? null : grid.lane(mapping.param!);
+  final row = mapping.targetId == null ? null : grid.rowOf(mapping.targetId!);
+  return switch (mapping.action) {
+    MidiActionKind.liveClip => lane == null || row == null ? null : '${lane.name} · ${grid.rows[row]}',
+    MidiActionKind.liveRow => row == null ? null : grid.rows[row],
+    MidiActionKind.liveStopLane => lane?.name,
+    _ => null,
+  };
 }
 
 String midiActionLabel(AppLocalizations l, MidiActionKind kind) => switch (kind) {
@@ -358,6 +377,11 @@ String midiActionLabel(AppLocalizations l, MidiActionKind kind) => switch (kind)
   MidiActionKind.movementShift => l.midiActMovementShift,
   MidiActionKind.movementSmooth => l.midiActMovementSmooth,
   MidiActionKind.movementReset => l.midiActMovementReset,
+  MidiActionKind.liveClip => l.midiActLiveClip,
+  MidiActionKind.liveRow => l.midiActLiveRow,
+  MidiActionKind.liveGo => l.midiActLiveGo,
+  MidiActionKind.liveStopAll => l.midiActLiveStopAll,
+  MidiActionKind.liveStopLane => l.midiActLiveStopLane,
 };
 
 /// One playable thing a pad can start.
@@ -426,7 +450,15 @@ class _MappingEditorState extends ConsumerState<_MappingEditor> {
   bool get _complete {
     if (_trigger == null) return false;
     if (_action == MidiActionKind.playTarget) return _targetId != null;
-    return true;
+    final grid = ref.read(liveGridProvider);
+    final laneOk = _param != null && grid.lane(_param!) != null;
+    final rowOk = _targetId != null && grid.rowOf(_targetId!) != null;
+    return switch (_action) {
+      MidiActionKind.liveClip => laneOk && rowOk,
+      MidiActionKind.liveRow => rowOk,
+      MidiActionKind.liveStopLane => laneOk,
+      _ => true,
+    };
   }
 
   void _save() {
@@ -440,8 +472,12 @@ class _MappingEditorState extends ConsumerState<_MappingEditor> {
         trigger: trigger,
         action: _action,
         targetKind: play ? _targetKind : null,
-        targetId: play ? _targetId : null,
-        param: _action == MidiActionKind.color ? (_param ?? 'off') : null,
+        targetId: play || _action == MidiActionKind.liveClip || _action == MidiActionKind.liveRow ? _targetId : null,
+        param: switch (_action) {
+          MidiActionKind.color => _param ?? 'off',
+          MidiActionKind.liveClip || MidiActionKind.liveStopLane => _param,
+          _ => null,
+        },
       ),
     );
   }
@@ -460,6 +496,7 @@ class _MappingEditorState extends ConsumerState<_MappingEditor> {
         ? null
         : ref.read(midiMappingsProvider.notifier).boundTo(trigger, exceptId: widget.existing?.id);
     final targets = _targets();
+    final grid = ref.watch(liveGridProvider);
 
     return AlertDialog(
       title: Text(widget.existing == null ? l.midiCtlNewMapping : l.midiCtlEditMapping),
@@ -531,7 +568,17 @@ class _MappingEditorState extends ConsumerState<_MappingEditor> {
                     ),
                 ],
                 onChanged: (kind) {
-                  if (kind != null) setState(() => _action = kind);
+                  if (kind == null || kind == _action) return;
+                  setState(() {
+                    // The id/param of one kind means nothing to another.
+                    final wasGrid = _action.isLiveGrid;
+                    _action = kind;
+                    if (wasGrid != kind.isLiveGrid || kind == MidiActionKind.color) {
+                      _targetId = null;
+                      _targetKind = null;
+                      _param = null;
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 4),
@@ -566,6 +613,34 @@ class _MappingEditorState extends ConsumerState<_MappingEditor> {
                       });
                     },
                   ),
+              ],
+              if (_action == MidiActionKind.liveClip || _action == MidiActionKind.liveStopLane) ...[
+                const SizedBox(height: 14),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('midi-live-lane'),
+                  initialValue: grid.lane(_param ?? '') != null ? _param : null,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: l.midiCtlLiveLane),
+                  items: [
+                    for (final lane in grid.lanes)
+                      DropdownMenuItem(value: lane.id, child: Text(lane.name, overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (id) => setState(() => _param = id),
+                ),
+              ],
+              if (_action == MidiActionKind.liveClip || _action == MidiActionKind.liveRow) ...[
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  key: const ValueKey('midi-live-row'),
+                  initialValue: grid.rowOf(_targetId ?? '') != null ? _targetId : null,
+                  isExpanded: true,
+                  decoration: InputDecoration(labelText: l.midiCtlLiveRow),
+                  items: [
+                    for (var i = 0; i < grid.rows.length; i++)
+                      DropdownMenuItem(value: grid.rowIds[i], child: Text(grid.rows[i], overflow: TextOverflow.ellipsis)),
+                  ],
+                  onChanged: (id) => setState(() => _targetId = id),
+                ),
               ],
               if (_action == MidiActionKind.color) ...[
                 const SizedBox(height: 14),

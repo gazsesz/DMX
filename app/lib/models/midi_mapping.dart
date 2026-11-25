@@ -97,7 +97,31 @@ enum MidiActionKind {
   movementSpeed,
   movementShift,
   movementSmooth,
-  movementReset;
+  movementReset,
+
+  /// Live Grid: press a clip, as a tap on it would ([MidiMapping.param] =
+  /// lane id, [MidiMapping.targetId] = row id — stable through reordering).
+  liveClip,
+
+  /// Live Grid: launch a whole row, as its row button ([MidiMapping.targetId]
+  /// = row id).
+  liveRow,
+
+  /// Live Grid: GO — switch every lane marked NEXT.
+  liveGo,
+
+  /// Live Grid: stop every lane.
+  liveStopAll,
+
+  /// Live Grid: stop one lane ([MidiMapping.param] = lane id).
+  liveStopLane;
+
+  /// Points at a Grid lane or row, which only the project that has that
+  /// grid knows.
+  bool get isLiveGrid => switch (this) {
+    MidiActionKind.liveClip || MidiActionKind.liveRow || MidiActionKind.liveStopLane => true,
+    _ => false,
+  };
 
   /// Follows the position of a fader/knob instead of firing once on a press.
   bool get isContinuous => switch (this) {
